@@ -32,6 +32,11 @@ interface Vehicle {
   engineNumber?: string | null
   carExpiryDate?: string | null
   hasLoan?: boolean
+  loanEmiAmount?: number | null
+  loanStartDate?: string | null
+  loanEndDate?: string | null
+  loanBankName?: string | null
+  loanEmiDate?: number | null
   notes?: string | null
 }
 
@@ -227,6 +232,11 @@ const EMPTY_FORM = {
   engineNumber: '',
   carExpiryDate: '',
   hasLoan: false,
+  loanEmiAmount: '',
+  loanStartDate: '',
+  loanEndDate: '',
+  loanBankName: '',
+  loanEmiDate: '',
   notes: '',
 }
 
@@ -251,7 +261,7 @@ export default function VehiclesPage() {
     const [vehiclesRes, groupsRes] = await Promise.all([
       supabase
         .from('vehicles')
-        .select('id, model_name, vehicle_number, status, vehicle_group_id, fuel_type, fastag_number, reg_owner_name, reg_date, ins_company, ins_policy_number, ins_issue_date, ins_due_date, ins_premium, ins_cover, rto_owner_name, rto_reg_date, chassis_number, engine_number, car_expiry_date, has_loan, notes')
+        .select('id, model_name, vehicle_number, status, vehicle_group_id, fuel_type, fastag_number, reg_owner_name, reg_date, ins_company, ins_policy_number, ins_issue_date, ins_due_date, ins_premium, ins_cover, rto_owner_name, rto_reg_date, chassis_number, engine_number, car_expiry_date, has_loan, loan_emi_amount, loan_start_date, loan_end_date, loan_bank_name, loan_emi_date, notes')
         .order('created_at', { ascending: false }),
       supabase.from('vehicle_groups').select('id, name').order('name'),
     ])
@@ -284,6 +294,11 @@ export default function VehiclesPage() {
         engineNumber: v.engine_number,
         carExpiryDate: v.car_expiry_date,
         hasLoan: v.has_loan,
+        loanEmiAmount: v.loan_emi_amount,
+        loanStartDate: v.loan_start_date,
+        loanEndDate: v.loan_end_date,
+        loanBankName: v.loan_bank_name,
+        loanEmiDate: v.loan_emi_date,
         notes: v.notes,
       }))
       setRows(mapped)
@@ -353,6 +368,11 @@ export default function VehiclesPage() {
       engineNumber: vehicle.engineNumber ?? '',
       carExpiryDate: vehicle.carExpiryDate ?? '',
       hasLoan: vehicle.hasLoan ?? false,
+      loanEmiAmount: vehicle.loanEmiAmount?.toString() ?? '',
+      loanStartDate: vehicle.loanStartDate ?? '',
+      loanEndDate: vehicle.loanEndDate ?? '',
+      loanBankName: vehicle.loanBankName ?? '',
+      loanEmiDate: vehicle.loanEmiDate?.toString() ?? '',
       notes: vehicle.notes ?? '',
     })
     setDrawerMode('view')
@@ -393,6 +413,11 @@ export default function VehiclesPage() {
         engine_number: form.engineNumber || null,
         car_expiry_date: form.carExpiryDate || null,
         has_loan: form.hasLoan,
+        loan_emi_amount: form.hasLoan && form.loanEmiAmount ? Number(form.loanEmiAmount) : null,
+        loan_start_date: form.hasLoan && form.loanStartDate ? form.loanStartDate : null,
+        loan_end_date: form.hasLoan && form.loanEndDate ? form.loanEndDate : null,
+        loan_bank_name: form.hasLoan && form.loanBankName ? form.loanBankName : null,
+        loan_emi_date: form.hasLoan && form.loanEmiDate ? Number(form.loanEmiDate) : null,
         notes: form.notes || null,
     }
 
@@ -683,7 +708,7 @@ export default function VehiclesPage() {
 
             <ReadOnlyField label="Car Expiry Date" value={form.carExpiryDate} />
 
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <p className="text-base font-medium text-gray-900">Loan</p>
                 <span className={clsx(
@@ -696,6 +721,15 @@ export default function VehiclesPage() {
                   )} />
                 </span>
               </div>
+              {form.hasLoan && (
+                <>
+                  <ReadOnlyField label="EMI Amount" value={form.loanEmiAmount} />
+                  <ReadOnlyField label="Start Date" value={form.loanStartDate} />
+                  <ReadOnlyField label="End Date" value={form.loanEndDate} />
+                  <ReadOnlyField label="Bank Name" value={form.loanBankName} />
+                  <ReadOnlyField label="EMI Date (Every month)" value={form.loanEmiDate} />
+                </>
+              )}
             </div>
 
             <ReadOnlyField label="Notes" value={form.notes} />
@@ -843,7 +877,7 @@ export default function VehiclesPage() {
             </Field>
 
             {/* Loan */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <p className="text-base font-medium text-gray-900">Loan</p>
                 <button
@@ -862,6 +896,26 @@ export default function VehiclesPage() {
                   />
                 </button>
               </div>
+              {form.hasLoan && (
+                <>
+                  <Field label="EMI Amount" required>
+                    <input type="number" placeholder="AXLPV7788X" value={form.loanEmiAmount} onChange={e => set('loanEmiAmount', e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="Start Date" required>
+                    <input type="date" value={form.loanStartDate} onChange={e => set('loanStartDate', e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="End Date" required>
+                    <input type="date" value={form.loanEndDate} onChange={e => set('loanEndDate', e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="Bank Name">
+                    <input type="text" placeholder="AXLPV7788X" value={form.loanBankName} onChange={e => set('loanBankName', e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="EMI Date (Every month)">
+                    <input type="number" min="1" max="31" placeholder="DD" value={form.loanEmiDate} onChange={e => set('loanEmiDate', e.target.value)} className={inputCls} />
+                  </Field>
+                  <FileUpload label="Loan Document" />
+                </>
+              )}
             </div>
 
             {/* Attach Files */}

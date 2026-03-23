@@ -33,6 +33,11 @@ create table if not exists public.vehicles (
   engine_number       text,
   car_expiry_date     date,
   has_loan            boolean not null default false,
+  loan_emi_amount     numeric(12,2),
+  loan_start_date     date,
+  loan_end_date       date,
+  loan_bank_name      text,
+  loan_emi_date       integer,          -- day of month (1–31)
   notes               text,
   created_at          timestamptz not null default now()
 );
