@@ -2,25 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
+import { supabase } from '../../lib/supabase'
 
 interface VehicleGroup {
   id: number
   name: string
-  totalVehicles: number
+  total_vehicles: number
 }
-
-const INITIAL_VEHICLE_GROUPS: VehicleGroup[] = [
-  { id: 1,  name: 'Toyota Innova',      totalVehicles: 2 },
-  { id: 2,  name: 'Dzire/Amaze/Etios',  totalVehicles: 3 },
-  { id: 3,  name: 'Nissan Hatchbacks',  totalVehicles: 2 },
-  { id: 4,  name: 'MG Hector/MG Titan', totalVehicles: 4 },
-  { id: 5,  name: 'Mercedes Sedans',    totalVehicles: 5 },
-  { id: 6,  name: 'Toyota Sedans',      totalVehicles: 1 },
-  { id: 7,  name: 'Maruti Hatchbacks',  totalVehicles: 2 },
-  { id: 8,  name: 'Maruti SUVs',        totalVehicles: 4 },
-  { id: 9,  name: 'Honda City',         totalVehicles: 3 },
-  { id: 10, name: 'Hyundai Creta',      totalVehicles: 6 },
-]
 
 const PAGE_SIZE = 8
 
@@ -58,12 +46,29 @@ function IndeterminateCheckbox({
 const EMPTY_FORM = { name: '', description: '', seatingCapacity: '', luggageCount: '' }
 
 export default function VehicleGroupsPage() {
-  const [rows, setRows] = useState(INITIAL_VEHICLE_GROUPS)
+  const [rows, setRows] = useState<VehicleGroup[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+
+  // Fetch from Supabase on mount
+  useEffect(() => {
+    fetchGroups()
+  }, [])
+
+  async function fetchGroups() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('vehicle_groups')
+      .select('id, name, total_vehicles')
+      .order('created_at', { ascending: false })
+    if (!error && data) setRows(data)
+    setLoading(false)
+  }
 
   const filtered = rows.filter(vg =>
     vg.name.toLowerCase().includes(search.toLowerCase()),
@@ -106,14 +111,24 @@ export default function VehicleGroupsPage() {
     setDrawerOpen(false)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()) return
-    const newGroup: VehicleGroup = {
-      id: Date.now(),
-      name: form.name.trim(),
-      totalVehicles: 0,
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('vehicle_groups')
+      .insert({
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        seating_capacity: form.seatingCapacity ? Number(form.seatingCapacity) : null,
+        luggage_count: form.luggageCount ? Number(form.luggageCount) : null,
+      })
+      .select('id, name, total_vehicles')
+      .single()
+
+    if (!error && data) {
+      setRows(prev => [data, ...prev])
     }
-    setRows(prev => [newGroup, ...prev])
+    setSaving(false)
     closeDrawer()
   }
 
@@ -179,7 +194,13 @@ export default function VehicleGroupsPage() {
             </tr>
           </thead>
           <tbody>
-            {pageRows.map(row => (
+            {loading ? (
+              <tr>
+                <td colSpan={3} className="py-16 text-center text-sm text-gray-400">
+                  Loading…
+                </td>
+              </tr>
+            ) : pageRows.map(row => (
               <tr
                 key={row.id}
                 className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
@@ -196,7 +217,7 @@ export default function VehicleGroupsPage() {
                   </div>
                 </td>
                 <td className="h-[72px] px-6 py-4 text-sm font-normal text-gray-500">
-                  {row.totalVehicles}
+                  {row.total_vehicles}
                 </td>
                 <td className="h-[72px] p-4">
                   <div className="flex items-center gap-1">
@@ -211,7 +232,7 @@ export default function VehicleGroupsPage() {
               </tr>
             ))}
 
-            {pageRows.length === 0 && (
+            {!loading && pageRows.length === 0 && (
               <tr>
                 <td colSpan={3} className="py-16 text-center text-sm text-gray-400">
                   No vehicle groups match your search.
@@ -278,9 +299,10 @@ export default function VehicleGroupsPage() {
             </button>
             <button
               onClick={handleSave}
-              className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer"
+              disabled={saving}
+              className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         }

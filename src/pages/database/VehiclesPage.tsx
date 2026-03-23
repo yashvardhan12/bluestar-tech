@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, UploadCloud } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
+import { supabase } from '../../lib/supabase'
 
 type Status = 'Active' | 'Inactive' | 'Assigned'
 
@@ -229,11 +230,45 @@ const EMPTY_FORM = {
 
 export default function VehiclesPage() {
   const [rows, setRows] = useState(INITIAL_VEHICLES)
+  const [vehicleGroups, setVehicleGroups] = useState<{ id: number; name: string }[]>([])
+  const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  async function fetchData() {
+    const [vehiclesRes, groupsRes] = await Promise.all([
+      supabase
+        .from('vehicles')
+        .select('id, model_name, vehicle_number, status, vehicle_group_id')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('vehicle_groups')
+        .select('id, name')
+        .order('name'),
+    ])
+
+    if (groupsRes.data) setVehicleGroups(groupsRes.data)
+
+    if (vehiclesRes.data && vehiclesRes.data.length > 0) {
+      const groups: { id: number; name: string }[] = groupsRes.data ?? []
+      const mapped: Vehicle[] = vehiclesRes.data.map((v: any) => ({
+        id: v.id,
+        modelName: v.model_name,
+        group: groups.find(g => g.id === v.vehicle_group_id)?.name ?? '',
+        assignedDriver: null,
+        vehicleNumber: v.vehicle_number,
+        status: v.status as Status,
+      }))
+      setRows(mapped)
+    }
+  }
 
   const filtered = rows.filter(v =>
     v.modelName.toLowerCase().includes(search.toLowerCase()) ||
@@ -281,17 +316,52 @@ export default function VehiclesPage() {
     setForm(f => ({ ...f, [key]: value }))
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.modelName.trim() || !form.vehicleNumber.trim()) return
-    const newVehicle: Vehicle = {
-      id: Date.now(),
-      modelName: form.modelName.trim(),
-      group: form.vehicleGroup.trim(),
-      assignedDriver: null,
-      vehicleNumber: form.vehicleNumber.trim(),
-      status: 'Active',
+    setSaving(true)
+
+    const groupId = vehicleGroups.find(g => g.name === form.vehicleGroup)?.id ?? null
+
+    const { data, error } = await supabase
+      .from('vehicles')
+      .insert({
+        model_name: form.modelName.trim(),
+        vehicle_number: form.vehicleNumber.trim(),
+        fuel_type: form.fuelType || null,
+        vehicle_group_id: groupId,
+        fastag_number: form.fastagNumber || null,
+        status: 'Active',
+        reg_owner_name: form.regOwnerName || null,
+        reg_date: form.regDate || null,
+        ins_company: form.insCompany || null,
+        ins_policy_number: form.insPolicyNumber || null,
+        ins_issue_date: form.insIssueDate || null,
+        ins_due_date: form.insDueDate || null,
+        ins_premium: form.insPremium ? Number(form.insPremium) : null,
+        ins_cover: form.insCover ? Number(form.insCover) : null,
+        rto_owner_name: form.rtoOwnerName || null,
+        rto_reg_date: form.rtoRegDate || null,
+        chassis_number: form.chassisNumber || null,
+        engine_number: form.engineNumber || null,
+        car_expiry_date: form.carExpiryDate || null,
+        has_loan: form.hasLoan,
+        notes: form.notes || null,
+      })
+      .select('id')
+      .single()
+
+    if (!error && data) {
+      const newVehicle: Vehicle = {
+        id: data.id,
+        modelName: form.modelName.trim(),
+        group: form.vehicleGroup,
+        assignedDriver: null,
+        vehicleNumber: form.vehicleNumber.trim(),
+        status: 'Active',
+      }
+      setRows(prev => [newVehicle, ...prev])
     }
-    setRows(prev => [newVehicle, ...prev])
+    setSaving(false)
     closeDrawer()
   }
 
@@ -485,9 +555,10 @@ export default function VehiclesPage() {
             </button>
             <button
               onClick={handleSave}
-              className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer"
+              disabled={saving}
+              className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         }
@@ -533,7 +604,7 @@ export default function VehiclesPage() {
             value={form.vehicleGroup}
             onChange={v => set('vehicleGroup', v)}
             placeholder="Select vehicle group"
-            options={['Jazz/City/Amaze', 'SUVs', 'Hatchbacks', 'Toyota Innova', 'MG Hector/MG Titan', 'Mercedes Sedans']}
+            options={vehicleGroups.map(g => g.name)}
           />
 
           {/* Assigned Driver */}
