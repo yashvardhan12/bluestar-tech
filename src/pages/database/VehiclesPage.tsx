@@ -38,6 +38,11 @@ interface Vehicle {
   loanEndDate?: string | null
   loanBankName?: string | null
   loanEmiDate?: number | null
+  regDocumentUrl?: string | null
+  insDocumentUrl?: string | null
+  rtoDocumentUrl?: string | null
+  loanDocumentUrl?: string | null
+  attachDocumentUrl?: string | null
   notes?: string | null
 }
 
@@ -197,6 +202,11 @@ const EMPTY_FORM = {
   loanEndDate: '',
   loanBankName: '',
   loanEmiDate: '',
+  regDocumentUrl: '',
+  insDocumentUrl: '',
+  rtoDocumentUrl: '',
+  loanDocumentUrl: '',
+  attachDocumentUrl: '',
   notes: '',
 }
 
@@ -221,7 +231,7 @@ export default function VehiclesPage() {
     const [vehiclesRes, groupsRes] = await Promise.all([
       supabase
         .from('vehicles')
-        .select('id, model_name, vehicle_number, status, vehicle_group_id, fuel_type, fastag_number, reg_owner_name, reg_date, ins_company, ins_policy_number, ins_issue_date, ins_due_date, ins_premium, ins_cover, rto_owner_name, rto_reg_date, chassis_number, engine_number, car_expiry_date, has_loan, loan_emi_amount, loan_start_date, loan_end_date, loan_bank_name, loan_emi_date, notes')
+        .select('id, model_name, vehicle_number, status, vehicle_group_id, fuel_type, fastag_number, reg_owner_name, reg_date, ins_company, ins_policy_number, ins_issue_date, ins_due_date, ins_premium, ins_cover, rto_owner_name, rto_reg_date, chassis_number, engine_number, car_expiry_date, has_loan, loan_emi_amount, loan_start_date, loan_end_date, loan_bank_name, loan_emi_date, reg_document_url, ins_document_url, rto_document_url, loan_document_url, attach_document_url, notes')
         .order('created_at', { ascending: false }),
       supabase.from('vehicle_groups').select('id, name').order('name'),
     ])
@@ -259,6 +269,11 @@ export default function VehiclesPage() {
         loanEndDate: v.loan_end_date,
         loanBankName: v.loan_bank_name,
         loanEmiDate: v.loan_emi_date,
+        regDocumentUrl: v.reg_document_url,
+        insDocumentUrl: v.ins_document_url,
+        rtoDocumentUrl: v.rto_document_url,
+        loanDocumentUrl: v.loan_document_url,
+        attachDocumentUrl: v.attach_document_url,
         notes: v.notes,
       }))
       setRows(mapped)
@@ -333,6 +348,11 @@ export default function VehiclesPage() {
       loanEndDate: vehicle.loanEndDate ?? '',
       loanBankName: vehicle.loanBankName ?? '',
       loanEmiDate: vehicle.loanEmiDate?.toString() ?? '',
+      regDocumentUrl: vehicle.regDocumentUrl ?? '',
+      insDocumentUrl: vehicle.insDocumentUrl ?? '',
+      rtoDocumentUrl: vehicle.rtoDocumentUrl ?? '',
+      loanDocumentUrl: vehicle.loanDocumentUrl ?? '',
+      attachDocumentUrl: vehicle.attachDocumentUrl ?? '',
       notes: vehicle.notes ?? '',
     })
     setDrawerMode('view')
@@ -378,6 +398,11 @@ export default function VehiclesPage() {
         loan_end_date: form.hasLoan && form.loanEndDate ? form.loanEndDate : null,
         loan_bank_name: form.hasLoan && form.loanBankName ? form.loanBankName : null,
         loan_emi_date: form.hasLoan && form.loanEmiDate ? Number(form.loanEmiDate) : null,
+        reg_document_url: form.regDocumentUrl || null,
+        ins_document_url: form.insDocumentUrl || null,
+        rto_document_url: form.rtoDocumentUrl || null,
+        loan_document_url: form.loanDocumentUrl || null,
+        attach_document_url: form.attachDocumentUrl || null,
         notes: form.notes || null,
     }
 
@@ -705,7 +730,9 @@ export default function VehiclesPage() {
                   onChange={e => set('regDate', e.target.value)}
                   disabled={isView} className={inputCls} />
               </Field>
-              {!isView && <FileUpload label="Registration Document" />}
+              <FileUpload label="Registration Document" storagePath="reg"
+                existingUrl={form.regDocumentUrl || null} disabled={isView}
+                onChange={url => set('regDocumentUrl', url ?? '')} />
             </SectionCard>
 
             {/* Insurance */}
@@ -740,7 +767,9 @@ export default function VehiclesPage() {
                   onChange={e => set('insCover', e.target.value)}
                   disabled={isView} className={inputCls} />
               </Field>
-              {!isView && <FileUpload label="Insurance Document" />}
+              <FileUpload label="Insurance Document" storagePath="ins"
+                existingUrl={form.insDocumentUrl || null} disabled={isView}
+                onChange={url => set('insDocumentUrl', url ?? '')} />
             </SectionCard>
 
             {/* RTO */}
@@ -755,7 +784,9 @@ export default function VehiclesPage() {
                   onChange={e => set('rtoRegDate', e.target.value)}
                   disabled={isView} className={inputCls} />
               </Field>
-              {!isView && <FileUpload label="Registration Documents" />}
+              <FileUpload label="Registration Documents" storagePath="rto"
+                existingUrl={form.rtoDocumentUrl || null} disabled={isView}
+                onChange={url => set('rtoDocumentUrl', url ?? '')} />
             </SectionCard>
 
             {/* Parts */}
@@ -825,13 +856,17 @@ export default function VehiclesPage() {
                       onChange={e => set('loanEmiDate', e.target.value)}
                       disabled={isView} className={inputCls} />
                   </Field>
-                  {!isView && <FileUpload label="Loan Document" />}
+                  <FileUpload label="Loan Document" storagePath="loan"
+                    existingUrl={form.loanDocumentUrl || null} disabled={isView}
+                    onChange={url => set('loanDocumentUrl', url ?? '')} />
                 </>
               )}
             </div>
 
             {/* Attach Files */}
-            {!isView && <FileUpload label="Attach Files" />}
+            <FileUpload label="Attach Files" storagePath="attach"
+              existingUrl={form.attachDocumentUrl || null} disabled={isView}
+              onChange={url => set('attachDocumentUrl', url ?? '')} />
 
             {/* Notes */}
             <Field label="Notes">

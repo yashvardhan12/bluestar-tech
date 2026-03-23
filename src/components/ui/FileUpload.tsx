@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { UploadCloud, Trash2, Eye } from 'lucide-react'
 import { clsx } from 'clsx'
+import { supabase } from '../../lib/supabase'
 
 type UploadState = 'idle' | 'uploading' | 'done'
 
@@ -11,6 +12,12 @@ function formatSize(bytes: number): string {
 
 function getExt(name: string): string {
   return name.split('.').pop()?.toUpperCase() ?? 'FILE'
+}
+
+function nameFromUrl(url: string): string {
+  const last = decodeURIComponent(url.split('/').pop() ?? url)
+  // Strip leading timestamp prefix: "1720000000000-filename.pdf" → "filename.pdf"
+  return last.replace(/^\d{10,}-/, '')
 }
 
 function extBadgeColor(ext: string): string {
@@ -25,24 +32,18 @@ function extBadgeColor(ext: string): string {
   return map[ext] ?? 'bg-gray-500'
 }
 
-// Simple SVG page icon
 function FileIcon({ ext }: { ext: string }) {
   return (
     <div className="relative shrink-0 size-10">
-      {/* Page shape */}
       <svg viewBox="0 0 40 40" className="absolute inset-0 size-full" fill="none">
         <path
           d="M8 4h16l8 8v24a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"
-          fill="#f2f4f7"
-          stroke="#e4e7ec"
-          strokeWidth="1"
+          fill="#f2f4f7" stroke="#e4e7ec" strokeWidth="1"
         />
         <path d="M24 4v8h8" fill="#e4e7ec" />
       </svg>
-      {/* Extension badge */}
       <span className={clsx(
-        'absolute bottom-1.5 left-1 px-[3px] py-px rounded-[2px] text-white font-bold leading-none',
-        'text-[8px]',
+        'absolute bottom-1.5 left-1 px-[3px] py-px rounded-[2px] text-white font-bold leading-none text-[8px]',
         extBadgeColor(ext),
       )}>
         {ext.length > 4 ? ext.slice(0, 4) : ext}
@@ -53,43 +54,106 @@ function FileIcon({ ext }: { ext: string }) {
 
 interface FileUploadProps {
   label: string
+  /** Path prefix inside the `vehicle-documents` bucket, e.g. "reg", "ins" */
+  storagePath?: string
+  /** URL of an already-uploaded file — shows in done state immediately */
+  existingUrl?: string | null
+  /** Disabled / view-only mode: shows existing file without delete or re-upload */
+  disabled?: boolean
+  /** Called with the new public URL after upload, or null when file is removed */
+  onChange?: (url: string | null) => void
 }
 
-export default function FileUpload({ label }: FileUploadProps) {
+export default function FileUpload({
+  label,
+  storagePath = 'misc',
+  existingUrl,
+  disabled = false,
+  onChange,
+}: FileUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [state, setState] = useState<UploadState>('idle')
-  const [file, setFile] = useState<File | null>(null)
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
+
+  const [state, setState] = useState<UploadState>(() => existingUrl ? 'done' : 'idle')
+  // Local file picked by the user (null when showing an existing URL)
+  const [localFile, setLocalFile] = useState<File | null>(null)
+  const [localObjectUrl, setLocalObjectUrl] = useState<string | null>(null)
+  // The public URL after a successful upload
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(existingUrl ?? null)
+  const [displayName, setDisplayName] = useState<string>(() =>
+    existingUrl ? nameFromUrl(existingUrl) : '',
+  )
   const [progress, setProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
-  // Simulate upload progress
+  // When the existingUrl prop changes (e.g. switching between rows), re-sync
   useEffect(() => {
-    if (state !== 'uploading') return
+    if (existingUrl) {
+      setState('done')
+      setUploadedUrl(existingUrl)
+      setDisplayName(nameFromUrl(existingUrl))
+    } else {
+      setState('idle')
+      setUploadedUrl(null)
+      setDisplayName('')
+    }
+    setLocalFile(null)
+    if (localObjectUrl) URL.revokeObjectURL(localObjectUrl)
+    setLocalObjectUrl(null)
     setProgress(0)
-    let pct = 0
-    const id = setInterval(() => {
-      pct += Math.random() * 18 + 7          // random increment 7–25%
-      if (pct >= 100) {
-        pct = 100
-        clearInterval(id)
-        setState('done')
-      }
-      setProgress(Math.min(Math.round(pct), 100))
-    }, 150)
-    return () => clearInterval(id)
-  }, [state])
+    setError(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingUrl])
 
-  // Revoke object URL on unmount / file change
   useEffect(() => {
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [objectUrl])
+    return () => { if (localObjectUrl) URL.revokeObjectURL(localObjectUrl) }
+  }, [localObjectUrl])
 
-  function handleFile(f: File) {
-    if (objectUrl) URL.revokeObjectURL(objectUrl)
-    const url = URL.createObjectURL(f)
-    setFile(f)
-    setObjectUrl(url)
+  async function handleFile(file: File) {
+    setError(null)
+    const objUrl = URL.createObjectURL(file)
+    setLocalFile(file)
+    setLocalObjectUrl(objUrl)
+    setDisplayName(file.name)
     setState('uploading')
+    setProgress(0)
+
+    // Simulate progress while uploading
+    let pct = 0
+    const ticker = setInterval(() => {
+      pct += Math.random() * 15 + 5
+      if (pct >= 90) { pct = 90; clearInterval(ticker) }
+      setProgress(Math.round(pct))
+    }, 120)
+
+    try {
+      const filePath = `${storagePath}/${Date.now()}-${file.name}`
+      const { data, error: uploadError } = await supabase.storage
+        .from('vehicle-documents')
+        .upload(filePath, file, { upsert: false })
+
+      clearInterval(ticker)
+
+      if (uploadError) {
+        throw uploadError
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('vehicle-documents')
+        .getPublicUrl(data.path)
+
+      setProgress(100)
+      setUploadedUrl(publicUrl)
+      setState('done')
+      onChange?.(publicUrl)
+    } catch (err: any) {
+      clearInterval(ticker)
+      setProgress(0)
+      setState('idle')
+      setLocalFile(null)
+      if (localObjectUrl) URL.revokeObjectURL(localObjectUrl)
+      setLocalObjectUrl(null)
+      setError(err?.message ?? 'Upload failed')
+    }
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -105,24 +169,30 @@ export default function FileUpload({ label }: FileUploadProps) {
   }
 
   function handleRemove() {
-    if (objectUrl) URL.revokeObjectURL(objectUrl)
-    setFile(null)
-    setObjectUrl(null)
+    setLocalFile(null)
+    if (localObjectUrl) URL.revokeObjectURL(localObjectUrl)
+    setLocalObjectUrl(null)
+    setUploadedUrl(null)
+    setDisplayName('')
     setProgress(0)
+    setError(null)
     setState('idle')
+    onChange?.(null)
   }
 
   function handleView() {
-    if (objectUrl) window.open(objectUrl, '_blank')
+    const url = uploadedUrl ?? localObjectUrl
+    if (url) window.open(url, '_blank')
   }
 
-  const ext = file ? getExt(file.name) : ''
+  const ext = getExt(displayName)
+  const fileSize = localFile ? formatSize(localFile.size) : null
 
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-gray-700">{label}</span>
 
-      {state === 'idle' ? (
+      {state === 'idle' && !disabled && (
         <div
           onDrop={handleDrop}
           onDragOver={e => e.preventDefault()}
@@ -140,15 +210,15 @@ export default function FileUpload({ label }: FileUploadProps) {
             <p className="text-xs text-gray-500">JPG, PNG, DOC or PDF (max. 10MB)</p>
           </div>
         </div>
-      ) : (
+      )}
+
+      {(state === 'uploading' || state === 'done') && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 flex gap-3 items-start relative">
-          {/* File type icon */}
           <FileIcon ext={ext} />
 
-          {/* Name, size, progress */}
           <div className="flex-1 min-w-0 flex flex-col gap-1">
-            <p className="text-sm font-medium text-gray-700 truncate">{file!.name}</p>
-            <p className="text-sm text-gray-500">{formatSize(file!.size)}</p>
+            <p className="text-sm font-medium text-gray-700 truncate">{displayName}</p>
+            {fileSize && <p className="text-sm text-gray-500">{fileSize}</p>}
 
             {state === 'uploading' && (
               <div className="flex items-center gap-3 mt-1">
@@ -176,15 +246,21 @@ export default function FileUpload({ label }: FileUploadProps) {
             )}
           </div>
 
-          {/* Remove button */}
-          <button
-            type="button"
-            onClick={handleRemove}
-            className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
-          >
-            <Trash2 className="size-5" strokeWidth={1.75} />
-          </button>
+          {/* Only show delete when not disabled and not mid-upload */}
+          {!disabled && state !== 'uploading' && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
+            >
+              <Trash2 className="size-5" strokeWidth={1.75} />
+            </button>
+          )}
         </div>
+      )}
+
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
       )}
 
       <input
