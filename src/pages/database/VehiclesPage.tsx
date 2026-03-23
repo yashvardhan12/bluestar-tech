@@ -101,18 +101,9 @@ function StatusBadge({ status }: { status: Status }) {
   )
 }
 
-function ReadOnlyField({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
-      <span className="text-sm text-gray-900">{value || '–'}</span>
-    </div>
-  )
-}
-
 // ── Shared field sub-components ───────────────────────────────────────────────
 
-const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white'
+const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
 function Field({
   label,
@@ -141,6 +132,7 @@ function SelectField({
   onChange,
   placeholder,
   options,
+  disabled,
 }: {
   label: string
   required?: boolean
@@ -148,6 +140,7 @@ function SelectField({
   onChange: (v: string) => void
   placeholder: string
   options: string[]
+  disabled?: boolean
 }) {
   return (
     <Field label={label} required={required}>
@@ -155,7 +148,8 @@ function SelectField({
         <select
           value={value}
           onChange={e => onChange(e.target.value)}
-          className={clsx(inputCls, 'appearance-none pr-9 cursor-pointer')}
+          disabled={disabled}
+          className={clsx(inputCls, 'appearance-none pr-9', disabled ? 'cursor-default' : 'cursor-pointer')}
         >
           <option value="">{placeholder}</option>
           {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -619,7 +613,7 @@ export default function VehiclesPage() {
           drawerMode === 'view' ? (
             <div className="flex justify-end">
               <button onClick={() => setDrawerMode('edit')}
-                className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg hover:bg-[#6941c6] transition-colors cursor-pointer">
+                className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
                 Edit
               </button>
             </div>
@@ -639,120 +633,40 @@ export default function VehiclesPage() {
           )
         }
       >
-        {drawerMode === 'view' ? (
-          <div className="flex flex-col gap-4">
-            <ReadOnlyField label="Model Name" value={form.modelName} />
-            <ReadOnlyField label="Vehicle Number" value={form.vehicleNumber} />
-            <ReadOnlyField label="Fuel Type" value={form.fuelType} />
-            <ReadOnlyField label="Category - Vehicle Group" value={form.vehicleGroup} />
-            <ReadOnlyField label="Assigned Driver" value={form.assignedDriver || 'None'} />
-            <ReadOnlyField label="FASTag Number" value={form.fastagNumber} />
-
-            <SectionCard title="Registration">
-              <ReadOnlyField label="Owner Name" value={form.regOwnerName} />
-              <ReadOnlyField label="Registration Date" value={form.regDate} />
-            </SectionCard>
-
-            <SectionCard title="Insurance">
-              <ReadOnlyField label="Company Name" value={form.insCompany} />
-              <ReadOnlyField label="Policy Number" value={form.insPolicyNumber} />
-              <ReadOnlyField label="Issue Date" value={form.insIssueDate} />
-              <ReadOnlyField label="Due Date" value={form.insDueDate} />
-              <ReadOnlyField label="Premium Amount" value={form.insPremium} />
-              <ReadOnlyField label="Cover Amount" value={form.insCover} />
-            </SectionCard>
-
-            <SectionCard title="RTO">
-              <ReadOnlyField label="Owner Name" value={form.rtoOwnerName} />
-              <ReadOnlyField label="Registration Date" value={form.rtoRegDate} />
-            </SectionCard>
-
-            <SectionCard title="Parts">
-              <ReadOnlyField label="Chassis Number" value={form.chassisNumber} />
-              <ReadOnlyField label="Engine Number" value={form.engineNumber} />
-            </SectionCard>
-
-            <ReadOnlyField label="Car Expiry Date" value={form.carExpiryDate} />
-
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <p className="text-base font-medium text-gray-900">Loan</p>
-                <span className={clsx(
-                  'relative inline-flex h-5 w-9 items-center rounded-full shrink-0',
-                  form.hasLoan ? 'bg-violet-600' : 'bg-gray-200',
-                )}>
-                  <span className={clsx(
-                    'inline-block size-4 rounded-full bg-white shadow-[0px_1px_3px_0px_rgba(16,24,40,0.1),0px_1px_2px_0px_rgba(16,24,40,0.06)]',
-                    form.hasLoan ? 'translate-x-4' : 'translate-x-0.5',
-                  )} />
-                </span>
-              </div>
-              {form.hasLoan && (
-                <>
-                  <ReadOnlyField label="EMI Amount" value={form.loanEmiAmount} />
-                  <ReadOnlyField label="Start Date" value={form.loanStartDate} />
-                  <ReadOnlyField label="End Date" value={form.loanEndDate} />
-                  <ReadOnlyField label="Bank Name" value={form.loanBankName} />
-                  <ReadOnlyField label="EMI Date (Every month)" value={form.loanEmiDate} />
-                </>
-              )}
-            </div>
-
-            <ReadOnlyField label="Notes" value={form.notes} />
-          </div>
-        ) : (
+        {(() => {
+          const isView = drawerMode === 'view'
+          return (
           <div className="flex flex-col gap-4">
 
-            {/* Model Name */}
             <Field label="Model Name" required>
-              <input
-                type="text"
-                placeholder="Honda Jazz"
-                value={form.modelName}
+              <input type="text" placeholder="Honda Jazz" value={form.modelName}
                 onChange={e => set('modelName', e.target.value)}
-                className={inputCls}
-              />
+                disabled={isView} className={inputCls} />
             </Field>
 
-            {/* Vehicle Number */}
             <Field label="Vehicle Number" required>
-              <input
-                type="text"
-                placeholder="TN56EH1937"
-                value={form.vehicleNumber}
+              <input type="text" placeholder="TN56EH1937" value={form.vehicleNumber}
                 onChange={e => set('vehicleNumber', e.target.value)}
-                className={inputCls}
-              />
+                disabled={isView} className={inputCls} />
             </Field>
 
-            {/* Fuel Type */}
-            <SelectField
-              label="Fuel Type"
-              required
-              value={form.fuelType}
-              onChange={v => set('fuelType', v)}
-              placeholder="Select fuel type"
+            <SelectField label="Fuel Type" required value={form.fuelType}
+              onChange={v => set('fuelType', v)} placeholder="Select fuel type"
               options={['Petrol', 'Diesel', 'CNG', 'Electric', 'Hybrid']}
-            />
+              disabled={isView} />
 
-            {/* Vehicle Group */}
-            <SelectField
-              label="Category - Vehicle Group"
-              required
-              value={form.vehicleGroup}
-              onChange={v => set('vehicleGroup', v)}
-              placeholder="Select vehicle group"
-              options={vehicleGroups.map(g => g.name)}
-            />
+            <SelectField label="Category - Vehicle Group" required value={form.vehicleGroup}
+              onChange={v => set('vehicleGroup', v)} placeholder="Select vehicle group"
+              options={vehicleGroups.map(g => g.name)} disabled={isView} />
 
             {/* Assigned Driver */}
             <div className="flex flex-col gap-1.5">
               <Field label="Assigned Driver">
                 <div className="relative">
-                  <select
-                    value={form.assignedDriver}
+                  <select value={form.assignedDriver}
                     onChange={e => set('assignedDriver', e.target.value)}
-                    className={clsx(inputCls, 'appearance-none pr-9 cursor-pointer')}
+                    disabled={isView}
+                    className={clsx(inputCls, 'appearance-none pr-9', isView ? 'cursor-default' : 'cursor-pointer')}
                   >
                     <option value="">None</option>
                     <option value="John Dukes">John Dukes</option>
@@ -766,80 +680,103 @@ export default function VehiclesPage() {
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 size-5 text-gray-400 pointer-events-none" strokeWidth={1.75} />
                 </div>
               </Field>
-              <p className="text-sm text-gray-500">
-                If you don't assign a driver then you'll get an option to assign a driver for this vehicle during each booking
-              </p>
+              {!isView && (
+                <p className="text-sm text-gray-500">
+                  If you don't assign a driver then you'll get an option to assign a driver for this vehicle during each booking
+                </p>
+              )}
             </div>
 
-            {/* FASTag Number */}
             <Field label="FASTag Number" required>
-              <input
-                type="text"
-                placeholder="987654321"
-                value={form.fastagNumber}
+              <input type="text" placeholder="987654321" value={form.fastagNumber}
                 onChange={e => set('fastagNumber', e.target.value)}
-                className={inputCls}
-              />
+                disabled={isView} className={inputCls} />
             </Field>
 
             {/* Registration */}
             <SectionCard title="Registration">
               <Field label="Owner Name">
-                <input type="text" placeholder="John Doe" value={form.regOwnerName} onChange={e => set('regOwnerName', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="John Doe" value={form.regOwnerName}
+                  onChange={e => set('regOwnerName', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Registration Date">
-                <input type="date" value={form.regDate} onChange={e => set('regDate', e.target.value)} className={inputCls} />
+                <input type="date" value={form.regDate}
+                  onChange={e => set('regDate', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
-              <FileUpload label="Registration Document" />
+              {!isView && <FileUpload label="Registration Document" />}
             </SectionCard>
 
             {/* Insurance */}
             <SectionCard title="Insurance">
               <Field label="Company Name">
-                <input type="text" placeholder="Acko Insurance" value={form.insCompany} onChange={e => set('insCompany', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="Acko Insurance" value={form.insCompany}
+                  onChange={e => set('insCompany', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Policy Number">
-                <input type="text" placeholder="POL-123456" value={form.insPolicyNumber} onChange={e => set('insPolicyNumber', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="POL-123456" value={form.insPolicyNumber}
+                  onChange={e => set('insPolicyNumber', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Issue Date">
-                <input type="date" value={form.insIssueDate} onChange={e => set('insIssueDate', e.target.value)} className={inputCls} />
+                <input type="date" value={form.insIssueDate}
+                  onChange={e => set('insIssueDate', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Due Date">
-                <input type="date" value={form.insDueDate} onChange={e => set('insDueDate', e.target.value)} className={inputCls} />
+                <input type="date" value={form.insDueDate}
+                  onChange={e => set('insDueDate', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Premium Amount">
-                <input type="number" placeholder="0" value={form.insPremium} onChange={e => set('insPremium', e.target.value)} className={inputCls} />
+                <input type="number" placeholder="0" value={form.insPremium}
+                  onChange={e => set('insPremium', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Cover Amount">
-                <input type="number" placeholder="0" value={form.insCover} onChange={e => set('insCover', e.target.value)} className={inputCls} />
+                <input type="number" placeholder="0" value={form.insCover}
+                  onChange={e => set('insCover', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
-              <FileUpload label="Insurance Document" />
+              {!isView && <FileUpload label="Insurance Document" />}
             </SectionCard>
 
             {/* RTO */}
             <SectionCard title="RTO">
               <Field label="Owner Name">
-                <input type="text" placeholder="John Doe" value={form.rtoOwnerName} onChange={e => set('rtoOwnerName', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="John Doe" value={form.rtoOwnerName}
+                  onChange={e => set('rtoOwnerName', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Registration Date">
-                <input type="date" value={form.rtoRegDate} onChange={e => set('rtoRegDate', e.target.value)} className={inputCls} />
+                <input type="date" value={form.rtoRegDate}
+                  onChange={e => set('rtoRegDate', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
-              <FileUpload label="Registration Documents" />
+              {!isView && <FileUpload label="Registration Documents" />}
             </SectionCard>
 
             {/* Parts */}
             <SectionCard title="Parts">
               <Field label="Chassis Number">
-                <input type="text" placeholder="829347234" value={form.chassisNumber} onChange={e => set('chassisNumber', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="829347234" value={form.chassisNumber}
+                  onChange={e => set('chassisNumber', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
               <Field label="Engine Number">
-                <input type="text" placeholder="239847" value={form.engineNumber} onChange={e => set('engineNumber', e.target.value)} className={inputCls} />
+                <input type="text" placeholder="239847" value={form.engineNumber}
+                  onChange={e => set('engineNumber', e.target.value)}
+                  disabled={isView} className={inputCls} />
               </Field>
             </SectionCard>
 
             {/* Car Expiry Date */}
             <Field label="Car Expiry Date">
-              <input type="date" value={form.carExpiryDate} onChange={e => set('carExpiryDate', e.target.value)} className={inputCls} />
+              <input type="date" value={form.carExpiryDate}
+                onChange={e => set('carExpiryDate', e.target.value)}
+                disabled={isView} className={inputCls} />
             </Field>
 
             {/* Loan */}
@@ -848,58 +785,64 @@ export default function VehiclesPage() {
                 <p className="text-base font-medium text-gray-900">Loan</p>
                 <button
                   type="button"
-                  onClick={() => set('hasLoan', !form.hasLoan)}
+                  onClick={isView ? undefined : () => set('hasLoan', !form.hasLoan)}
                   className={clsx(
-                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer shrink-0',
+                    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0',
                     form.hasLoan ? 'bg-violet-600' : 'bg-gray-200',
+                    isView ? 'cursor-default' : 'cursor-pointer',
                   )}
                 >
-                  <span
-                    className={clsx(
-                      'inline-block size-4 rounded-full bg-white shadow-[0px_1px_3px_0px_rgba(16,24,40,0.1),0px_1px_2px_0px_rgba(16,24,40,0.06)] transition-transform',
-                      form.hasLoan ? 'translate-x-4' : 'translate-x-0.5',
-                    )}
-                  />
+                  <span className={clsx(
+                    'inline-block size-4 rounded-full bg-white shadow-[0px_1px_3px_0px_rgba(16,24,40,0.1),0px_1px_2px_0px_rgba(16,24,40,0.06)] transition-transform',
+                    form.hasLoan ? 'translate-x-4' : 'translate-x-0.5',
+                  )} />
                 </button>
               </div>
               {form.hasLoan && (
                 <>
-                  <Field label="EMI Amount" required>
-                    <input type="number" placeholder="AXLPV7788X" value={form.loanEmiAmount} onChange={e => set('loanEmiAmount', e.target.value)} className={inputCls} />
+                  <Field label="EMI Amount" required={!isView}>
+                    <input type="number" placeholder="AXLPV7788X" value={form.loanEmiAmount}
+                      onChange={e => set('loanEmiAmount', e.target.value)}
+                      disabled={isView} className={inputCls} />
                   </Field>
-                  <Field label="Start Date" required>
-                    <input type="date" value={form.loanStartDate} onChange={e => set('loanStartDate', e.target.value)} className={inputCls} />
+                  <Field label="Start Date" required={!isView}>
+                    <input type="date" value={form.loanStartDate}
+                      onChange={e => set('loanStartDate', e.target.value)}
+                      disabled={isView} className={inputCls} />
                   </Field>
-                  <Field label="End Date" required>
-                    <input type="date" value={form.loanEndDate} onChange={e => set('loanEndDate', e.target.value)} className={inputCls} />
+                  <Field label="End Date" required={!isView}>
+                    <input type="date" value={form.loanEndDate}
+                      onChange={e => set('loanEndDate', e.target.value)}
+                      disabled={isView} className={inputCls} />
                   </Field>
                   <Field label="Bank Name">
-                    <input type="text" placeholder="AXLPV7788X" value={form.loanBankName} onChange={e => set('loanBankName', e.target.value)} className={inputCls} />
+                    <input type="text" placeholder="AXLPV7788X" value={form.loanBankName}
+                      onChange={e => set('loanBankName', e.target.value)}
+                      disabled={isView} className={inputCls} />
                   </Field>
                   <Field label="EMI Date (Every month)">
-                    <input type="number" min="1" max="31" placeholder="DD" value={form.loanEmiDate} onChange={e => set('loanEmiDate', e.target.value)} className={inputCls} />
+                    <input type="number" min="1" max="31" placeholder="DD" value={form.loanEmiDate}
+                      onChange={e => set('loanEmiDate', e.target.value)}
+                      disabled={isView} className={inputCls} />
                   </Field>
-                  <FileUpload label="Loan Document" />
+                  {!isView && <FileUpload label="Loan Document" />}
                 </>
               )}
             </div>
 
             {/* Attach Files */}
-            <FileUpload label="Attach Files" />
+            {!isView && <FileUpload label="Attach Files" />}
 
             {/* Notes */}
             <Field label="Notes">
-              <textarea
-                placeholder="Add a note..."
-                rows={5}
-                value={form.notes}
+              <textarea placeholder="Add a note..." rows={5} value={form.notes}
                 onChange={e => set('notes', e.target.value)}
-                className={clsx(inputCls, 'resize-y')}
-              />
+                disabled={isView} className={clsx(inputCls, isView ? '' : 'resize-y')} />
             </Field>
 
           </div>
-        )}
+          )
+        })()}
       </Drawer>
     </div>
   )

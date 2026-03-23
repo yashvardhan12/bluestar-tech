@@ -35,16 +35,7 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
   )
 }
 
-const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white'
-
-function ReadOnlyField({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-gray-500">{label}</span>
-      <span className="text-sm text-gray-900">{value ?? '–'}</span>
-    </div>
-  )
-}
+const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
 const EMPTY_FORM = { name: '', description: '', seatingCapacity: '', luggageCount: '' }
 
@@ -174,7 +165,7 @@ export default function VehicleGroupsPage() {
     <div className="flex justify-end">
       <button
         onClick={() => setDrawerMode('edit')}
-        className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg hover:bg-[#6941c6] transition-colors cursor-pointer"
+        className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
       >
         Edit
       </button>
@@ -310,55 +301,46 @@ export default function VehicleGroupsPage() {
         <div className="flex flex-col gap-5">
 
           {/* Name */}
-          {isViewing ? (
-            <ReadOnlyField label="Name" value={activeGroup?.name} />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-0.5 text-sm font-medium text-gray-700">
-                Name <span className="text-violet-600">*</span>
-              </label>
-              <input type="text" placeholder="Toyota Innova" value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-0.5 text-sm font-medium text-gray-700">
+              Name {!isViewing && <span className="text-violet-600">*</span>}
+            </label>
+            <input type="text" placeholder="Toyota Innova" value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              disabled={isViewing} className={inputCls} />
+          </div>
 
           {/* Description */}
-          {isViewing ? (
-            <ReadOnlyField label="Description" value={activeGroup?.description} />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Description</label>
-              <textarea placeholder="Enter a description..." rows={5} value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                className={clsx(inputCls, 'resize-y')} />
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Description</label>
+            <textarea placeholder="Enter a description..." rows={5} value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              disabled={isViewing} className={clsx(inputCls, isViewing ? '' : 'resize-y')} />
+          </div>
 
           {/* Seating Capacity */}
-          {isViewing ? (
-            <ReadOnlyField label="Seating Capacity (excluding driver)" value={activeGroup?.seating_capacity} />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Seating Capacity (excluding driver)</label>
-              <input type="number" placeholder="4" value={form.seatingCapacity}
-                onChange={e => setForm(f => ({ ...f, seatingCapacity: e.target.value }))} className={inputCls} />
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Seating Capacity (excluding driver)</label>
+            <input type="number" placeholder="4" value={form.seatingCapacity}
+              onChange={e => setForm(f => ({ ...f, seatingCapacity: e.target.value }))}
+              disabled={isViewing} className={inputCls} />
+          </div>
 
           {/* Luggage Count */}
-          {isViewing ? (
-            <ReadOnlyField label="Luggage count" value={activeGroup?.luggage_count} />
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700">Luggage count</label>
-              <input type="number" placeholder="2" value={form.luggageCount}
-                onChange={e => setForm(f => ({ ...f, luggageCount: e.target.value }))} className={inputCls} />
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Luggage count</label>
+            <input type="number" placeholder="2" value={form.luggageCount}
+              onChange={e => setForm(f => ({ ...f, luggageCount: e.target.value }))}
+              disabled={isViewing} className={inputCls} />
+          </div>
 
           {/* Total Vehicles (view only) */}
           {isViewing && (
-            <ReadOnlyField label="Total vehicles" value={activeGroup?.total_vehicles} />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Total vehicles</label>
+              <input type="number" value={activeGroup?.total_vehicles ?? 0}
+                disabled className={inputCls} readOnly />
+            </div>
           )}
 
         </div>
