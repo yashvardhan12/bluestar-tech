@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, UploadCloud } from 'lucide-react'
+import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
+import FileUpload from '../../components/ui/FileUpload'
 import { supabase } from '../../lib/supabase'
 
 type Status = 'Active' | 'Inactive' | 'Assigned'
@@ -162,41 +163,6 @@ function SelectField({
         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 size-5 text-gray-400 pointer-events-none" strokeWidth={1.75} />
       </div>
     </Field>
-  )
-}
-
-function FileUpload({ label }: { label: string }) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-      <div
-        onClick={() => fileRef.current?.click()}
-        className="bg-white border border-gray-200 rounded-xl py-4 px-6 flex flex-col items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors"
-      >
-        <div className="size-10 border border-gray-200 rounded-lg flex items-center justify-center shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
-          <UploadCloud className="size-5 text-gray-400" strokeWidth={1.75} />
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <div className="flex items-center gap-1 text-sm">
-            <span className="font-semibold text-violet-700">
-              {fileName ?? 'Click to upload'}
-            </span>
-            {!fileName && <span className="text-gray-500 font-normal">or drag and drop</span>}
-          </div>
-          <p className="text-xs text-gray-500">JPG, PNG, DOC or PDF (max. 10MB)</p>
-        </div>
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".jpg,.jpeg,.png,.doc,.docx,.pdf"
-        className="hidden"
-        onChange={e => setFileName(e.target.files?.[0]?.name ?? null)}
-      />
-    </div>
   )
 }
 
