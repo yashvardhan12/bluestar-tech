@@ -407,46 +407,24 @@ export default function VehiclesPage() {
     }
 
     if (drawerMode === 'edit' && activeVehicle) {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('vehicles')
         .update(payload)
         .eq('id', activeVehicle.id)
-        .select('id')
-        .single()
-      if (!error && data) {
-        setRows(prev => prev.map(r => r.id === activeVehicle.id ? {
-          ...r,
-          modelName: form.modelName.trim(),
-          group: form.vehicleGroup,
-          groupId,
-          vehicleNumber: form.vehicleNumber.trim(),
-          fuelType: form.fuelType || null,
-          fastagNumber: form.fastagNumber || null,
-        } : r))
+      if (!error) {
+        await fetchData()
       }
       setSaving(false)
       closeDrawer()
       return
     }
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('vehicles')
       .insert({ ...payload, status: 'Active' })
-      .select('id')
-      .single()
 
-    if (!error && data) {
-      setRows(prev => [{
-        id: data.id,
-        modelName: form.modelName.trim(),
-        group: form.vehicleGroup,
-        groupId,
-        assignedDriver: null,
-        vehicleNumber: form.vehicleNumber.trim(),
-        status: 'Active',
-        fuelType: form.fuelType || null,
-        fastagNumber: form.fastagNumber || null,
-      }, ...prev])
+    if (!error) {
+      await fetchData()
     }
     setSaving(false)
     closeDrawer()
