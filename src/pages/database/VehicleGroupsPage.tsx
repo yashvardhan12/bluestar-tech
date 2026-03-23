@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
+import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
 
 interface VehicleGroup {
@@ -60,6 +61,8 @@ export default function VehicleGroupsPage() {
   const [activeGroup, setActiveGroup] = useState<VehicleGroup | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<VehicleGroup | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { fetchGroups() }, [])
 
@@ -114,6 +117,17 @@ export default function VehicleGroupsPage() {
   }
 
   function closeDrawer() { setDrawerOpen(false) }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { error } = await supabase.from('vehicle_groups').delete().eq('id', deleteTarget.id)
+    if (error) console.error('[VehicleGroupsPage] delete failed:', error)
+    setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
+    setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
+    setDeleting(false)
+    setDeleteTarget(null)
+  }
 
   async function handleSave() {
     if (!form.name.trim()) return
@@ -257,7 +271,7 @@ export default function VehicleGroupsPage() {
                 <td className="h-[72px] px-6 py-4 text-sm font-normal text-gray-500">{row.total_vehicles}</td>
                 <td className="h-[72px] p-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(row) }} className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
                       <Trash2 className="size-5" strokeWidth={1.75} />
                     </button>
                     <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
@@ -345,6 +359,15 @@ export default function VehicleGroupsPage() {
 
         </div>
       </Drawer>
+
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        title="Delete vehicle group"
+        description={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.` : ''}
+        deleting={deleting}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

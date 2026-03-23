@@ -21,6 +21,7 @@ export const NAV: NavSection[] = [
     label: 'Bookings',
     icon: Car,
     basePath: '/bookings',
+    horizontalNav: true,
     children: [
       { label: 'All bookings', path: '/bookings/all' },
       { label: 'All duties',   path: '/bookings/duties' },

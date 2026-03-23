@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
+import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 
 interface DutyType {
   id: number
@@ -58,11 +59,13 @@ function IndeterminateCheckbox({
 }
 
 export default function DutyTypesPage() {
+  const [rows, setRows] = useState<DutyType[]>(ALL_DUTY_TYPES)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
+  const [deleteTarget, setDeleteTarget] = useState<DutyType | null>(null)
 
-  const filtered = ALL_DUTY_TYPES.filter(dt =>
+  const filtered = rows.filter(dt =>
     dt.name.toLowerCase().includes(search.toLowerCase()),
   )
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -92,6 +95,13 @@ export default function DutyTypesPage() {
   function handleSearch(value: string) {
     setSearch(value)
     setPage(1)
+  }
+
+  function handleDelete() {
+    if (!deleteTarget) return
+    setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
+    setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
+    setDeleteTarget(null)
   }
 
   return (
@@ -184,9 +194,9 @@ export default function DutyTypesPage() {
                 <td className="h-[72px] px-6 py-4 text-sm font-normal text-gray-500">
                   {row.maxHrs ?? '–'}
                 </td>
-                <td className="h-[72px] p-4">
+                <td className="h-[72px] p-4" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(row) }} className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
                       <Trash2 className="size-5" strokeWidth={1.75} />
                     </button>
                     <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
@@ -247,6 +257,14 @@ export default function DutyTypesPage() {
           </button>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        title="Delete duty type"
+        description={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.` : ''}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

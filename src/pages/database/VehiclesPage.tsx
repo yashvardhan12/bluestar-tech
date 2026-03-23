@@ -3,6 +3,7 @@ import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, Chevron
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
 import FileUpload from '../../components/ui/FileUpload'
+import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
 
 type Status = 'Active' | 'Inactive' | 'Assigned'
@@ -225,6 +226,9 @@ export default function VehiclesPage() {
   const [activeVehicle, setActiveVehicle] = useState<Vehicle | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
 
+  const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
@@ -361,6 +365,17 @@ export default function VehiclesPage() {
 
   function closeDrawer() {
     setDrawerOpen(false)
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { error } = await supabase.from('vehicles').delete().eq('id', deleteTarget.id)
+    if (error) console.error('[VehiclesPage] delete failed:', error)
+    setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
+    setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
+    setDeleting(false)
+    setDeleteTarget(null)
   }
 
   function set<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
@@ -542,12 +557,14 @@ export default function VehiclesPage() {
                 <td className="h-[72px] px-6 py-4">
                   <StatusBadge status={row.status} />
                 </td>
-                <td className="h-[72px] p-4" onClick={e => e.stopPropagation()}>
+                <td className="h-[72px] p-4">
                   <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteTarget(row) }}
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
                       <Trash2 className="size-5" strokeWidth={1.75} />
                     </button>
-                    <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                    <button onClick={e => e.stopPropagation()} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
                       <MoreHorizontal className="size-5" strokeWidth={1.75} />
                     </button>
                   </div>
@@ -857,6 +874,15 @@ export default function VehiclesPage() {
           )
         })()}
       </Drawer>
+
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        title="Delete vehicle"
+        description={deleteTarget ? `Are you sure you want to delete "${deleteTarget.modelName}"? This action cannot be undone.` : ''}
+        deleting={deleting}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }
