@@ -147,6 +147,7 @@ export default function FileUpload({
       onChange?.(publicUrl)
     } catch (err: any) {
       clearInterval(ticker)
+      console.error('[FileUpload] upload failed:', err)
       setProgress(0)
       setState('idle')
       setLocalFile(null)
