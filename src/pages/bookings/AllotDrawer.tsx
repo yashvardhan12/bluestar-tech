@@ -20,18 +20,6 @@ export interface MockDriver {
   phone: string
 }
 
-// ── mock drivers (replace when drivers table exists) ──────────────────────────
-
-const MOCK_DRIVERS: MockDriver[] = [
-  { id: 1, initials: 'RR', name: 'Ronald Richards',    phone: '(319) 555-0115' },
-  { id: 2, initials: 'BS', name: 'Brooklyn Simmons',   phone: '(307) 555-0133' },
-  { id: 3, initials: 'RE', name: 'Ralph Edwards',      phone: '(808) 555-0111' },
-  { id: 4, initials: 'CW', name: 'Cameron Williamson', phone: '(303) 555-0105' },
-  { id: 5, initials: 'DS', name: 'Darrell Steward',    phone: '(208) 555-0112' },
-  { id: 6, initials: 'DR', name: 'Dianne Russell',     phone: '(302) 555-0107' },
-  { id: 7, initials: 'RF', name: 'Robert Fox',         phone: '(629) 555-0129' },
-  { id: 8, initials: 'FM', name: 'Floyd Miles',        phone: '(239) 555-0108' },
-]
 
 // ── shared avatar ─────────────────────────────────────────────────────────────
 
@@ -95,18 +83,20 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
   const [selectedVehicle, setSelectedVehicle] = useState<MockVehicle | null>(null)
   const [selectedDriver, setSelectedDriver] = useState<MockDriver | null>(null)
   const [vehicles, setVehicles] = useState<MockVehicle[]>([])
+  const [drivers, setDrivers] = useState<MockDriver[]>([])
 
-  // Fetch vehicles for this vehicle group from Supabase
+  // Fetch vehicles + drivers from Supabase when drawer opens
   useEffect(() => {
     if (!open) return
-    let query = supabase
+
+    let vehicleQuery = supabase
       .from('vehicles')
       .select('id, model_name, vehicle_number, vehicle_groups!inner(name)')
       .order('model_name')
     if (duty?.vehicleGroup) {
-      query = query.eq('vehicle_groups.name', duty.vehicleGroup)
+      vehicleQuery = vehicleQuery.eq('vehicle_groups.name', duty.vehicleGroup)
     }
-    query.then(({ data }) => {
+    vehicleQuery.then(({ data }) => {
       if (data) {
         setVehicles(data.map((v: { id: number; model_name: string; vehicle_number: string }) => ({
           id: v.id,
@@ -117,6 +107,22 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
         })))
       }
     })
+
+    supabase
+      .from('drivers')
+      .select('id, name, initials, phone')
+      .in('status', ['Active', 'Available'])
+      .order('name')
+      .then(({ data }) => {
+        if (data) {
+          setDrivers(data.map((d: { id: number; name: string; initials: string; phone: string | null }) => ({
+            id: d.id,
+            name: d.name,
+            initials: d.initials,
+            phone: d.phone ?? '',
+          })))
+        }
+      })
   }, [open, duty?.vehicleGroup])
 
   // Reset when opened
@@ -321,7 +327,7 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
                 </div>
 
                 {/* Rows */}
-                {MOCK_DRIVERS.map(driver => {
+                {drivers.map(driver => {
                   const isSelected = selectedDriver?.id === driver.id
                   return (
                     <button
