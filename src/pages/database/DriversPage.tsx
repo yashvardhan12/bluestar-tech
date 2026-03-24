@@ -368,42 +368,20 @@ export default function DriversPage() {
       const lastNum = last?.[0]?.driver_id ? parseInt(last[0].driver_id.replace(/\D/g, '')) : 0
       const nextId = `BLUDRIVER${String(lastNum + 1).padStart(2, '0')}`
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('drivers')
         .insert({ ...payload, driver_id: nextId })
         .select()
         .single()
 
-      if (!error && data) {
-        setRows(prev => [{
-          id: data.id, name: data.name, initials: data.initials, driverId: data.driver_id,
-          phone: data.phone, email: data.email, status: data.status,
-          dateOfBirth: data.date_of_birth, panNumber: data.pan_number,
-          aadhaarNumber: data.aadhaar_number, driverLicense: data.driver_license,
-          addressType: data.address_type, address: data.address,
-          salaryPerMonth: data.salary_per_month != null ? String(data.salary_per_month) : null,
-          dailyWages: data.daily_wages != null ? String(data.daily_wages) : null,
-          shiftStartTime: data.shift_start_time, shiftEndTime: data.shift_end_time,
-          offDay: data.off_day, attachDocumentUrl: data.attach_document_url, notes: data.notes,
-        }, ...prev])
+      if (!error) {
+        await fetchData()
         showToast('Driver added successfully')
       }
     } else if (drawerMode === 'edit' && activeDriver) {
       const { error } = await supabase.from('drivers').update(payload).eq('id', activeDriver.id)
       if (!error) {
-        setRows(prev => prev.map(d => d.id === activeDriver.id ? {
-          ...d, ...{
-            name: form.name.trim(), initials, phone: form.phone || null,
-            email: form.email || null, status: form.status,
-            dateOfBirth: form.dateOfBirth || null, panNumber: form.panNumber || null,
-            aadhaarNumber: form.aadhaarNumber || null, driverLicense: form.driverLicense || null,
-            addressType: form.addressType || null, address: form.address || null,
-            salaryPerMonth: form.salaryPerMonth || null, dailyWages: form.dailyWages || null,
-            shiftStartTime: form.shiftStartTime || null, shiftEndTime: form.shiftEndTime || null,
-            offDay: form.offDay || null, attachDocumentUrl: form.attachDocumentUrl || null,
-            notes: form.notes || null,
-          },
-        } : d))
+        await fetchData()
         showToast('Driver updated successfully')
       }
     }
@@ -419,8 +397,8 @@ export default function DriversPage() {
     setDeleting(true)
     const { error } = await supabase.from('drivers').delete().eq('id', deleteTarget.id)
     if (!error) {
-      setRows(prev => prev.filter(d => d.id !== deleteTarget.id))
       setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
+      await fetchData()
       showToast('Driver deleted successfully')
     }
     setDeleting(false)
