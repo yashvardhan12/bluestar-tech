@@ -32,7 +32,7 @@ export default function DatabaseLayout() {
                   'px-3 py-2 rounded-md text-base font-semibold whitespace-nowrap transition-colors duration-150 cursor-pointer',
                   isActive
                     ? 'bg-violet-50 text-violet-700'
-                    : 'bg-white text-gray-700 hover:bg-gray-50',
+                    : 'bg-gray-50 text-gray-700 hover:bg-white',
                 )}
               >
                 {label}

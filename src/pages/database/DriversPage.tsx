@@ -125,7 +125,7 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
+        className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
         <MoreHorizontal className="size-5" strokeWidth={1.75} />
       </button>
       {open && (
@@ -456,13 +456,12 @@ export default function DriversPage() {
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Driver ID</th>
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Phone</th>
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Status</th>
-              <th className="h-[44px] w-[52px]" />
-              <th className="h-[44px] w-[52px]" />
+              <th className="h-[44px] w-[68px]" />
             </tr>
           </thead>
           <tbody>
             {pageRows.length === 0 ? (
-              <tr><td colSpan={6}><EmptyState isFiltered={search.length > 0} onAdd={openAdd} /></td></tr>
+              <tr><td colSpan={5}><EmptyState isFiltered={search.length > 0} onAdd={openAdd} /></td></tr>
             ) : pageRows.map((row, i) => (
               <tr key={row.id} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors">
                 <td className="h-[72px] px-6 py-4">
@@ -477,14 +476,14 @@ export default function DriversPage() {
                 <td className="h-[72px] px-4 py-4 text-sm text-gray-500">{row.driverId}</td>
                 <td className="h-[72px] px-4 py-4 text-sm text-gray-500">{row.phone ?? '—'}</td>
                 <td className="h-[72px] px-4 py-4"><StatusBadge status={row.status} /></td>
-                <td className="h-[72px] px-3 py-4">
-                  <button type="button" onClick={() => setDeleteTarget(row)}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer">
-                    <Trash2 className="size-4" strokeWidth={1.75} />
-                  </button>
-                </td>
-                <td className="h-[72px] px-3 py-4">
-                  <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} />
+                <td className="h-[72px] p-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={e => { e.stopPropagation(); setDeleteTarget(row) }}
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
+                      <Trash2 className="size-5" strokeWidth={1.75} />
+                    </button>
+                    <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} />
+                  </div>
                 </td>
               </tr>
             ))}
