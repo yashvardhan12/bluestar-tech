@@ -28,9 +28,16 @@ alter table public.drivers enable row level security;
 create policy "Allow all" on public.drivers for all using (true) with check (true);
 
 -- Wire the FK that was left as a plain bigint in schema.sql
-alter table public.vehicles
-  add constraint if not exists vehicles_assigned_driver_fkey
-  foreign key (assigned_driver_id) references public.drivers(id) on delete set null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'vehicles_assigned_driver_fkey'
+  ) then
+    alter table public.vehicles
+      add constraint vehicles_assigned_driver_fkey
+      foreign key (assigned_driver_id) references public.drivers(id) on delete set null;
+  end if;
+end $$;
 
 -- Seed drivers
 insert into public.drivers (name, initials, driver_id, phone, status) values
