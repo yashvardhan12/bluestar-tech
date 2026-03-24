@@ -2,15 +2,20 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, Plus, Trash2, MoreHorizontal, ChevronDown,
-  ChevronLeft, ChevronRight, Calendar,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
+import AddBookingDrawer from './AddBookingDrawer'
+import StatusBadge from '../../components/ui/StatusBadge'
+import type { BookingStatus } from '../../components/ui/StatusBadge'
+import DateRangePicker from '../../components/ui/DateRangePicker'
+import type { DateRange } from '../../components/ui/DateRangePicker'
+import { useToast } from '../../components/ui/Toast'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type BookingStatus = 'Booked' | 'On-Going' | 'Completed' | 'Billed' | 'Cancelled'
-type StatusFilter  = 'All' | BookingStatus
+type StatusFilter = 'All' | BookingStatus
 
 interface Booking {
   id: number
@@ -63,37 +68,20 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
   )
 }
 
-function StatusBadge({ status }: { status: BookingStatus }) {
-  const cfg: Record<BookingStatus, { dot: string; cls: string }> = {
-    'Booked':    { dot: 'bg-gray-400',  cls: 'text-gray-600' },
-    'On-Going':  { dot: 'bg-blue-500',  cls: 'text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full' },
-    'Completed': { dot: 'bg-green-500', cls: 'text-green-700 bg-green-50 px-2 py-0.5 rounded-full' },
-    'Billed':    { dot: 'bg-green-500', cls: 'text-green-700 bg-green-50 px-2 py-0.5 rounded-full' },
-    'Cancelled': { dot: 'bg-red-500',   cls: 'text-red-700 bg-red-50 px-2 py-0.5 rounded-full' },
-  }
-  const { dot, cls } = cfg[status]
-  return (
-    <span className={clsx('inline-flex items-center gap-1.5 text-xs font-medium', cls)}>
-      <span className={clsx('size-1.5 rounded-full shrink-0', dot)} />
-      {status}
-    </span>
-  )
-}
-
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function AllBookingsPage() {
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   const [rows, setRows]               = useState<Booking[]>(MOCK_BOOKINGS)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [search, setSearch]           = useState('')
   const [selected, setSelected]       = useState<Set<number>>(new Set())
   const [page, setPage]               = useState(1)
-  const [dateRange, setDateRange]     = useState<{ start: string; end: string } | null>(
-    { start: 'Jan 12, 2024', end: 'Jan 18, 2024' },
-  )
+  const [dateRange, setDateRange]     = useState<DateRange | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null)
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false)
 
   // filtering
   const filtered = rows.filter(b => {
@@ -105,7 +93,14 @@ export default function AllBookingsPage() {
       b.passenger.toLowerCase().includes(q) ||
       b.dutyType.toLowerCase().includes(q) ||
       b.vehicleGroup.toLowerCase().includes(q)
-    return matchesStatus && matchesSearch
+    let matchesDateRange = true
+    if (dateRange) {
+      // startDate is 'DD/MM/YYYY'
+      const [dd, mm, yyyy] = b.startDate.split('/')
+      const start = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
+      matchesDateRange = start >= dateRange.start && start <= dateRange.end
+    }
+    return matchesStatus && matchesSearch && matchesDateRange
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -139,18 +134,19 @@ export default function AllBookingsPage() {
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
     setDeleteTarget(null)
+    showToast('Booking deleted successfully')
   }
 
   return (
-    <div className="px-10 py-8 flex flex-col gap-6">
+    <div className="px-10 py-7 flex flex-col gap-6">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold leading-[38px] text-gray-900">Bookings</h1>
-          <p className="text-sm text-gray-500">Create and manage your bookings from here</p>
+      <div className="border-b border-gray-200 pb-5 flex items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[30px] font-semibold leading-[38px] text-gray-900">Bookings</h1>
+          <p className="text-base font-normal text-gray-500 leading-6">Create and manage your bookings from here</p>
         </div>
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/bookings/duties')}
             className="px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-50 transition-colors cursor-pointer"
@@ -158,6 +154,7 @@ export default function AllBookingsPage() {
             All Duties
           </button>
           <button
+            onClick={() => setAddDrawerOpen(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer"
           >
             <Plus className="size-4" strokeWidth={2.5} />
@@ -197,13 +194,10 @@ export default function AllBookingsPage() {
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button className="flex items-center gap-2 px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-medium text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer whitespace-nowrap">
-            <Calendar className="size-4 text-gray-500 shrink-0" strokeWidth={1.75} />
-            {dateRange ? `${dateRange.start} – ${dateRange.end}` : 'Select date range'}
-          </button>
+          <DateRangePicker value={dateRange} onChange={r => { setDateRange(r); setPage(1) }} />
           {dateRange && (
             <button
-              onClick={() => setDateRange(null)}
+              onClick={() => { setDateRange(null); setPage(1) }}
               className="text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
             >
               Clear
@@ -250,6 +244,7 @@ export default function AllBookingsPage() {
             {pageRows.map(row => (
               <tr
                 key={row.id}
+                onClick={() => navigate(`/bookings/${row.id}`)}
                 className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 {/* Date */}
@@ -362,6 +357,13 @@ export default function AllBookingsPage() {
           </button>
         </div>
       </div>
+
+      {/* Add Booking drawer */}
+      <AddBookingDrawer
+        open={addDrawerOpen}
+        onClose={() => setAddDrawerOpen(false)}
+        onCreated={() => showToast('Booking created successfully')}
+      />
 
       {/* Delete confirmation */}
       <ConfirmDeleteModal

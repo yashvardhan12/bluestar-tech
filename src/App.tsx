@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './layouts/AppShell'
 import DatabaseLayout from './layouts/DatabaseLayout'
+import { ToastProvider } from './components/ui/Toast'
 
 import DutyTypesPage           from './pages/database/DutyTypesPage'
 import VehicleGroupsPage       from './pages/database/VehicleGroupsPage'
@@ -14,6 +15,7 @@ import FastagPage              from './pages/database/FastagPage'
 
 import AllBookingsPage         from './pages/bookings/AllBookingsPage'
 import AllDutiesPage           from './pages/bookings/AllDutiesPage'
+import BookingDetailPage       from './pages/bookings/BookingDetailPage'
 
 import InvoicesPage            from './pages/billing/InvoicesPage'
 import ReceiptsPage            from './pages/billing/ReceiptsPage'
@@ -31,6 +33,7 @@ import DriverAvailabilityPage  from './pages/availability/DriverAvailabilityPage
 
 export default function App() {
   return (
+    <ToastProvider>
     <BrowserRouter>
       <AppShell>
         <Routes>
@@ -51,8 +54,9 @@ export default function App() {
           </Route>
 
           {/* Bookings */}
-          <Route path="/bookings/all"    element={<AllBookingsPage />} />
-          <Route path="/bookings/duties" element={<AllDutiesPage />} />
+          <Route path="/bookings/all"         element={<AllBookingsPage />} />
+          <Route path="/bookings/duties"      element={<AllDutiesPage />} />
+          <Route path="/bookings/:bookingId"  element={<BookingDetailPage />} />
 
           {/* Billing */}
           <Route path="/billing/invoices" element={<InvoicesPage />} />
@@ -74,5 +78,6 @@ export default function App() {
         </Routes>
       </AppShell>
     </BrowserRouter>
+    </ToastProvider>
   )
 }

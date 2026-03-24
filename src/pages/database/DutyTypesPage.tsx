@@ -110,7 +110,7 @@ export default function DutyTypesPage() {
       {/* Section header */}
       <div className="border-b border-gray-200 pb-5 flex items-center gap-4">
         <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-medium leading-[38px] text-gray-900">Duty types</h2>
+          <h2 className="text-2xl font-semibold leading-[38px] text-gray-900">Duty types</h2>
           <p className="text-base font-normal text-gray-500 leading-6">
             Create and manage your duty types here
           </p>
