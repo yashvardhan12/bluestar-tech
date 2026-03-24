@@ -1,15 +1,27 @@
 -- Drivers
 create table if not exists public.drivers (
-  id          bigint generated always as identity primary key,
-  name        text not null,
-  initials    text not null,
-  driver_id   text not null unique,
-  phone       text,
-  email       text,
-  status      text not null default 'Active'
-                check (status in ('Active','Inactive','Available','Assigned','Unavailable')),
-  notes       text,
-  created_at  timestamptz not null default now()
+  id                   bigint generated always as identity primary key,
+  name                 text not null,
+  initials             text not null,
+  driver_id            text not null unique,
+  phone                text,
+  email                text,
+  status               text not null default 'Active'
+                         check (status in ('Active','Inactive','Available','Assigned','Unavailable')),
+  date_of_birth        date,
+  pan_number           text,
+  aadhaar_number       text,
+  driver_license       text,
+  address_type         text,
+  address              text,
+  salary_per_month     numeric(12,2),
+  daily_wages          numeric(12,2),
+  shift_start_time     time,
+  shift_end_time       time,
+  off_day              text,
+  attach_document_url  text,
+  notes                text,
+  created_at           timestamptz not null default now()
 );
 
 alter table public.drivers enable row level security;
@@ -20,7 +32,7 @@ alter table public.vehicles
   add constraint if not exists vehicles_assigned_driver_fkey
   foreign key (assigned_driver_id) references public.drivers(id) on delete set null;
 
--- Seed drivers (matching mock data used elsewhere in the app)
+-- Seed drivers
 insert into public.drivers (name, initials, driver_id, phone, status) values
   ('John Dukes',         'JD', 'BLUDRIVER01', '(907) 248-8330', 'Active'),
   ('Kurt Bates',         'KB', 'BLUDRIVER02', '(602) 309-9604', 'Inactive'),
