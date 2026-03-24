@@ -21,7 +21,7 @@ import { useToast } from '../../components/ui/Toast'
 // ── types ─────────────────────────────────────────────────────────────────────
 
 type DutyStatus = Extract<BookingStatus, 'Booked' | 'Allotted' | 'Dispatched' | 'Completed' | 'Billed' | 'Cancelled' | 'Unconfirmed'>
-type DutyFilter = 'All' | 'Upcoming' | DutyStatus
+type DutyFilter = 'All' | 'Upcoming' | 'On-Going' | DutyStatus
 
 interface Driver {
   initials: string
