@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Search, Hash, Calendar, RotateCcw } from 'lucide-react'
+import { Search, Hash, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import DateRangePicker, { type DateRange } from '../../components/ui/DateRangePicker'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,10 @@ const MIN_ROW_H  = 72    // px — minimum row height
 
 function isoToday(): string {
   const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
@@ -110,9 +115,11 @@ function calcRowHeight(numLanes: number, fullMode: boolean): number {
 export default function VehicleAvailabilityPage() {
   const today = isoToday()
 
-  const [rangeStart, setRangeStart] = useState(today)
-  const [rangeEnd,   setRangeEnd]   = useState(addDays(today, 6))
-  const [search,     setSearch]     = useState('')
+  const [range,  setRange]  = useState<DateRange | null>(null)
+  const [search, setSearch] = useState('')
+
+  const rangeStart = range ? toDateStr(range.start) : today
+  const rangeEnd   = range ? toDateStr(range.end)   : addDays(today, 6)
   const [vehicles,   setVehicles]   = useState<Vehicle[]>([])
   const [duties,     setDuties]     = useState<DutyEntry[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -219,26 +226,20 @@ export default function VehicleAvailabilityPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Calendar className="size-4 text-gray-400 shrink-0" strokeWidth={1.75} />
-          <input
-            type="date" value={rangeStart} min={today}
-            onChange={e => { const v = e.target.value; setRangeStart(v); if (v > rangeEnd) setRangeEnd(v) }}
-            className="h-10 px-3 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] focus:border-violet-400 focus:ring-4 focus:ring-violet-100 outline-none transition-shadow cursor-pointer"
+          <DateRangePicker
+            value={range}
+            onChange={setRange}
+            placeholder="Pick date range"
           />
-          <span className="text-sm text-gray-400">–</span>
-          <input
-            type="date" value={rangeEnd} min={rangeStart}
-            onChange={e => setRangeEnd(e.target.value)}
-            className="h-10 px-3 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] focus:border-violet-400 focus:ring-4 focus:ring-violet-100 outline-none transition-shadow cursor-pointer"
-          />
-          <button
-            type="button"
-            onClick={() => { setRangeStart(today); setRangeEnd(addDays(today, 6)) }}
-            title="Reset to next 7 days"
-            className="h-10 w-10 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors cursor-pointer shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]"
-          >
-            <RotateCcw className="size-4" strokeWidth={1.75} />
-          </button>
+          {range && (
+            <button
+              onClick={() => setRange(null)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors cursor-pointer"
+            >
+              <X className="size-4" strokeWidth={2} />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 

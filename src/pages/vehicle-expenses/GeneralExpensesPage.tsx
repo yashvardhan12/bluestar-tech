@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, Plus, Trash2, MoreHorizontal, ChevronDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, Pencil, Eye } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
+import FileUpload from '../../components/ui/FileUpload'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/ui/Toast'
@@ -11,13 +13,26 @@ import { useToast } from '../../components/ui/Toast'
 type PaymentMode = 'Cash' | 'Card' | 'UPI' | 'Cheque' | 'Bank Transfer'
 type DrawerMode = 'add' | 'view' | 'edit'
 
+interface Vehicle {
+  id: number
+  modelName: string
+  vehicleNumber: string
+}
+
+interface Driver {
+  id: number
+  name: string
+}
+
 interface Expense {
   id: number
   vehicleName: string
   vehicleNumber: string
   expenseNumber: string
   date: string
-  paymentMode: PaymentMode
+  paymentMode: PaymentMode | null
+  paidBy: 'Company' | 'Driver'
+  driverName: string | null
   amount: number
   description: string | null
 }
@@ -39,6 +54,11 @@ function formatINR(amount: number): string {
   return '₹' + amount.toLocaleString('en-IN')
 }
 
+function isoToday(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function formatDate(dateStr: string): string {
   if (!dateStr) return '—'
   const d = new Date(dateStr)
@@ -47,31 +67,61 @@ function formatDate(dateStr: string): string {
 
 // ── row menu ──────────────────────────────────────────────────────────────────
 
-function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void }) {
+function RowMenu({ onView, onEdit, onDelete }: { onView: () => void; onEdit: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current  && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false)
     }
     if (open) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
+
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    setPos({ top: rect.bottom + 4, left: rect.right - 220 })
+    setOpen(v => !v)
+  }
+
+  function menuItem(label: string, Icon: React.ElementType, onClick: () => void, destructive?: boolean) {
+    return (
+      <div className="px-1.5 py-px">
+        <button type="button"
+          onClick={e => { e.stopPropagation(); onClick(); setOpen(false) }}
+          className={`w-full flex items-center gap-2 px-2.5 py-2.5 rounded-md text-sm font-medium text-left transition-colors cursor-pointer ${destructive ? 'text-red-500 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}>
+          <Icon size={16} strokeWidth={1.75} className="shrink-0" />
+          {label}
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
+    <>
+      <button ref={btnRef} type="button" onClick={handleOpen}
         className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">
         <MoreHorizontal className="size-5" strokeWidth={1.75} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-40 bg-white rounded-lg border border-gray-200 shadow-[0px_8px_16px_-4px_rgba(16,24,40,0.08)] py-1">
-          <button type="button" onClick={() => { onView(); setOpen(false) }}
-            className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 cursor-pointer">View</button>
-          <button type="button" onClick={() => { onEdit(); setOpen(false) }}
-            className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 cursor-pointer">Edit</button>
-        </div>
+      {open && createPortal(
+        <div ref={menuRef} style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[9999] w-[220px] bg-white rounded-lg border border-gray-200 shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08),0px_4px_6px_-2px_rgba(16,24,40,0.03)] py-1">
+          {menuItem('View Expense', Eye, onView)}
+          {menuItem('Edit Expense', Pencil, onEdit)}
+          <div className="my-1 border-t border-gray-100" />
+          {menuItem('Delete Expense', Trash2, onDelete, true)}
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
 }
 
@@ -134,12 +184,19 @@ function EmptyState({ isFiltered, onAdd }: { isFiltered: boolean; onAdd: () => v
 // ── form state ────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
-  vehicleName: '',
+  vehicleId:     null as number | null,
+  vehicleName:   '',
   vehicleNumber: '',
-  date: '',
-  paymentMode: 'Cash' as PaymentMode,
-  amount: '',
-  description: '',
+  date:          isoToday(),
+  repeatExpense: false,
+  description:   '',
+  amount:        '',
+  paymentMode:   '' as PaymentMode | '',
+  paidBy:        'Company' as 'Company' | 'Driver',
+  driverId:      null as number | null,
+  driverName:    '',
+  receiptUrl:    null as string | null,
+  notes:         '',
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -147,6 +204,8 @@ const EMPTY_FORM = {
 export default function GeneralExpensesPage() {
   const { showToast } = useToast()
   const [rows, setRows] = useState<Expense[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [drivers, setDrivers] = useState<Driver[]>([])
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
@@ -163,23 +222,33 @@ export default function GeneralExpensesPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+    supabase.from('vehicles').select('id, model_name, vehicle_number').order('model_name').then(({ data }) => {
+      if (data) setVehicles(data.map((v: any) => ({ id: v.id, modelName: v.model_name, vehicleNumber: v.vehicle_number })))
+    })
+    supabase.from('drivers').select('id, name').order('name').then(({ data }) => {
+      if (data) setDrivers(data.map((d: any) => ({ id: d.id, name: d.name })))
+    })
+  }, [])
 
   async function fetchData() {
     const { data } = await supabase
       .from('vehicle_expenses')
-      .select('id, vehicle_name, vehicle_number, expense_number, date, payment_mode, amount, description')
+      .select('id, vehicle_name, vehicle_number, expense_number, date, payment_mode, paid_by, driver_name, amount, description')
       .order('created_at', { ascending: false })
     if (data) {
       setRows(data.map((d: any) => ({
-        id: d.id,
-        vehicleName: d.vehicle_name,
+        id:            d.id,
+        vehicleName:   d.vehicle_name,
         vehicleNumber: d.vehicle_number,
         expenseNumber: d.expense_number,
-        date: d.date,
-        paymentMode: d.payment_mode as PaymentMode,
-        amount: Number(d.amount),
-        description: d.description,
+        date:          d.date,
+        paymentMode:   d.payment_mode as PaymentMode | null,
+        paidBy:        (d.paid_by ?? 'Company') as 'Company' | 'Driver',
+        driverName:    d.driver_name,
+        amount:        Number(d.amount),
+        description:   d.description,
       })))
     }
   }
@@ -217,13 +286,22 @@ export default function GeneralExpensesPage() {
   // ── drawer helpers ────────────────────────────────────────────────────────
 
   function expenseToForm(e: Expense): typeof EMPTY_FORM {
+    const vehicle = vehicles.find(v => v.modelName === e.vehicleName && v.vehicleNumber === e.vehicleNumber)
+    const driver  = e.driverName ? drivers.find(d => d.name === e.driverName) : undefined
     return {
-      vehicleName: e.vehicleName,
+      vehicleId:     vehicle?.id ?? null,
+      vehicleName:   e.vehicleName,
       vehicleNumber: e.vehicleNumber,
-      date: e.date,
-      paymentMode: e.paymentMode,
-      amount: String(e.amount),
-      description: e.description ?? '',
+      date:          e.date,
+      repeatExpense: false,
+      description:   e.description ?? '',
+      amount:        String(e.amount),
+      paymentMode:   e.paymentMode ?? '',
+      paidBy:        e.paidBy ?? 'Company',
+      driverId:      driver?.id ?? null,
+      driverName:    e.driverName ?? '',
+      receiptUrl:    null,
+      notes:         '',
     }
   }
 
@@ -246,33 +324,30 @@ export default function GeneralExpensesPage() {
 
   async function handleSave() {
     const newErrors: Record<string, string> = {}
-    if (!form.vehicleName.trim()) newErrors.vehicleName = 'Vehicle name is required'
-    if (!form.vehicleNumber.trim()) newErrors.vehicleNumber = 'Vehicle number is required'
-    if (!form.date) newErrors.date = 'Date is required'
+    if (!form.vehicleId) newErrors.vehicleId = 'Vehicle is required'
+    if (!form.description.trim()) newErrors.description = 'Expense description is required'
     if (!form.amount || isNaN(Number(form.amount))) newErrors.amount = 'Valid amount is required'
+    if (form.paidBy === 'Driver' && !form.driverId) newErrors.driverId = 'Select a driver'
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
     setSaving(true)
 
     const payload = {
-      vehicle_name: form.vehicleName.trim(),
-      vehicle_number: form.vehicleNumber.trim().toUpperCase(),
-      date: form.date,
-      payment_mode: form.paymentMode,
-      amount: Number(form.amount),
-      description: form.description || null,
+      vehicle_name:  form.vehicleName,
+      vehicle_number: form.vehicleNumber,
+      date:          form.date,
+      payment_mode:  form.paymentMode || null,
+      paid_by:       form.paidBy,
+      driver_name:   form.paidBy === 'Driver' ? (form.driverName || null) : null,
+      amount:        Number(form.amount),
+      description:   form.description.trim() || null,
     }
 
     if (drawerMode === 'add') {
-      const { data: last } = await supabase
+      const { count } = await supabase
         .from('vehicle_expenses')
-        .select('expense_number')
-        .order('created_at', { ascending: false })
-        .limit(1)
-      const lastNum = last?.[0]?.expense_number
-        ? parseInt(last[0].expense_number.replace(/\D/g, '').slice(-2) || '0')
-        : 0
-      const prefix = payload.vehicle_number.replace(/\s/g, '')
-      const expenseNumber = `${prefix} - ${lastNum + 1}`
+        .select('id', { count: 'exact', head: true })
+        .eq('vehicle_number', form.vehicleNumber)
+      const expenseNumber = `${form.vehicleNumber} - ${(count ?? 0) + 1}`
 
       const { error } = await supabase
         .from('vehicle_expenses')
@@ -377,7 +452,7 @@ export default function GeneralExpensesPage() {
               </th>
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Expense Number</th>
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Date</th>
-              <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Payment Mode</th>
+              <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Payment By</th>
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Amount</th>
               <th className="h-[44px] px-4 text-left text-xs font-medium text-gray-600">Description</th>
               <th className="h-[44px] w-[52px]" />
@@ -402,11 +477,13 @@ export default function GeneralExpensesPage() {
                 </td>
                 <td className="px-4 py-4 text-sm text-gray-700">{row.expenseNumber}</td>
                 <td className="px-4 py-4 text-sm text-gray-700">{formatDate(row.date)}</td>
-                <td className="px-4 py-4 text-sm text-gray-700">{row.paymentMode}</td>
+                <td className="px-4 py-4 text-sm text-gray-700">
+                  {row.paidBy === 'Driver' ? (row.driverName || '—') : 'Company'}
+                </td>
                 <td className="px-4 py-4 text-sm text-gray-700">{formatINR(row.amount)}</td>
                 <td className="px-4 py-4 text-sm text-gray-500 max-w-[200px] truncate">{row.description ?? '—'}</td>
                 <td className="px-2 py-4 text-right" onClick={e => e.stopPropagation()}>
-                  <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} />
+                  <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} onDelete={() => setDeleteTarget(row)} />
                 </td>
               </tr>
             ))}
@@ -449,7 +526,8 @@ export default function GeneralExpensesPage() {
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={readOnly ? 'View expense' : drawerMode === 'add' ? 'Add expense' : 'Edit expense'}
+        title={readOnly ? 'View expense' : drawerMode === 'add' ? 'Add Expense' : 'Edit Expense'}
+        description={readOnly ? undefined : drawerMode === 'add' ? 'Add an individual car expense here' : 'Update the car expense details'}
         footer={
           readOnly ? (
             <div className="flex justify-end">
@@ -459,59 +537,174 @@ export default function GeneralExpensesPage() {
               </button>
             </div>
           ) : (
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-between gap-3">
               <button
                 onClick={() => drawerMode === 'edit' ? (setDrawerMode('view'), setErrors({})) : setDrawerOpen(false)}
-                className="px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                className="px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors cursor-pointer">
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-60 transition-colors cursor-pointer">
+                className="px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-60 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors cursor-pointer">
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           )
         }
       >
-        <div className="flex flex-col gap-5 p-6">
-          <Field label="Vehicle Name" required error={errors.vehicleName}>
-            <input className={clsx(inputCls, errors.vehicleName && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
-              value={form.vehicleName} onChange={e => set('vehicleName', e.target.value)}
-              placeholder="e.g. Jeep Compass" disabled={readOnly} />
+        <div className="flex flex-col gap-6">
+
+          {/* Date — disabled, pre-filled with today */}
+          <Field label="Date">
+            <input type="date" className={clsx(inputCls, 'cursor-not-allowed')} value={form.date} disabled />
           </Field>
 
-          <Field label="Vehicle Number" required error={errors.vehicleNumber}>
-            <input className={clsx(inputCls, errors.vehicleNumber && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
-              value={form.vehicleNumber} onChange={e => set('vehicleNumber', e.target.value.toUpperCase())}
-              placeholder="e.g. RJ90AB8264" disabled={readOnly} />
+          {/* Repeat expense */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox" id="repeat-expense"
+              checked={form.repeatExpense}
+              onChange={e => set('repeatExpense', e.target.checked)}
+              disabled={readOnly}
+              className="size-4 rounded border-gray-300 accent-violet-600 cursor-pointer"
+            />
+            <label htmlFor="repeat-expense" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+              Repeat expense
+            </label>
+          </div>
+
+          {/* Vehicle dropdown */}
+          <Field label="Vehicle" required error={errors.vehicleId}>
+            <div className="relative">
+              <select
+                className={clsx(inputCls, 'appearance-none pr-10', errors.vehicleId && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
+                value={form.vehicleId ?? ''}
+                onChange={e => {
+                  const v = vehicles.find(v => String(v.id) === e.target.value)
+                  if (v) {
+                    setForm(prev => ({ ...prev, vehicleId: v.id, vehicleName: v.modelName, vehicleNumber: v.vehicleNumber }))
+                    setErrors(prev => ({ ...prev, vehicleId: '' }))
+                  } else {
+                    setForm(prev => ({ ...prev, vehicleId: null, vehicleName: '', vehicleNumber: '' }))
+                  }
+                }}
+                disabled={readOnly}
+              >
+                <option value="">Select Vehicle</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>{v.modelName} — {v.vehicleNumber}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" strokeWidth={1.75} />
+            </div>
           </Field>
 
-          <Field label="Date" required error={errors.date}>
-            <input type="date"
-              className={clsx(inputCls, errors.date && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
-              value={form.date} onChange={e => set('date', e.target.value)}
-              disabled={readOnly} />
+          {/* Expense Description */}
+          <Field label="Expense Description" required error={errors.description}>
+            <textarea
+              rows={4}
+              className={clsx(inputCls, 'resize-none', errors.description && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+              placeholder="Add what the expense was for"
+              disabled={readOnly}
+            />
           </Field>
 
-          <Field label="Payment Mode" required>
-            <select className={inputCls} value={form.paymentMode}
-              onChange={e => set('paymentMode', e.target.value as PaymentMode)} disabled={readOnly}>
-              {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Amount (₹)" required error={errors.amount}>
-            <input type="number" min="0"
+          {/* Amount */}
+          <Field label="Amount" required error={errors.amount}>
+            <input
+              type="number" min="0"
               className={clsx(inputCls, errors.amount && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
-              value={form.amount} onChange={e => set('amount', e.target.value)}
-              placeholder="e.g. 10000" disabled={readOnly} />
+              value={form.amount}
+              onChange={e => set('amount', e.target.value)}
+              placeholder="Enter amount"
+              disabled={readOnly}
+            />
           </Field>
 
-          <Field label="Description">
-            <textarea rows={3} className={clsx(inputCls, 'resize-none')}
-              value={form.description} onChange={e => set('description', e.target.value)}
-              placeholder="Battery, Suspension, Air Conditioning…" disabled={readOnly} />
+          {/* Payment Mode — optional */}
+          <Field label="Payment Mode">
+            <div className="relative">
+              <select
+                className={clsx(inputCls, 'appearance-none pr-10')}
+                value={form.paymentMode}
+                onChange={e => set('paymentMode', e.target.value as PaymentMode)}
+                disabled={readOnly}
+              >
+                <option value="">Select payment mode</option>
+                {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" strokeWidth={1.75} />
+            </div>
           </Field>
+
+          {/* Paid by */}
+          <Field label="Paid by" required>
+            <div className="flex items-center gap-0.5 p-1 bg-gray-100 rounded-lg w-fit">
+              {(['Company', 'Driver'] as const).map(opt => (
+                <button
+                  key={opt}
+                  type="button"
+                  disabled={readOnly}
+                  onClick={() => {
+                    setForm(prev => ({ ...prev, paidBy: opt, driverId: null, driverName: '' }))
+                    setErrors(prev => ({ ...prev, driverId: '' }))
+                  }}
+                  className={clsx(
+                    'px-3.5 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer disabled:cursor-default',
+                    form.paidBy === opt ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
+                  )}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          {/* Driver — shown only when Paid by Driver */}
+          {form.paidBy === 'Driver' && (
+            <Field label="Driver" required error={errors.driverId}>
+              <div className="relative">
+                <select
+                  className={clsx(inputCls, 'appearance-none pr-10', errors.driverId && 'border-red-400 focus:border-red-400 focus:ring-red-100')}
+                  value={form.driverId ?? ''}
+                  onChange={e => {
+                    const d = drivers.find(d => String(d.id) === e.target.value)
+                    if (d) setForm(prev => ({ ...prev, driverId: d.id, driverName: d.name }))
+                    else   setForm(prev => ({ ...prev, driverId: null, driverName: '' }))
+                    setErrors(prev => ({ ...prev, driverId: '' }))
+                  }}
+                  disabled={readOnly}
+                >
+                  <option value="">Select Driver</option>
+                  {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" strokeWidth={1.75} />
+              </div>
+            </Field>
+          )}
+
+          {/* Receipts */}
+          <FileUpload
+            label="Receipts"
+            storagePath="vehicle-expenses"
+            existingUrl={form.receiptUrl}
+            disabled={readOnly}
+            onChange={url => setForm(prev => ({ ...prev, receiptUrl: url }))}
+          />
+
+          {/* Notes */}
+          <Field label="Notes">
+            <textarea
+              rows={5}
+              className={clsx(inputCls, 'resize-none')}
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder="Add a note...."
+              disabled={readOnly}
+            />
+          </Field>
+
         </div>
       </Drawer>
 

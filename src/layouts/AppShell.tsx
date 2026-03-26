@@ -1,6 +1,6 @@
 import { clsx } from 'clsx'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bell, Settings, Star } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { NAV } from '../routes'
 
 interface AppShellProps {
@@ -24,9 +24,7 @@ export default function AppShell({ children }: AppShellProps) {
 
           {/* Logo */}
           <div className="pl-6 pr-5">
-            <div className="flex items-center justify-center size-8 rounded-lg bg-violet-600 shadow-sm">
-              <Star className="size-4 fill-white text-white" strokeWidth={0} />
-            </div>
+            <img src="/logo.svg" alt="BlueStar" className="size-8" />
           </div>
 
           {/* Nav items */}
@@ -54,12 +52,6 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Footer: bell, settings, avatar */}
         <div className="flex flex-col items-center gap-2 w-full px-4 pb-6">
-          <button
-            title="Notifications"
-            className="flex items-center justify-center size-12 rounded-md bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors cursor-pointer"
-          >
-            <Bell className="size-6" strokeWidth={1.75} />
-          </button>
           <button
             title="Settings"
             onClick={() => navigate('/settings')}
