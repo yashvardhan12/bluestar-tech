@@ -1,31 +1,19 @@
 import { useEffect } from 'react'
-import { X, Trash2 } from 'lucide-react'
+import { X, AlertCircle } from 'lucide-react'
 
-export interface DeleteCheckbox {
-  label: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-}
-
-interface ConfirmDeleteModalProps {
+interface RestoreDutyModalProps {
   open: boolean
-  title: string
-  description: string
-  deleting?: boolean
-  checkboxes?: DeleteCheckbox[]
+  restoring?: boolean
   onClose: () => void
   onConfirm: () => void
 }
 
-export default function ConfirmDeleteModal({
+export default function RestoreDutyModal({
   open,
-  title,
-  description,
-  deleting = false,
-  checkboxes,
+  restoring = false,
   onClose,
   onConfirm,
-}: ConfirmDeleteModalProps) {
+}: RestoreDutyModalProps) {
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
@@ -46,7 +34,7 @@ export default function ConfirmDeleteModal({
       />
 
       {/* Modal card */}
-      <div className={`relative bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] w-full overflow-hidden ${checkboxes ? 'max-w-[560px]' : 'max-w-[400px]'}`}>
+      <div className="relative bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] w-full max-w-[400px] overflow-hidden">
 
         {/* Decorative grid pattern top-left */}
         <div
@@ -61,14 +49,13 @@ export default function ConfirmDeleteModal({
 
         {/* Header */}
         <div className="relative px-6 pt-6 pb-0">
-          {/* Red icon circle */}
-          <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-red-100">
-            <Trash2 className="size-5 text-red-600" strokeWidth={1.75} />
+          {/* Amber icon circle */}
+          <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-amber-100">
+            <AlertCircle className="size-5 text-amber-600" strokeWidth={1.75} />
           </div>
 
-          {/* Text */}
-          <p className="text-lg font-semibold text-gray-900 leading-7">{title}</p>
-          <p className="mt-1 text-sm text-gray-500 leading-5">{description}</p>
+          <p className="text-lg font-semibold text-gray-900 leading-7">Restore duty</p>
+          <p className="mt-1 text-sm text-gray-500 leading-5">Are you sure you want to restore this duty?</p>
 
           {/* Close X */}
           <button
@@ -78,23 +65,6 @@ export default function ConfirmDeleteModal({
             <X className="size-5" strokeWidth={1.75} />
           </button>
         </div>
-
-        {/* Checkboxes */}
-        {checkboxes && checkboxes.length > 0 && (
-          <div className="px-6 pt-5 flex flex-col gap-3">
-            {checkboxes.map((cb, i) => (
-              <label key={i} className="flex items-start gap-3 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={cb.checked}
-                  onChange={e => cb.onChange(e.target.checked)}
-                  className="mt-0.5 size-4 shrink-0 rounded border-gray-300 accent-violet-600 cursor-pointer"
-                />
-                <span className="text-sm text-gray-600 leading-5">{cb.label}</span>
-              </label>
-            ))}
-          </div>
-        )}
 
         {/* Actions */}
         <div className="flex gap-3 px-6 pt-6 pb-6">
@@ -108,10 +78,10 @@ export default function ConfirmDeleteModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={deleting}
-            className="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={restoring}
+            className="flex-1 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {deleting ? 'Deleting…' : 'Delete'}
+            {restoring ? 'Restoring…' : 'Restore'}
           </button>
         </div>
       </div>

@@ -583,6 +583,7 @@ export default function VehiclesPage() {
         </table>
 
         {/* Pagination */}
+        {totalPages > 1 && (
         <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4">
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -621,6 +622,7 @@ export default function VehiclesPage() {
             <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>
+        )}
       </div>
 
       {/* Vehicle Drawer */}

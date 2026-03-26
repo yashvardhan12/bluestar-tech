@@ -1,8 +1,8 @@
 export default function FuelPage() {
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold text-gray-900">Fuel Stubs and Logs</h1>
-      <p className="mt-1 text-sm text-gray-500">Coming soon</p>
+    <div className="px-10 py-7">
+      <h1 className="text-2xl font-semibold text-gray-900">Fuel</h1>
+      <p className="mt-1 text-sm text-gray-500">Fuel stubs and logs — coming soon</p>
     </div>
   )
 }

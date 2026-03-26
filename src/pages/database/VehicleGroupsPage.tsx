@@ -60,9 +60,12 @@ export default function VehicleGroupsPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [activeGroup, setActiveGroup] = useState<VehicleGroup | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<VehicleGroup | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => { fetchGroups() }, [])
 
@@ -106,6 +109,7 @@ export default function VehicleGroupsPage() {
     setActiveGroup(null)
     setForm(EMPTY_FORM)
     setDrawerMode('add')
+    setErrors({})
     setDrawerOpen(true)
   }
 
@@ -113,6 +117,7 @@ export default function VehicleGroupsPage() {
     setActiveGroup(group)
     setForm(formFromGroup(group))
     setDrawerMode('view')
+    setErrors({})
     setDrawerOpen(true)
   }
 
@@ -129,8 +134,22 @@ export default function VehicleGroupsPage() {
     setDeleteTarget(null)
   }
 
+  async function handleBulkDelete() {
+    setBulkDeleting(true)
+    const ids = Array.from(selected)
+    const { error } = await supabase.from('vehicle_groups').delete().in('id', ids)
+    if (!error) {
+      setSelected(new Set())
+      setRows(prev => prev.filter(r => !ids.includes(r.id)))
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+  }
+
   async function handleSave() {
-    if (!form.name.trim()) return
+    const newErrors: Record<string, string> = {}
+    if (!form.name.trim()) newErrors.name = 'Name is required'
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
     setSaving(true)
 
     const payload = {
@@ -187,7 +206,7 @@ export default function VehicleGroupsPage() {
   ) : (
     <div className="flex items-center justify-end gap-3">
       <button
-        onClick={drawerMode === 'edit' ? () => setDrawerMode('view') : closeDrawer}
+        onClick={drawerMode === 'edit' ? () => { setDrawerMode('view'); setErrors({}) } : closeDrawer}
         className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
       >
         Cancel
@@ -219,13 +238,21 @@ export default function VehicleGroupsPage() {
             className="w-full pl-[42px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
           />
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-[#6941c6] transition-colors shrink-0"
-        >
-          <Plus className="size-5" strokeWidth={2} />
-          Add vehicle group
-        </button>
+        {selected.size > 0 ? (
+          <button onClick={() => setBulkDeleteOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-red-700 transition-colors shrink-0">
+            <Trash2 className="size-5" strokeWidth={2} />
+            Delete {selected.size} selected
+          </button>
+        ) : (
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-[#6941c6] transition-colors shrink-0"
+          >
+            <Plus className="size-5" strokeWidth={2} />
+            Add vehicle group
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -288,6 +315,7 @@ export default function VehicleGroupsPage() {
         </table>
 
         {/* Pagination */}
+        {totalPages > 1 && (
         <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
@@ -308,6 +336,7 @@ export default function VehicleGroupsPage() {
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>
+        )}
       </div>
 
       {/* Drawer */}
@@ -320,8 +349,9 @@ export default function VehicleGroupsPage() {
               Name {!isViewing && <span className="text-violet-600">*</span>}
             </label>
             <input type="text" placeholder="Toyota Innova" value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              disabled={isViewing} className={inputCls} />
+              onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setErrors(prev => ({ ...prev, name: '' })) }}
+              disabled={isViewing} className={clsx(inputCls, errors.name && 'border-red-300 focus:border-red-400 focus:ring-red-100')} />
+            {errors.name && <p className="mt-0.5 text-xs text-red-600">{errors.name}</p>}
           </div>
 
           {/* Description */}
@@ -367,6 +397,14 @@ export default function VehicleGroupsPage() {
         deleting={deleting}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
+      />
+      <ConfirmDeleteModal
+        open={bulkDeleteOpen}
+        title={`Delete ${selected.size} vehicle group${selected.size > 1 ? 's' : ''}`}
+        description={`Are you sure you want to delete ${selected.size} selected vehicle group${selected.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+        deleting={bulkDeleting}
       />
     </div>
   )

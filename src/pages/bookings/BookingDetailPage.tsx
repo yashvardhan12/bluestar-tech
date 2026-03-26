@@ -1,15 +1,16 @@
-import { useState, useRef, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Pencil, MoreHorizontal, Search,
   ChevronLeft, ChevronRight, ChevronDown, Eye, Truck, UserMinus,
   Trash2, RotateCcw, CheckCircle, XCircle, RefreshCw, UserX,
-  Send, FileText, Printer,
+  Send, FileText, Printer, ArrowLeftRight, Car, FileX2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
 import type { BookingStatus } from '../../components/ui/StatusBadge'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
+import ClearAllotmentModal from '../../components/ui/ClearAllotmentModal'
 import DateRangePicker from '../../components/ui/DateRangePicker'
 import type { DateRange } from '../../components/ui/DateRangePicker'
 import DutyDrawer from './DutyDrawer'
@@ -17,11 +18,13 @@ import type { DutyDrawerMode } from './DutyDrawer'
 import AllotDrawer from './AllotDrawer'
 import type { AllotDutyInfo } from './AllotDrawer'
 import { useToast } from '../../components/ui/Toast'
+import { supabase } from '../../lib/supabase'
+import { syncBookingStatus } from '../../lib/bookingStatus'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type DutyStatus = Extract<BookingStatus, 'Booked' | 'Allotted' | 'Dispatched' | 'Completed' | 'Billed' | 'Cancelled' | 'Unconfirmed'>
-type DutyFilter = 'All' | 'Upcoming' | 'On-Going' | DutyStatus
+type DutyStatus = 'Booked' | 'Confirmed' | 'Allotted' | 'On-Going' | 'Completed' | 'Billed' | 'Cancelled'
+type DutyFilter = 'All' | 'Upcoming' | DutyStatus
 
 interface Driver {
   initials: string
@@ -44,20 +47,7 @@ interface Duty {
   status: DutyStatus
 }
 
-// ── mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_DUTIES: Duty[] = [
-  { id: 1, date: '28/10/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: undefined,          vehicleNumber: undefined,    vehicleGroup: 'Maruti Hatchbacks',  dutyType: '250KM per day', driver: undefined,                                          repTime: '16:00', status: 'Booked'      },
-  { id: 2, date: '16/08/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: undefined,          vehicleNumber: undefined,    vehicleGroup: 'Dzire/Amaze/Etios',  dutyType: '250KM per day', driver: undefined,                                          repTime: '16:00', status: 'Booked'      },
-  { id: 3, date: '18/09/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: undefined,          vehicleNumber: undefined,    vehicleGroup: 'Toyota Innova',       dutyType: '250KM per day', driver: undefined,                                          repTime: '16:00', status: 'Booked'      },
-  { id: 4, date: '16/08/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: 'Toyota Innova',    vehicleNumber: 'MH01 4646',  dutyType: '250KM per day', driver: { initials: 'JD', name: 'John Dukes',     color: 'bg-violet-100 text-violet-700' }, repTime: '16:00', status: 'Allotted'    },
-  { id: 5, date: '12/06/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: 'Toyota Innova',    vehicleNumber: 'MH01 4646',  dutyType: '4H 40KMs',      driver: { initials: 'BL', name: 'Bradley Lawlor', color: 'bg-blue-100 text-blue-700'   }, repTime: '10:00', status: 'Dispatched'  },
-  { id: 6, date: '18/09/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: 'Maruti Alto',      vehicleNumber: 'MH01 4646',  dutyType: '4H 40KMs',      driver: { initials: 'BL', name: 'Bradley Lawlor', color: 'bg-blue-100 text-blue-700'   }, repTime: '10:00', status: 'Completed'   },
-  { id: 7, date: '18/09/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: 'Maruti Alto',      vehicleNumber: 'MH01 4646',  dutyType: '4H 40KMs',      driver: { initials: 'BL', name: 'Bradley Lawlor', color: 'bg-blue-100 text-blue-700'   }, repTime: '10:00', status: 'Billed'      },
-  { id: 8, date: '15/08/2024', customer: 'Mahindra', passenger: 'Kyle', passengerExtra: 2, vehicleName: 'Maruti Alto',      vehicleNumber: 'MH01 4646',  dutyType: '4H 40KMs',      driver: { initials: 'BL', name: 'Bradley Lawlor', color: 'bg-blue-100 text-blue-700'   }, repTime: '10:00', status: 'Cancelled'   },
-]
-
-const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Allotted', 'On-Going', 'Completed', 'Billed', 'Cancelled']
+const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Completed', 'Billed', 'Cancelled']
 const PAGE_SIZE = 8
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -158,7 +148,7 @@ function getDutyActions(
 ): (MenuItem | 'divider')[] {
   const s = duty.status
 
-  if (s === 'Booked') return [
+  if (s === 'Booked' || s === 'Confirmed') return [
     { label: 'View duty',               icon: <Eye        className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Edit duty',               icon: <Pencil     className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
     'divider',
@@ -169,17 +159,17 @@ function getDutyActions(
     { label: 'Cancel Duty',             icon: <XCircle    className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
   ]
 
-  if (s === 'Allotted' || s === 'Dispatched') return [
-    { label: 'View',                        icon: <Eye        className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Edit',                        icon: <Pencil     className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
-    { label: 'Re-allot vehicle & driver',   icon: <RefreshCw  className="size-4" strokeWidth={1.75} />, onClick: handlers.onReAllot },
-    { label: 'Change driver',               icon: <UserX      className="size-4" strokeWidth={1.75} />, onClick: handlers.onChangeDriver },
-    { label: 'Send info to driver',         icon: <Send       className="size-4" strokeWidth={1.75} />, onClick: handlers.onSendToDriver },
-    { label: 'Clear allotment',             icon: <XCircle    className="size-4" strokeWidth={1.75} />, onClick: handlers.onClearAllotment },
-    { label: 'Close duty',                  icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onCloseDuty, variant: 'primary' },
-    { label: 'Unconfirm duty',              icon: <UserMinus  className="size-4" strokeWidth={1.75} />, onClick: handlers.onUnconfirm },
+  if (s === 'Allotted') return [
+    { label: 'View duty',                   icon: <Eye            className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit duty',                   icon: <Pencil         className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
     'divider',
-    { label: 'Delete duty',                 icon: <Trash2     className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
+    { label: 'Re-allot vehicle and driver', icon: <Car            className="size-4" strokeWidth={1.75} />, onClick: handlers.onReAllot },
+    { label: 'Change Driver',               icon: <ArrowLeftRight className="size-4" strokeWidth={1.75} />, onClick: handlers.onChangeDriver },
+    { label: 'Send information to driver',  icon: <Send           className="size-4" strokeWidth={1.75} />, onClick: handlers.onSendToDriver },
+    { label: 'Print Duty Slip',             icon: <Printer        className="size-4" strokeWidth={1.75} />, onClick: handlers.onPrintSlip },
+    'divider',
+    { label: 'Clear allotment',             icon: <FileX2         className="size-4" strokeWidth={1.75} />, onClick: handlers.onClearAllotment },
+    { label: 'Cancel Duty',                 icon: <XCircle        className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
   ]
 
   if (s === 'Completed' || s === 'Billed') return [
@@ -192,14 +182,6 @@ function getDutyActions(
   if (s === 'Cancelled') return [
     { label: 'View duty',      icon: <Eye       className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Restore duty',   icon: <RotateCcw className="size-4" strokeWidth={1.75} />, onClick: handlers.onRestore },
-  ]
-
-  if (s === 'Unconfirmed') return [
-    { label: 'Confirm duty',   icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onConfirm, variant: 'primary' },
-    { label: 'View',           icon: <Eye         className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Edit',           icon: <Pencil      className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
-    'divider',
-    { label: 'Cancel duty',    icon: <XCircle     className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
   ]
 
   return []
@@ -222,18 +204,90 @@ function dutyToAllotInfo(duty: Duty): AllotDutyInfo {
 export default function BookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { showToast } = useToast()
 
-  const [duties, setDuties]           = useState<Duty[]>(MOCK_DUTIES)
+  const [duties, setDuties]             = useState<Duty[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [bookingInfo, setBookingInfo]   = useState<{ customer: string; passenger: string; passengerExtra?: number } | null>(null)
   const [statusFilter, setStatusFilter] = useState<DutyFilter>('All')
-  const [search, setSearch]           = useState('')
-  const [selected, setSelected]       = useState<Set<number>>(new Set())
-  const [page, setPage]               = useState(1)
+  const [search, setSearch]             = useState('')
+  const [selected, setSelected]         = useState<Set<number>>(new Set())
+  const [page, setPage]                 = useState(1)
   const [deleteTarget, setDeleteTarget] = useState<Duty | null>(null)
   const [dateRange, setDateRange]       = useState<DateRange | null>(null)
   const [dutyDrawer, setDutyDrawer]     = useState<{ open: boolean; mode: DutyDrawerMode; duty: Duty | null }>({
     open: false, mode: 'add', duty: null,
   })
+
+  function isoToDisplay(iso: string) {
+    if (!iso) return ''
+    const [yyyy, mm, dd] = iso.split('-')
+    return `${dd}/${mm}/${yyyy}`
+  }
+
+  const fetchDuties = useCallback(async () => {
+    if (!bookingId) return
+    setLoading(true)
+
+    const [{ data: bk }, { data: dutiesData }] = await Promise.all([
+      supabase
+        .from('bookings')
+        .select('customer_name, booking_passengers(name, sort_order)')
+        .eq('id', bookingId)
+        .single(),
+      supabase
+        .from('duties')
+        .select('id, status, start_date, end_date, duty_type, vehicle_group, reporting_time, vehicles(model_name, vehicle_number), drivers(id, name, initials)')
+        .eq('booking_id', bookingId)
+        .order('start_date'),
+    ])
+
+    if (bk) {
+      const sorted = [...(bk.booking_passengers ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order)
+      setBookingInfo({
+        customer:       bk.customer_name,
+        passenger:      sorted[0]?.name ?? '—',
+        passengerExtra: sorted.length > 1 ? sorted.length - 1 : undefined,
+      })
+    }
+
+    if (dutiesData) {
+      setDuties(dutiesData.map((r: any) => ({
+        id:            r.id,
+        date:          isoToDisplay(r.start_date),
+        customer:      bk?.customer_name ?? '',
+        passenger:     bk ? (() => {
+          const sorted = [...(bk.booking_passengers ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order)
+          return sorted[0]?.name ?? '—'
+        })() : '—',
+        passengerExtra: bk && bk.booking_passengers?.length > 1 ? bk.booking_passengers.length - 1 : undefined,
+        vehicleName:   r.vehicles?.model_name ?? undefined,
+        vehicleNumber: r.vehicles?.vehicle_number ?? undefined,
+        vehicleGroup:  r.vehicle_group ?? undefined,
+        dutyType:      r.duty_type ?? '—',
+        driver:        r.drivers ? { initials: r.drivers.initials, name: r.drivers.name, color: 'bg-violet-100 text-violet-700' } : undefined,
+        repTime:       r.reporting_time ?? '—',
+        status:        r.status as DutyStatus,
+      })))
+    }
+
+    setLoading(false)
+  }, [bookingId])
+
+  useEffect(() => { fetchDuties() }, [fetchDuties])
+
+  // Auto-open duty view drawer when navigated from availability with a dutyId
+  useEffect(() => {
+    const openDutyId = (location.state as { openDutyId?: number } | null)?.openDutyId
+    if (!openDutyId || loading || duties.length === 0) return
+    const duty = duties.find(d => d.id === openDutyId)
+    if (duty) {
+      setDutyDrawer({ open: true, mode: 'view', duty })
+      // Clear state so re-renders don't re-open it
+      window.history.replaceState({}, '')
+    }
+  }, [loading, duties, location.state])
 
   function openDutyDrawer(mode: DutyDrawerMode, duty: Duty | null = null) {
     setDutyDrawer({ open: true, mode, duty })
@@ -242,10 +296,14 @@ export default function BookingDetailPage() {
     setDutyDrawer(prev => ({ ...prev, open: false }))
   }
 
-  const [allotDuty, setAllotDuty] = useState<Duty | null>(null)
+  const [allotDuty, setAllotDuty]               = useState<Duty | null>(null)
+  const [changeDriverDuty, setChangeDriverDuty] = useState<Duty | null>(null)
+  const [clearAllotTarget, setClearAllotTarget] = useState<Duty | null>(null)
 
   function openAllotDrawer(duty: Duty) { setAllotDuty(duty) }
   function closeAllotDrawer() { setAllotDuty(null) }
+  function openChangeDriverDrawer(duty: Duty) { setChangeDriverDuty(duty) }
+  function closeChangeDriverDrawer() { setChangeDriverDuty(null) }
 
   const filtered = duties.filter(d => {
     if (statusFilter === 'Upcoming') {
@@ -285,16 +343,37 @@ export default function BookingDetailPage() {
     })
   }
 
-  function updateDutyStatus(id: number, status: DutyStatus) {
+  /** Update a duty's status in DB, then re-sync the parent booking status. */
+  async function updateDutyStatus(id: number, status: DutyStatus) {
+    const { error } = await supabase.from('duties').update({ status }).eq('id', id)
+    if (error) { showToast('Failed to update duty', 'error'); return }
     setDuties(prev => prev.map(d => d.id === id ? { ...d, status } : d))
+    await syncBookingStatus(Number(bookingId))
   }
 
-  function handleDelete() {
+  /** Clear vehicle + driver from a duty, reset it to Booked, then re-sync booking. */
+  async function clearDutyAllotment(id: number) {
+    const { error } = await supabase
+      .from('duties')
+      .update({ vehicle_id: null, driver_id: null, status: 'Booked' })
+      .eq('id', id)
+    if (error) { showToast('Failed to clear allotment', 'error'); return }
+    setDuties(prev => prev.map(d => d.id === id
+      ? { ...d, status: 'Booked', vehicleName: undefined, vehicleNumber: undefined, driver: undefined }
+      : d,
+    ))
+    await syncBookingStatus(Number(bookingId))
+  }
+
+  async function handleDelete() {
     if (!deleteTarget) return
+    const { error } = await supabase.from('duties').delete().eq('id', deleteTarget.id)
+    if (error) { showToast('Failed to delete duty', 'error'); return }
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setDuties(prev => prev.filter(d => d.id !== deleteTarget.id))
     setDeleteTarget(null)
     showToast('Duty deleted successfully')
+    await syncBookingStatus(Number(bookingId))
   }
 
   return (
@@ -314,7 +393,7 @@ export default function BookingDetailPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[30px] font-semibold leading-[38px] text-gray-900">
-              Booking ID: {bookingId}
+              Booking ID: {bookingId}{bookingInfo ? ` — ${bookingInfo.customer}` : ''}
             </h1>
             <p className="text-base font-normal text-gray-500 leading-6 mt-0.5">
               12/06/2024 to 18/06/2024
@@ -419,7 +498,12 @@ export default function BookingDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {pageRows.map(row => (
+            {loading && (
+              <tr>
+                <td colSpan={9} className="py-16 text-center text-sm text-gray-400">Loading…</td>
+              </tr>
+            )}
+            {!loading && pageRows.map(row => (
               <tr
                 key={row.id}
                 className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors"
@@ -446,7 +530,7 @@ export default function BookingDetailPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm text-gray-700">{row.passenger}</span>
                     {row.passengerExtra !== undefined && (
-                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md leading-none">
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-gray-100 text-xs font-medium text-gray-500">
                         +{row.passengerExtra}
                       </span>
                     )}
@@ -496,27 +580,27 @@ export default function BookingDetailPage() {
                     items={getDutyActions(row, {
                       onView:          () => openDutyDrawer('view', row),
                       onEdit:          () => openDutyDrawer('edit', row),
-                      onAllot:         () => openAllotDrawer(row),
-                      onReAllot:       () => {},
-                      onChangeDriver:  () => {},
-                      onSendToDriver:  () => {},
-                      onClearAllotment:() => { updateDutyStatus(row.id, 'Booked'); showToast('Allotment cleared') },
-                      onCloseDuty:     () => { updateDutyStatus(row.id, 'Completed'); showToast('Duty closed successfully') },
-                      onUnconfirm:     () => { updateDutyStatus(row.id, 'Unconfirmed'); showToast('Duty moved to Unconfirmed') },
-                      onConfirm:       () => { updateDutyStatus(row.id, 'Booked'); showToast('Duty confirmed successfully') },
-                      onPreviewSlip:   () => {},
-                      onEditSlip:      () => {},
-                      onPrintSlip:     () => {},
-                      onRestore:       () => { updateDutyStatus(row.id, 'Booked'); showToast('Duty restored successfully') },
-                      onCancel:        () => { updateDutyStatus(row.id, 'Cancelled'); showToast('Duty cancelled') },
-                      onDelete:        () => setDeleteTarget(row),
+                      onAllot:          () => openAllotDrawer(row),
+                      onReAllot:        () => openAllotDrawer(row),
+                      onChangeDriver:   () => openChangeDriverDrawer(row),
+                      onSendToDriver:   () => {},
+                      onClearAllotment: () => setClearAllotTarget(row),
+                      onCloseDuty:      () => updateDutyStatus(row.id, 'Completed'),
+                      onUnconfirm:      () => updateDutyStatus(row.id, 'Booked'),
+                      onConfirm:        () => updateDutyStatus(row.id, 'Booked'),
+                      onPreviewSlip:    () => {},
+                      onEditSlip:       () => {},
+                      onPrintSlip:      () => {},
+                      onRestore:        () => updateDutyStatus(row.id, 'Booked'),
+                      onCancel:         () => updateDutyStatus(row.id, 'Cancelled'),
+                      onDelete:         () => setDeleteTarget(row),
                     })}
                   />
                 </td>
               </tr>
             ))}
 
-            {pageRows.length === 0 && (
+            {!loading && pageRows.length === 0 && (
               <tr>
                 <td colSpan={9} className="py-16 text-center text-sm text-gray-400">
                   No duties match your search.
@@ -561,6 +645,18 @@ export default function BookingDetailPage() {
         </div>
       </div>
 
+      <ClearAllotmentModal
+        open={clearAllotTarget !== null}
+        vehicleName={clearAllotTarget?.vehicleName}
+        vehicleNumber={clearAllotTarget?.vehicleNumber}
+        driverName={clearAllotTarget?.driver?.name}
+        onClose={() => setClearAllotTarget(null)}
+        onConfirm={async () => {
+          if (clearAllotTarget) await clearDutyAllotment(clearAllotTarget.id)
+          setClearAllotTarget(null)
+        }}
+      />
+
       <ConfirmDeleteModal
         open={deleteTarget !== null}
         title="Delete duty"
@@ -584,35 +680,46 @@ export default function BookingDetailPage() {
             : '',
         } : undefined}
         onClose={closeDutyDrawer}
-        onSave={form => {
+        onSave={async form => {
           const isAdd = dutyDrawer.mode === 'add'
-          // Convert YYYY-MM-DD → DD/MM/YYYY for display
-          const toDisplay = (iso: string) => {
-            if (!iso) return ''
-            const [yyyy, mm, dd] = iso.split('-')
-            return `${dd}/${mm}/${yyyy}`
-          }
           if (isAdd) {
-            const newDuty: Duty = {
-              id: Date.now(),
-              date: toDisplay(form.startDate),
-              customer: '',
-              passenger: '',
-              vehicleGroup: form.vehicleGroup,
-              dutyType: form.dutyType,
-              repTime: form.reportingTime,
-              status: 'Booked',
-            }
-            setDuties(prev => [newDuty, ...prev])
+            const { error } = await supabase.from('duties').insert({
+              booking_id:        Number(bookingId),
+              start_date:        form.startDate,
+              end_date:          form.endDate || form.startDate,
+              duty_type:         form.dutyType || null,
+              vehicle_group:     form.vehicleGroup || null,
+              from_location:     form.fromLocation || null,
+              to_location:       form.toLocation || null,
+              reporting_address: form.reportingAddress || null,
+              drop_address:      form.dropAddress || null,
+              reporting_time:    form.reportingTime || null,
+              est_drop_time:     form.estDropTime || null,
+              garage_start_mins: form.garageStartMins ? parseInt(form.garageStartMins) : null,
+              base_rate:         form.baseRate ? parseFloat(form.baseRate) : null,
+              extra_km_rate:     form.extraKmRate ? parseFloat(form.extraKmRate) : null,
+              extra_hour_rate:   form.extraHourRate ? parseFloat(form.extraHourRate) : null,
+              bill_to:           form.billTo || null,
+              operator_notes:    form.operatorNotes || null,
+              driver_notes:      form.driverNotes || null,
+              status:            'Booked',
+            })
+            if (error) { showToast('Failed to add duty', 'error'); return }
+            await syncBookingStatus(Number(bookingId))
+            await fetchDuties()
           } else if (dutyDrawer.duty) {
-            const id = dutyDrawer.duty.id
-            setDuties(prev => prev.map(d => d.id === id ? {
-              ...d,
-              date: toDisplay(form.startDate) || d.date,
-              vehicleGroup: form.vehicleGroup || d.vehicleGroup,
-              dutyType: form.dutyType || d.dutyType,
-              repTime: form.reportingTime || d.repTime,
-            } : d))
+            const { error } = await supabase.from('duties').update({
+              start_date:        form.startDate || undefined,
+              end_date:          form.endDate || undefined,
+              duty_type:         form.dutyType || null,
+              vehicle_group:     form.vehicleGroup || null,
+              reporting_time:    form.reportingTime || null,
+              reporting_address: form.reportingAddress || null,
+              drop_address:      form.dropAddress || null,
+            }).eq('id', dutyDrawer.duty.id)
+            if (error) { showToast('Failed to update duty', 'error'); return }
+            await syncBookingStatus(Number(bookingId))
+            await fetchDuties()
           }
           closeDutyDrawer()
           showToast(isAdd ? 'Duty added successfully' : 'Duty updated successfully')
@@ -623,22 +730,45 @@ export default function BookingDetailPage() {
         open={allotDuty !== null}
         duty={allotDuty ? dutyToAllotInfo(allotDuty) : null}
         onClose={closeAllotDrawer}
-        onAllot={(vehicle, driver) => {
+        onAllot={async (vehicle, driver) => {
           if (allotDuty) {
-            setDuties(prev => prev.map(d => d.id === allotDuty.id ? {
-              ...d,
-              status: 'Allotted',
-              vehicleName: vehicle.modelName,
-              vehicleNumber: vehicle.vehicleNumber,
-              driver: driver
-                ? { initials: driver.initials, name: driver.name, color: 'bg-violet-100 text-violet-700' }
-                : vehicle.assignedDriver
-                  ? { initials: vehicle.assignedDriver.initials, name: vehicle.assignedDriver.name, color: 'bg-violet-100 text-violet-700' }
-                  : undefined,
-            } : d))
+            const { error } = await supabase.from('duties').update({
+              status:     'Allotted',
+              vehicle_id: vehicle.id,
+              driver_id:  driver?.id ?? null,
+            }).eq('id', allotDuty.id)
+            if (error) { showToast('Failed to allot duty', 'error'); return }
+            await syncBookingStatus(Number(bookingId))
+            await fetchDuties()
           }
           closeAllotDrawer()
           showToast('Vehicle and driver allotted successfully')
+        }}
+      />
+
+      {/* Change driver — driver-only mode, keeps existing vehicle */}
+      <AllotDrawer
+        open={changeDriverDuty !== null}
+        duty={changeDriverDuty ? dutyToAllotInfo(changeDriverDuty) : null}
+        driverOnlyMode
+        currentVehicle={changeDriverDuty ? {
+          id: 0,
+          modelName: changeDriverDuty.vehicleName ?? '',
+          vehicleNumber: changeDriverDuty.vehicleNumber ?? '',
+          vehicleGroup: changeDriverDuty.vehicleGroup ?? '',
+          assignedDriver: null,
+        } : undefined}
+        onClose={closeChangeDriverDrawer}
+        onAllot={async (vehicle, driver) => {
+          if (changeDriverDuty) {
+            const { error } = await supabase.from('duties').update({
+              driver_id: driver?.id ?? null,
+            }).eq('id', changeDriverDuty.id)
+            if (error) { showToast('Failed to change driver', 'error'); return }
+            await fetchDuties()
+          }
+          closeChangeDriverDrawer()
+          showToast('Driver updated successfully')
         }}
       />
     </div>

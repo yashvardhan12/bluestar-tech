@@ -2,14 +2,13 @@ import { clsx } from 'clsx'
 
 export type BookingStatus =
   | 'Booked'
-  | 'Booked Orange'
+  | 'Confirmed'
   | 'Allotted'
-  | 'Dispatched'
+  | 'Partially Allotted'
   | 'On-Going'
   | 'Completed'
   | 'Billed'
   | 'Cancelled'
-  | 'Unconfirmed'
 
 const CONFIG: Record<BookingStatus, {
   badge: string
@@ -21,20 +20,20 @@ const CONFIG: Record<BookingStatus, {
     dot:   'bg-gray-400',
     label: 'Booked',
   },
-  'Booked Orange': {
+  'Confirmed': {
     badge: 'bg-orange-50 border-orange-200 text-orange-700',
     dot:   'bg-orange-400',
-    label: 'Booked',
+    label: 'Confirmed',
   },
   'Allotted': {
     badge: 'bg-amber-50 border-amber-200 text-amber-700',
     dot:   'bg-amber-400',
     label: 'Allotted',
   },
-  'Dispatched': {
-    badge: 'bg-blue-50 border-blue-200 text-blue-700',
-    dot:   'bg-blue-400',
-    label: 'Dispatched',
+  'Partially Allotted': {
+    badge: 'bg-amber-50 border-amber-200 text-amber-600',
+    dot:   'bg-amber-300',
+    label: 'Partially Allotted',
   },
   'On-Going': {
     badge: 'bg-blue-50 border-blue-200 text-blue-700',
@@ -56,11 +55,6 @@ const CONFIG: Record<BookingStatus, {
     dot:   'bg-red-400',
     label: 'Cancelled',
   },
-  'Unconfirmed': {
-    badge: 'bg-red-50 border-red-200 text-red-700',
-    dot:   'bg-red-400',
-    label: 'Unconfirmed',
-  },
 }
 
 interface StatusBadgeProps {
@@ -69,15 +63,15 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ status, className }: StatusBadgeProps) {
-  const { badge, dot, label } = CONFIG[status]
+  const config = CONFIG[status] ?? CONFIG['Booked']
   return (
     <span className={clsx(
       'inline-flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full border text-xs font-medium whitespace-nowrap',
-      badge,
+      config.badge,
       className,
     )}>
-      <span className={clsx('size-1.5 rounded-full shrink-0', dot)} />
-      {label}
+      <span className={clsx('size-1.5 rounded-full shrink-0', config.dot)} />
+      {config.label}
     </span>
   )
 }

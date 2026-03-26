@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AppShell from './layouts/AppShell'
 import DatabaseLayout from './layouts/DatabaseLayout'
+import VehicleTrackerLayout from './layouts/VehicleTrackerLayout'
+import DriverAttendanceLayout from './layouts/DriverAttendanceLayout'
 import { ToastProvider } from './components/ui/Toast'
 
 import DutyTypesPage           from './pages/database/DutyTypesPage'
@@ -23,13 +25,13 @@ import ReceiptsPage            from './pages/billing/ReceiptsPage'
 import AttendancePage          from './pages/driver-ops/AttendancePage'
 import PayrollPage             from './pages/driver-ops/PayrollPage'
 
-import GeneralExpensesPage     from './pages/vehicle-expenses/GeneralExpensesPage'
+import ExpensePage             from './pages/vehicle-expenses/GeneralExpensesPage'
 import FuelPage                from './pages/vehicle-expenses/FuelPage'
 import LoansPage               from './pages/vehicle-expenses/LoansPage'
-import EfficiencyPage          from './pages/vehicle-expenses/EfficiencyPage'
+import AveragePage             from './pages/vehicle-expenses/EfficiencyPage'
 
 import VehicleAvailabilityPage from './pages/availability/VehicleAvailabilityPage'
-import DriverAvailabilityPage  from './pages/availability/DriverAvailabilityPage'
+import SettingsPage             from './pages/settings/SettingsPage'
 
 export default function App() {
   return (
@@ -62,19 +64,27 @@ export default function App() {
           <Route path="/billing/invoices" element={<InvoicesPage />} />
           <Route path="/billing/receipts" element={<ReceiptsPage />} />
 
-          {/* Driver Ops */}
-          <Route path="/driver-ops/attendance" element={<AttendancePage />} />
-          <Route path="/driver-ops/payroll"    element={<PayrollPage />} />
+          {/* Drivers Attendance and Payroll — nested layout with horizontal tab bar */}
+          <Route path="/driver-attendance-payroll" element={<DriverAttendanceLayout />}>
+            <Route index element={<Navigate to="attendance" replace />} />
+            <Route path="attendance" element={<AttendancePage />} />
+            <Route path="payroll"    element={<PayrollPage />} />
+          </Route>
 
-          {/* Vehicle Expenses */}
-          <Route path="/vehicle-expenses/general"    element={<GeneralExpensesPage />} />
-          <Route path="/vehicle-expenses/fuel"       element={<FuelPage />} />
-          <Route path="/vehicle-expenses/loans"      element={<LoansPage />} />
-          <Route path="/vehicle-expenses/efficiency" element={<EfficiencyPage />} />
+          {/* Vehicle Tracker — nested layout with horizontal tab bar */}
+          <Route path="/vehicle-tracker" element={<VehicleTrackerLayout />}>
+            <Route index element={<Navigate to="expense" replace />} />
+            <Route path="expense" element={<ExpensePage />} />
+            <Route path="fuel"    element={<FuelPage />} />
+            <Route path="loans"   element={<LoansPage />} />
+            <Route path="average" element={<AveragePage />} />
+          </Route>
 
           {/* Availability */}
           <Route path="/availability/vehicles" element={<VehicleAvailabilityPage />} />
-          <Route path="/availability/drivers"  element={<DriverAvailabilityPage />} />
+
+          {/* Settings */}
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

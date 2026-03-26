@@ -14,7 +14,7 @@ export default function AppShell({ children }: AppShellProps) {
   const activeSection = NAV.find(s => location.pathname.startsWith(s.basePath))
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50">
+    <div className="flex h-screen w-full overflow-hidden bg-white">
 
       {/* ── Icon sidebar ── */}
       <aside className="flex flex-col items-center justify-between w-20 h-full bg-white border-r border-gray-200 shrink-0">
@@ -62,7 +62,13 @@ export default function AppShell({ children }: AppShellProps) {
           </button>
           <button
             title="Settings"
-            className="flex items-center justify-center size-12 rounded-md bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors cursor-pointer"
+            onClick={() => navigate('/settings')}
+            className={clsx(
+              'flex items-center justify-center size-12 rounded-md transition-colors cursor-pointer',
+              location.pathname === '/settings'
+                ? 'bg-gray-100 text-gray-700'
+                : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700',
+            )}
           >
             <Settings className="size-6" strokeWidth={1.75} />
           </button>

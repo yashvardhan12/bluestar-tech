@@ -165,10 +165,14 @@ interface DutyDrawerProps {
 export default function DutyDrawer({ open, mode, initial, onClose, onSave }: DutyDrawerProps) {
   const [form, setForm] = useState<DutyForm>({ ...EMPTY_FORM, ...initial })
   const [vehicleGroups, setVehicleGroups] = useState<string[]>([])
+  const [dutyTypes, setDutyTypes]         = useState<string[]>([])
 
   useEffect(() => {
     supabase.from('vehicle_groups').select('name').order('name').then(({ data }) => {
       if (data) setVehicleGroups(data.map((r: { name: string }) => r.name))
+    })
+    supabase.from('duty_types').select('type_name').order('type_name').then(({ data }) => {
+      if (data) setDutyTypes(data.map((r: { type_name: string }) => r.type_name))
     })
   }, [])
 
@@ -240,7 +244,7 @@ export default function DutyDrawer({ open, mode, initial, onClose, onSave }: Dut
 
           {/* Duty Type */}
           <SelectField label="Duty Type" required={!readOnly} placeholder="Select one" readOnly={readOnly}
-            options={['250KM per day', '300KM per day', '4H 40KMs', '6H 60KMs', '8H 80KMs']}
+            options={dutyTypes}
             {...field('dutyType')}
           />
 

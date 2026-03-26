@@ -1,36 +1,53 @@
 import { useEffect } from 'react'
-import { X, Trash2 } from 'lucide-react'
+import { X } from 'lucide-react'
+import { clsx } from 'clsx'
 
-export interface DeleteCheckbox {
-  label: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-}
-
-interface ConfirmDeleteModalProps {
+interface ConfirmModalProps {
   open: boolean
+  /** Icon element rendered inside the colored circle */
+  icon: React.ReactNode
+  /** Circle + icon color scheme */
+  iconVariant?: 'amber' | 'red' | 'blue' | 'gray'
   title: string
   description: string
-  deleting?: boolean
-  checkboxes?: DeleteCheckbox[]
+  confirmLabel?: string
+  cancelLabel?: string
+  /** Color of the confirm button */
+  confirmVariant?: 'amber' | 'red' | 'violet'
+  loading?: boolean
   onClose: () => void
   onConfirm: () => void
 }
 
-export default function ConfirmDeleteModal({
+const ICON_STYLES: Record<string, string> = {
+  amber: 'bg-amber-100 text-amber-600',
+  red:   'bg-red-100   text-red-600',
+  blue:  'bg-blue-100  text-blue-600',
+  gray:  'bg-gray-100  text-gray-600',
+}
+
+const BTN_STYLES: Record<string, string> = {
+  amber:  'bg-amber-500  hover:bg-amber-600  text-white',
+  red:    'bg-red-600    hover:bg-red-700    text-white',
+  violet: 'bg-violet-600 hover:bg-violet-700 text-white',
+}
+
+export default function ConfirmModal({
   open,
+  icon,
+  iconVariant = 'amber',
   title,
   description,
-  deleting = false,
-  checkboxes,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  confirmVariant = 'amber',
+  loading = false,
   onClose,
   onConfirm,
-}: ConfirmDeleteModalProps) {
+}: ConfirmModalProps) {
   useEffect(() => {
     if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
@@ -45,10 +62,10 @@ export default function ConfirmDeleteModal({
         onClick={onClose}
       />
 
-      {/* Modal card */}
-      <div className={`relative bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] w-full overflow-hidden ${checkboxes ? 'max-w-[560px]' : 'max-w-[400px]'}`}>
+      {/* Card */}
+      <div className="relative bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] w-full max-w-[400px] overflow-hidden">
 
-        {/* Decorative grid pattern top-left */}
+        {/* Decorative grid */}
         <div
           className="pointer-events-none absolute -left-[120px] -top-[120px] size-[336px]"
           style={{
@@ -61,16 +78,11 @@ export default function ConfirmDeleteModal({
 
         {/* Header */}
         <div className="relative px-6 pt-6 pb-0">
-          {/* Red icon circle */}
-          <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-red-100">
-            <Trash2 className="size-5 text-red-600" strokeWidth={1.75} />
+          <div className={clsx('mb-4 flex size-12 items-center justify-center rounded-full', ICON_STYLES[iconVariant])}>
+            {icon}
           </div>
-
-          {/* Text */}
           <p className="text-lg font-semibold text-gray-900 leading-7">{title}</p>
           <p className="mt-1 text-sm text-gray-500 leading-5">{description}</p>
-
-          {/* Close X */}
           <button
             onClick={onClose}
             className="absolute right-4 top-4 flex size-[44px] items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
@@ -79,23 +91,6 @@ export default function ConfirmDeleteModal({
           </button>
         </div>
 
-        {/* Checkboxes */}
-        {checkboxes && checkboxes.length > 0 && (
-          <div className="px-6 pt-5 flex flex-col gap-3">
-            {checkboxes.map((cb, i) => (
-              <label key={i} className="flex items-start gap-3 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={cb.checked}
-                  onChange={e => cb.onChange(e.target.checked)}
-                  className="mt-0.5 size-4 shrink-0 rounded border-gray-300 accent-violet-600 cursor-pointer"
-                />
-                <span className="text-sm text-gray-600 leading-5">{cb.label}</span>
-              </label>
-            ))}
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex gap-3 px-6 pt-6 pb-6">
           <button
@@ -103,15 +98,18 @@ export default function ConfirmDeleteModal({
             onClick={onClose}
             className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            disabled={deleting}
-            className="flex-1 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={loading}
+            className={clsx(
+              'flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+              BTN_STYLES[confirmVariant],
+            )}
           >
-            {deleting ? 'Deleting…' : 'Delete'}
+            {loading ? 'Please wait…' : confirmLabel}
           </button>
         </div>
       </div>

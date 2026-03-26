@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
 import FileUpload from '../../components/ui/FileUpload'
@@ -140,17 +140,63 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
   )
 }
 
+// ── toolbar more menu ─────────────────────────────────────────────────────────
+
+function ToolbarMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer"
+      >
+        <MoreHorizontal className="size-5" strokeWidth={1.75} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-white rounded-lg border border-gray-200 shadow-[0px_8px_16px_-4px_rgba(16,24,40,0.08)] py-1">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+          >
+            <Download className="size-4 text-gray-500 shrink-0" strokeWidth={1.75} />
+            Import drivers
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+          >
+            <Upload className="size-4 text-gray-500 shrink-0" strokeWidth={1.75} />
+            Export drivers
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── drawer field helpers ──────────────────────────────────────────────────────
 
 const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, children, error }: { label: string; required?: boolean; children: React.ReactNode; error?: string }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="flex items-center gap-0.5 text-sm font-medium text-gray-700">
         {label}{required && <span className="text-violet-600">*</span>}
       </label>
       {children}
+      {error && <p className="mt-0.5 text-xs text-red-600">{error}</p>}
     </div>
   )
 }
@@ -235,10 +281,13 @@ export default function DriversPage() {
   const [drawerMode, setDrawerMode] = useState<DrawerMode>('add')
   const [activeDriver, setActiveDriver] = useState<Driver | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<Driver | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => { fetchData() }, [])
 
@@ -322,23 +371,27 @@ export default function DriversPage() {
   }
 
   function openAdd() {
-    setForm(EMPTY_FORM); setActiveDriver(null); setDrawerMode('add'); setDrawerOpen(true)
+    setForm(EMPTY_FORM); setActiveDriver(null); setDrawerMode('add'); setErrors({}); setDrawerOpen(true)
   }
   function openView(d: Driver) {
-    setForm(driverToForm(d)); setActiveDriver(d); setDrawerMode('view'); setDrawerOpen(true)
+    setForm(driverToForm(d)); setActiveDriver(d); setDrawerMode('view'); setErrors({}); setDrawerOpen(true)
   }
   function openEdit(d: Driver) {
-    setForm(driverToForm(d)); setActiveDriver(d); setDrawerMode('edit'); setDrawerOpen(true)
+    setForm(driverToForm(d)); setActiveDriver(d); setDrawerMode('edit'); setErrors({}); setDrawerOpen(true)
   }
 
   function set<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
+    setErrors(prev => ({ ...prev, [key]: '' }))
   }
 
   // ── save ──────────────────────────────────────────────────────────────────
 
   async function handleSave() {
-    if (!form.name.trim()) return
+    const newErrors: Record<string, string> = {}
+    if (!form.name.trim()) newErrors.name = 'Name is required'
+    if (!form.phone.trim()) newErrors.phone = 'Phone number is required'
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
     setSaving(true)
 
     const initials = getInitials(form.name)
@@ -364,9 +417,11 @@ export default function DriversPage() {
     }
 
     if (drawerMode === 'add') {
-      const { data: last } = await supabase.from('drivers').select('driver_id').order('created_at', { ascending: false }).limit(1)
-      const lastNum = last?.[0]?.driver_id ? parseInt(last[0].driver_id.replace(/\D/g, '')) : 0
-      const nextId = `BLUDRIVER${String(lastNum + 1).padStart(2, '0')}`
+      const { data: allIds } = await supabase.from('drivers').select('driver_id')
+      const maxNum = allIds && allIds.length > 0
+        ? Math.max(0, ...allIds.map((d: any) => parseInt(d.driver_id?.replace(/\D/g, '') || '0')))
+        : 0
+      const nextId = `BLUDRIVER${String(maxNum + 1).padStart(2, '0')}`
 
       const { error } = await supabase
         .from('drivers')
@@ -374,16 +429,24 @@ export default function DriversPage() {
         .select()
         .single()
 
-      if (!error) {
-        await fetchData()
-        showToast('Driver added successfully')
+      if (error) {
+        console.error('Insert driver error:', error)
+        showToast(`Failed to save: ${error.message}`)
+        setSaving(false)
+        return
       }
+      await fetchData()
+      showToast('Driver added successfully')
     } else if (drawerMode === 'edit' && activeDriver) {
       const { error } = await supabase.from('drivers').update(payload).eq('id', activeDriver.id)
-      if (!error) {
-        await fetchData()
-        showToast('Driver updated successfully')
+      if (error) {
+        console.error('Update driver error:', error)
+        showToast(`Failed to save: ${error.message}`)
+        setSaving(false)
+        return
       }
+      await fetchData()
+      showToast('Driver updated successfully')
     }
 
     setSaving(false)
@@ -403,6 +466,19 @@ export default function DriversPage() {
     }
     setDeleting(false)
     setDeleteTarget(null)
+  }
+
+  async function handleBulkDelete() {
+    setBulkDeleting(true)
+    const ids = Array.from(selected)
+    const { error } = await supabase.from('drivers').delete().in('id', ids)
+    if (!error) {
+      setSelected(new Set())
+      await fetchData()
+      showToast(`${ids.length} driver${ids.length > 1 ? 's' : ''} deleted`)
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
   }
 
   const readOnly = drawerMode === 'view'
@@ -430,13 +506,18 @@ export default function DriversPage() {
               className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
             />
           </div>
-          <button onClick={openAdd}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer">
-            <Plus className="size-4" strokeWidth={2.5} />Add driver
-          </button>
-          <button className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer">
-            <MoreHorizontal className="size-5" strokeWidth={1.75} />
-          </button>
+          {selected.size > 0 ? (
+            <button onClick={() => setBulkDeleteOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-red-700 transition-colors cursor-pointer">
+              <Trash2 className="size-4" strokeWidth={2.5} />Delete {selected.size} selected
+            </button>
+          ) : (
+            <button onClick={openAdd}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer">
+              <Plus className="size-4" strokeWidth={2.5} />Add driver
+            </button>
+          )}
+          <ToolbarMenu />
         </div>
       </div>
 
@@ -463,7 +544,7 @@ export default function DriversPage() {
             {pageRows.length === 0 ? (
               <tr><td colSpan={5}><EmptyState isFiltered={search.length > 0} onAdd={openAdd} /></td></tr>
             ) : pageRows.map((row, i) => (
-              <tr key={row.id} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors">
+              <tr key={row.id} onClick={() => openView(row)} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="h-[72px] px-6 py-4">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)}
@@ -491,6 +572,7 @@ export default function DriversPage() {
         </table>
 
         {/* Pagination */}
+        {totalPages > 1 && (
         <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
@@ -511,6 +593,7 @@ export default function DriversPage() {
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>
+        )}
       </div>
 
       {/* Drawer */}
@@ -520,21 +603,23 @@ export default function DriversPage() {
         title={drawerMode === 'add' ? 'Add Driver' : drawerMode === 'edit' ? 'Edit Driver' : 'View Driver'}
         footer={
           readOnly ? (
-            <button type="button" onClick={() => setDrawerOpen(false)}
-              className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
-              Close
-            </button>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setDrawerMode('edit')}
+                className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                Edit
+              </button>
+            </div>
           ) : (
-            <>
-              <button type="button" onClick={() => setDrawerOpen(false)}
-                className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center justify-end gap-3">
+              <button type="button" onClick={drawerMode === 'edit' ? () => { setDrawerMode('view'); setErrors({}) } : () => setDrawerOpen(false)}
+                className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button type="button" onClick={handleSave} disabled={saving || !form.name.trim()}
-                className="flex-1 h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {saving ? 'Saving…' : drawerMode === 'add' ? 'Add Driver' : 'Save Changes'}
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                {saving ? 'Saving…' : 'Save'}
               </button>
-            </>
+            </div>
           )
         }
       >
@@ -548,14 +633,16 @@ export default function DriversPage() {
             </Field>
           )}
 
-          <Field label="Name" required={!readOnly}>
+          <Field label="Name" required={!readOnly} error={errors.name}>
             <input type="text" placeholder="John Doe" value={form.name}
-              onChange={e => set('name', e.target.value)} disabled={readOnly} className={inputCls} />
+              onChange={e => set('name', e.target.value)} disabled={readOnly}
+              className={clsx(inputCls, errors.name && 'border-red-300 focus:border-red-400 focus:ring-red-100')} />
           </Field>
 
-          <Field label="Phone Number" required={!readOnly}>
+          <Field label="Phone Number" required={!readOnly} error={errors.phone}>
             <input type="tel" placeholder="987654321" value={form.phone}
-              onChange={e => set('phone', e.target.value)} disabled={readOnly} className={inputCls} />
+              onChange={e => set('phone', e.target.value)} disabled={readOnly}
+              className={clsx(inputCls, errors.phone && 'border-red-300 focus:border-red-400 focus:ring-red-100')} />
           </Field>
 
           <Field label="Date of Birth">
@@ -662,6 +749,14 @@ export default function DriversPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         deleting={deleting}
+      />
+      <ConfirmDeleteModal
+        open={bulkDeleteOpen}
+        title={`Delete ${selected.size} driver${selected.size > 1 ? 's' : ''}`}
+        description={`Are you sure you want to delete ${selected.size} selected driver${selected.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+        deleting={bulkDeleting}
       />
     </div>
   )

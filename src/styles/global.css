@@ -1,8 +1,21 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 @theme {
   /* ---- Colors ---- */
+
+  /* Semantic */
+  --color-primary-hover: var(--color-primary-hover);
 
   /* Gray */
   --color-gray-25:  var(--color-gray-25);

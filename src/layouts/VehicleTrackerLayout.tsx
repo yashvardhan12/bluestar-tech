@@ -2,9 +2,9 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { NAV } from '../routes'
 
-const section = NAV.find(s => s.id === 'database')!
+const section = NAV.find(s => s.id === 'vehicle-tracker')!
 
-export default function DatabaseLayout() {
+export default function VehicleTrackerLayout() {
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -13,9 +13,9 @@ export default function DatabaseLayout() {
 
       {/* Page header */}
       <div className="px-10 pt-8">
-        <h1 className="text-[30px] font-semibold leading-[38px] text-gray-900">Database</h1>
+        <h1 className="text-[30px] font-semibold leading-[38px] text-gray-900">Vehicle Tracker</h1>
         <p className="mt-1 text-base font-normal text-gray-500">
-          Manage your source of truth from here.
+          Manage your vehicle's expenses and average here
         </p>
       </div>
 

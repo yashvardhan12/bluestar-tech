@@ -13,6 +13,9 @@
   --color-black: #000000;
   --color-transparent: transparent;
 
+  /* Semantic */
+  --color-primary-hover: #f9fafb;
+
   /* Gray */
   --color-gray-25:  #fcfcfd;
   --color-gray-50:  #f9fafb;

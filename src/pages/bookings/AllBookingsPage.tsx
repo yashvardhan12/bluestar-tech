@@ -1,17 +1,23 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, Plus, Trash2, MoreHorizontal, ChevronDown,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, CheckCircle, Eye, Pencil, Car,
+  FileText, RotateCcw, XCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
+import ConfirmDeleteModal, { type DeleteCheckbox } from '../../components/ui/ConfirmDeleteModal'
 import AddBookingDrawer from './AddBookingDrawer'
+import AllotDrawer from './AllotDrawer'
+import type { MockVehicle, MockDriver } from './AllotDrawer'
 import StatusBadge from '../../components/ui/StatusBadge'
 import type { BookingStatus } from '../../components/ui/StatusBadge'
 import DateRangePicker from '../../components/ui/DateRangePicker'
 import type { DateRange } from '../../components/ui/DateRangePicker'
 import { useToast } from '../../components/ui/Toast'
+import { supabase } from '../../lib/supabase'
+import { syncBookingStatus, syncOnGoingStatuses } from '../../lib/bookingStatus'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -19,31 +25,27 @@ type StatusFilter = 'All' | BookingStatus
 
 interface Booking {
   id: number
-  startDate: string
+  bookingRef: string
+  startDate: string   // DD/MM/YYYY for display
   endDate: string
+  startDateRaw: Date  // for date-range filtering
   customer: string
   passenger: string
   passengerExtra?: number
   vehicleGroup: string
   dutyType: string
-  duties: string
   status: BookingStatus
 }
 
-// ── mock data ─────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-const MOCK_BOOKINGS: Booking[] = [
-  { id: 1, startDate: '28/10/2024', endDate: '12/06/2024', customer: 'Apple',              passenger: 'Marjorie', vehicleGroup: 'Toyota Innova',       dutyType: '250KM per day', duties: '0/1', status: 'Booked'    },
-  { id: 2, startDate: '16/08/2024', endDate: '09/04/2024', customer: 'Larsen and Turbo',   passenger: 'Kyle',     passengerExtra: 2, vehicleGroup: 'Dzire/Amaze/Etios',  dutyType: '300KM per day', duties: '0/1', status: 'Booked'    },
-  { id: 3, startDate: '18/09/2024', endDate: '30/04/2024', customer: 'Mahindra',           passenger: 'Darlene', vehicleGroup: 'Nissan Hatchbacks',  dutyType: '250KM per day', duties: '0/2', status: 'Booked'    },
-  { id: 4, startDate: '16/08/2024', endDate: '15/05/2024', customer: 'Lawyers association',passenger: 'Colleen',  passengerExtra: 1, vehicleGroup: 'MG Hector/MG Titan',  dutyType: '4H 40KMs',      duties: '0/1', status: 'Booked'    },
-  { id: 5, startDate: '12/06/2024', endDate: '31/03/2024', customer: 'Expedia services',   passenger: 'Eduardo',  passengerExtra: 3, vehicleGroup: 'Mercedes Sedans',     dutyType: '4H 40KMs',      duties: '0/3', status: 'On-Going'  },
-  { id: 6, startDate: '18/09/2024', endDate: '11/07/2024', customer: 'Lawyers association',passenger: 'Ann',      vehicleGroup: 'Toyota Sedans',       dutyType: '6H 60KMs',      duties: '0/1', status: 'Completed' },
-  { id: 7, startDate: '18/09/2024', endDate: '11/07/2024', customer: 'Lawyers association',passenger: 'Ann',      vehicleGroup: 'Toyota Sedans',       dutyType: '6H 60KMs',      duties: '0/1', status: 'Billed'    },
-  { id: 8, startDate: '15/08/2024', endDate: '16/06/2024', customer: 'Holceim',            passenger: 'Greg',     passengerExtra: 5, vehicleGroup: 'Maruti Hatchbacks',   dutyType: '6H 60KMs',      duties: '0/4', status: 'Cancelled' },
-]
+function isoToDisplay(iso: string): string {
+  if (!iso) return ''
+  const [yyyy, mm, dd] = iso.split('-')
+  return `${dd}/${mm}/${yyyy}`
+}
 
-const STATUS_TABS: StatusFilter[] = ['All', 'Booked', 'On-Going', 'Completed', 'Billed', 'Cancelled']
+const STATUS_TABS: StatusFilter[] = ['All', 'Booked', 'Confirmed', 'Allotted', 'Partially Allotted', 'On-Going', 'Completed', 'Billed', 'Cancelled']
 const PAGE_SIZE = 8
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -68,20 +70,254 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
   )
 }
 
+// ── actions menu ──────────────────────────────────────────────────────────────
+
+interface MenuItem {
+  label: string
+  icon: React.ReactNode
+  onClick: () => void
+  variant?: 'default' | 'danger' | 'confirm'
+}
+
+function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function handleOpen(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    setPos({ top: rect.bottom + 4, left: rect.right - 220 })
+    setOpen(v => !v)
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleOpen}
+        className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+      >
+        <MoreHorizontal className="size-5" strokeWidth={1.75} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-[9999] w-[220px] bg-white rounded-lg border border-gray-200 shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08),0px_4px_6px_-2px_rgba(16,24,40,0.03)] py-1"
+        >
+          {items.map((item, i) =>
+            item === 'divider'
+              ? <div key={i} className="my-1 border-t border-gray-100" />
+              : (
+                <div key={i} className="px-1.5 py-px">
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); item.onClick(); setOpen(false) }}
+                    className={clsx(
+                      'w-full flex items-center gap-2 px-2.5 py-2.5 rounded-md text-sm font-medium text-left transition-colors cursor-pointer',
+                      item.variant === 'danger'  && 'text-red-500 hover:bg-red-50',
+                      item.variant === 'confirm' && 'text-green-700 bg-green-50 hover:bg-green-100',
+                      (!item.variant || item.variant === 'default') && 'text-gray-700 hover:bg-gray-50',
+                    )}
+                  >
+                    <span className="size-4 shrink-0">{item.icon}</span>
+                    {item.label}
+                  </button>
+                </div>
+              )
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
+function getBookingActions(
+  booking: Booking,
+  handlers: {
+    onView: () => void
+    onEdit: () => void
+    onConfirm: () => void
+    onAllotAll: () => void
+    onCancel: () => void
+    onRestore: () => void
+    onDelete: () => void
+    onViewDuties: () => void
+    onGenerateInvoice: () => void
+  },
+): (MenuItem | 'divider')[] {
+  const s = booking.status
+
+  if (s === 'Booked') return [
+    { label: 'Confirm booking', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onConfirm, variant: 'confirm' },
+    'divider',
+    { label: 'View booking',   icon: <Eye    className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit booking',   icon: <Pencil className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
+    'divider',
+    { label: 'View duty(s)',   icon: <Car    className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
+    'divider',
+    { label: 'Delete Booking', icon: <Trash2 className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
+  ]
+
+  if (s === 'Confirmed') return [
+    { label: 'View booking',     icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit booking',     icon: <Pencil   className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
+    'divider',
+    { label: 'View duty(s)',     icon: <Car      className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
+    { label: 'Allot all duties', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onAllotAll },
+    { label: 'Generate invoice', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onGenerateInvoice },
+    'divider',
+    { label: 'Delete Booking',   icon: <Trash2   className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
+  ]
+
+  if (s === 'Allotted' || s === 'Partially Allotted') return [
+    { label: 'View booking',      icon: <Eye        className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit booking',      icon: <Pencil     className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
+    'divider',
+    { label: 'View duty(s)',      icon: <Car        className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
+    { label: 'Re-allot all duties', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onAllotAll },
+    'divider',
+    { label: 'Cancel booking',    icon: <XCircle    className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
+    { label: 'Delete booking',    icon: <Trash2     className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
+  ]
+
+  if (s === 'On-Going') return [
+    { label: 'View booking',   icon: <Eye    className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    'divider',
+    { label: 'View duty(s)',   icon: <Car    className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
+  ]
+
+  if (s === 'Completed') return [
+    { label: 'View booking',     icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'View duty(s)',     icon: <Car      className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
+    'divider',
+    { label: 'Generate Invoice', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onGenerateInvoice, variant: 'confirm' },
+  ]
+
+  if (s === 'Billed') return [
+    { label: 'View booking', icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'View duty(s)', icon: <Car      className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
+    { label: 'View Invoice', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onGenerateInvoice },
+  ]
+
+  if (s === 'Cancelled') return [
+    { label: 'View booking',    icon: <Eye       className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Restore booking', icon: <RotateCcw className="size-4" strokeWidth={1.75} />, onClick: handlers.onRestore },
+    'divider',
+    { label: 'Delete Booking',  icon: <Trash2    className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
+  ]
+
+  return [{ label: 'View booking', icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onView }]
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function AllBookingsPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  const [rows, setRows]               = useState<Booking[]>(MOCK_BOOKINGS)
+  const [rows, setRows]               = useState<Booking[]>([])
+  const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [search, setSearch]           = useState('')
   const [selected, setSelected]       = useState<Set<number>>(new Set())
   const [page, setPage]               = useState(1)
   const [dateRange, setDateRange]     = useState<DateRange | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null)
-  const [addDrawerOpen, setAddDrawerOpen] = useState(false)
+  const [deleteSms, setDeleteSms] = useState(false)
+  const [bookingDrawer, setBookingDrawer] = useState<{ open: boolean; mode: 'add' | 'edit' | 'view'; bookingId?: number }>({ open: false, mode: 'add' })
+  const [allotDrawer, setAllotDrawer] = useState<{ open: boolean; bookingId?: number; vehicleGroup?: string; dutyCount?: number }>({ open: false })
+
+  function openAddDrawer() { setBookingDrawer({ open: true, mode: 'add' }) }
+  function openViewDrawer(id: number) { setBookingDrawer({ open: true, mode: 'view', bookingId: id }) }
+  function openEditDrawer(id: number) { setBookingDrawer({ open: true, mode: 'edit', bookingId: id }) }
+  function closeDrawer() { setBookingDrawer(d => ({ ...d, open: false })) }
+
+  async function openAllotAllDuties(booking: Booking) {
+    const { data, error } = await supabase
+      .from('duties')
+      .select('id')
+      .eq('booking_id', booking.id)
+    if (error) { showToast('Failed to load duties', 'error'); return }
+    setAllotDrawer({ open: true, bookingId: booking.id, vehicleGroup: booking.vehicleGroup, dutyCount: data?.length ?? 0 })
+  }
+
+  async function handleBulkAllot(vehicle: MockVehicle, driver: MockDriver | null) {
+    if (!allotDrawer.bookingId) return
+    const { error } = await supabase
+      .from('duties')
+      .update({ vehicle_id: vehicle.id, driver_id: driver?.id ?? null, status: 'Allotted' })
+      .eq('booking_id', allotDrawer.bookingId)
+    if (error) { showToast('Failed to allot duties', 'error'); return }
+    const newStatus = await syncBookingStatus(allotDrawer.bookingId)
+    if (newStatus) setRows(prev => prev.map(r => r.id === allotDrawer.bookingId ? { ...r, status: newStatus } : r))
+    showToast(`All duties allotted to ${vehicle.modelName}${driver ? ` · ${driver.name}` : ''}`)
+  }
+
+  const fetchBookings = useCallback(async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        id, booking_ref, status, customer_name, duty_type, vehicle_group,
+        start_date, end_date,
+        booking_passengers ( name, sort_order )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) { console.error(error); setLoading(false); return }
+
+    const mapped: Booking[] = (data ?? []).map((r: any) => {
+      const sorted = [...(r.booking_passengers ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order)
+      const firstPassenger = sorted[0]?.name ?? '—'
+      const extraCount = sorted.length > 1 ? sorted.length - 1 : undefined
+      return {
+        id:             r.id,
+        bookingRef:     r.booking_ref,
+        startDate:      isoToDisplay(r.start_date),
+        endDate:        isoToDisplay(r.end_date),
+        startDateRaw:   new Date(r.start_date),
+        customer:       r.customer_name,
+        passenger:      firstPassenger,
+        passengerExtra: extraCount,
+        vehicleGroup:   r.vehicle_group ?? '—',
+        dutyType:       r.duty_type ?? '—',
+        status:         r.status as BookingStatus,
+      }
+    })
+    setRows(mapped)
+    setLoading(false)
+
+    // Batch On-Going transition for any active (non-protected) bookings
+    const transitionCandidates = mapped
+      .filter(b => b.status !== 'Billed' && b.status !== 'Cancelled' && b.status !== 'On-Going' && b.status !== 'Completed')
+      .map(b => b.id)
+    if (transitionCandidates.length > 0) {
+      const flipped = await syncOnGoingStatuses(transitionCandidates)
+      if (flipped.length > 0) {
+        setRows(prev => prev.map(r => flipped.includes(r.id) ? { ...r, status: 'On-Going' } : r))
+      }
+    }
+  }, [])
+
+  useEffect(() => { fetchBookings() }, [fetchBookings])
 
   // filtering
   const filtered = rows.filter(b => {
@@ -92,14 +328,9 @@ export default function AllBookingsPage() {
       b.customer.toLowerCase().includes(q) ||
       b.passenger.toLowerCase().includes(q) ||
       b.dutyType.toLowerCase().includes(q) ||
-      b.vehicleGroup.toLowerCase().includes(q)
-    let matchesDateRange = true
-    if (dateRange) {
-      // startDate is 'DD/MM/YYYY'
-      const [dd, mm, yyyy] = b.startDate.split('/')
-      const start = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
-      matchesDateRange = start >= dateRange.start && start <= dateRange.end
-    }
+      b.bookingRef.toLowerCase().includes(q)
+    const matchesDateRange = !dateRange ||
+      (b.startDateRaw >= dateRange.start && b.startDateRaw <= dateRange.end)
     return matchesStatus && matchesSearch && matchesDateRange
   })
 
@@ -129,12 +360,33 @@ export default function AllBookingsPage() {
   function handleSearch(value: string) { setSearch(value); setPage(1) }
   function handleStatusFilter(tab: StatusFilter) { setStatusFilter(tab); setPage(1) }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteTarget) return
+    const { error } = await supabase.from('bookings').delete().eq('id', deleteTarget.id)
+    if (error) { showToast('Failed to delete booking', 'error'); return }
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
     setDeleteTarget(null)
     showToast('Booking deleted successfully')
+  }
+
+  async function updateBookingStatus(id: number, status: BookingStatus) {
+    const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
+    if (error) { showToast('Failed to update booking', 'error'); return }
+    setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+  }
+
+  async function handleConfirmBooking(id: number) {
+    const { error } = await supabase.from('bookings').update({ status: 'Confirmed' }).eq('id', id)
+    if (error) { showToast('Failed to confirm booking', 'error'); return }
+    // Set all non-cancelled, non-completed duties to Confirmed
+    await supabase
+      .from('duties')
+      .update({ status: 'Confirmed' })
+      .eq('booking_id', id)
+      .not('status', 'in', '("Cancelled","Completed")')
+    setRows(prev => prev.map(r => r.id === id ? { ...r, status: 'Confirmed' } : r))
+    showToast('Booking confirmed')
   }
 
   return (
@@ -154,7 +406,7 @@ export default function AllBookingsPage() {
             All Duties
           </button>
           <button
-            onClick={() => setAddDrawerOpen(true)}
+            onClick={openAddDrawer}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer"
           >
             <Plus className="size-4" strokeWidth={2.5} />
@@ -241,11 +493,18 @@ export default function AllBookingsPage() {
             </tr>
           </thead>
           <tbody>
-            {pageRows.map(row => (
+            {loading && (
+              <tr>
+                <td colSpan={8} className="py-16 text-center text-sm text-gray-400">
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!loading && pageRows.map(row => (
               <tr
                 key={row.id}
                 onClick={() => navigate(`/bookings/${row.id}`)}
-                className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
+                className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer group"
               >
                 {/* Date */}
                 <td className="h-[72px] px-6 py-4">
@@ -272,7 +531,7 @@ export default function AllBookingsPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm text-gray-700">{row.passenger}</span>
                     {row.passengerExtra !== undefined && (
-                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md leading-none">
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-gray-100 text-xs font-medium text-gray-500">
                         +{row.passengerExtra}
                       </span>
                     )}
@@ -286,7 +545,7 @@ export default function AllBookingsPage() {
                 <td className="h-[72px] px-6 py-4 text-sm text-gray-700">{row.dutyType}</td>
 
                 {/* Duties */}
-                <td className="h-[72px] px-6 py-4 text-sm text-gray-500">{row.duties}</td>
+                <td className="h-[72px] px-6 py-4 text-sm text-gray-500">—</td>
 
                 {/* Status */}
                 <td className="h-[72px] px-6 py-4">
@@ -294,26 +553,25 @@ export default function AllBookingsPage() {
                 </td>
 
                 {/* Actions */}
-                <td className="h-[72px] p-4">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={e => { e.stopPropagation(); setDeleteTarget(row) }}
-                      className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="size-5" strokeWidth={1.75} />
-                    </button>
-                    <button
-                      onClick={e => e.stopPropagation()}
-                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      <MoreHorizontal className="size-5" strokeWidth={1.75} />
-                    </button>
-                  </div>
+                <td className="h-[72px] p-4" onClick={e => e.stopPropagation()}>
+                  <ActionsMenu
+                    items={getBookingActions(row, {
+                      onView:            () => openViewDrawer(row.id),
+                      onEdit:            () => openEditDrawer(row.id),
+                      onConfirm:         () => handleConfirmBooking(row.id),
+                      onAllotAll:        () => openAllotAllDuties(row),
+                      onCancel:          () => updateBookingStatus(row.id, 'Cancelled'),
+                      onRestore:         () => updateBookingStatus(row.id, 'Booked'),
+                      onDelete:          () => { setDeleteTarget(row); setDeleteSms(false) },
+                      onViewDuties:      () => navigate(`/bookings/${row.id}`),
+                      onGenerateInvoice: () => navigate(`/bookings/${row.id}`),
+                    })}
+                  />
                 </td>
               </tr>
             ))}
 
-            {pageRows.length === 0 && (
+            {!loading && pageRows.length === 0 && (
               <tr>
                 <td colSpan={8} className="py-16 text-center text-sm text-gray-400">
                   No bookings match your search.
@@ -358,22 +616,39 @@ export default function AllBookingsPage() {
         </div>
       </div>
 
-      {/* Add Booking drawer */}
+      {/* Booking drawer — add / edit / view */}
       <AddBookingDrawer
-        open={addDrawerOpen}
-        onClose={() => setAddDrawerOpen(false)}
-        onCreated={() => showToast('Booking created successfully')}
+        open={bookingDrawer.open}
+        mode={bookingDrawer.mode}
+        bookingId={bookingDrawer.bookingId}
+        onClose={closeDrawer}
+        onCreated={() => {
+          fetchBookings()
+          showToast(bookingDrawer.mode === 'edit' ? 'Booking updated successfully' : 'Booking created successfully')
+        }}
+      />
+
+      {/* Bulk allot drawer */}
+      <AllotDrawer
+        open={allotDrawer.open}
+        duty={allotDrawer.vehicleGroup ? { id: 0, date: '', repTime: '', dutyType: '', vehicleGroup: allotDrawer.vehicleGroup } : null}
+        bulkMode
+        bulkDutyCount={allotDrawer.dutyCount}
+        onClose={() => setAllotDrawer(d => ({ ...d, open: false }))}
+        onAllot={async (vehicle, driver) => {
+          await handleBulkAllot(vehicle, driver)
+          setAllotDrawer(d => ({ ...d, open: false }))
+        }}
       />
 
       {/* Delete confirmation */}
       <ConfirmDeleteModal
         open={deleteTarget !== null}
-        title="Delete booking"
-        description={
-          deleteTarget
-            ? `Are you sure you want to delete the booking for "${deleteTarget.customer}"? This action cannot be undone.`
-            : ''
-        }
+        title={deleteTarget ? `Delete Booking ${deleteTarget.bookingRef}` : 'Delete Booking'}
+        description="All duties, duty slips and invoices associated with this booking will be deleted as well. This is an irreversible operation."
+        checkboxes={[
+          { label: 'Send a cancellation SMS to the customer and driver (if one has been allotted)', checked: deleteSms, onChange: setDeleteSms },
+        ] satisfies DeleteCheckbox[]}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />

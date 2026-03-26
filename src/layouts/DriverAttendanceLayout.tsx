@@ -2,9 +2,9 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { NAV } from '../routes'
 
-const section = NAV.find(s => s.id === 'database')!
+const section = NAV.find(s => s.id === 'driver-attendance-payroll')!
 
-export default function DatabaseLayout() {
+export default function DriverAttendanceLayout() {
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -13,15 +13,15 @@ export default function DatabaseLayout() {
 
       {/* Page header */}
       <div className="px-10 pt-8">
-        <h1 className="text-[30px] font-semibold leading-[38px] text-gray-900">Database</h1>
+        <h1 className="text-[30px] font-semibold leading-[38px] text-gray-900">Drivers Attendance and Payroll</h1>
         <p className="mt-1 text-base font-normal text-gray-500">
-          Manage your source of truth from here.
+          Manage your drivers attendance and payrolls here
         </p>
       </div>
 
       {/* Horizontal tab bar */}
       <div className="px-10 pt-5">
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1">
           {section.children.map(({ label, path }) => {
             const isActive = location.pathname === path
             return (
@@ -44,7 +44,7 @@ export default function DatabaseLayout() {
       </div>
 
       {/* Sub-page content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         <Outlet />
       </div>
     </div>

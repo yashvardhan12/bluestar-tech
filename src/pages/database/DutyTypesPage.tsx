@@ -56,8 +56,8 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
 
 const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
-function Field({ label, required, hint, children }: {
-  label: string; required?: boolean; hint?: string; children: React.ReactNode
+function Field({ label, required, hint, children, error }: {
+  label: string; required?: boolean; hint?: string; children: React.ReactNode; error?: string
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -69,19 +69,20 @@ function Field({ label, required, hint, children }: {
         )}
       </div>
       {children}
+      {error && <p className="mt-0.5 text-xs text-red-600">{error}</p>}
     </div>
   )
 }
 
-function SelectField({ label, required, value, onChange, placeholder, options, disabled }: {
+function SelectField({ label, required, value, onChange, placeholder, options, disabled, error }: {
   label: string; required?: boolean; value: string; onChange: (v: string) => void
-  placeholder: string; options: { value: string; label: string }[]; disabled?: boolean
+  placeholder: string; options: { value: string; label: string }[]; disabled?: boolean; error?: string
 }) {
   return (
-    <Field label={label} required={required}>
+    <Field label={label} required={required} error={error}>
       <div className="relative">
         <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
-          className={clsx(inputCls, 'appearance-none pr-9', disabled ? 'cursor-default' : 'cursor-pointer', !value && 'text-gray-400')}>
+          className={clsx(inputCls, 'appearance-none pr-9', disabled ? 'cursor-default' : 'cursor-pointer', !value && 'text-gray-400', error && 'border-red-300 focus:border-red-400 focus:ring-red-100')}>
           <option value="">{placeholder}</option>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -154,10 +155,13 @@ export default function DutyTypesPage() {
   const [drawerMode, setDrawerMode] = useState<DrawerMode>('add')
   const [activeRow, setActiveRow] = useState<DutyType | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<DutyType | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => { fetchData() }, [])
 
@@ -233,18 +237,22 @@ export default function DutyTypesPage() {
     }
   }
 
-  function openAdd() { setForm(EMPTY_FORM); setActiveRow(null); setDrawerMode('add'); setDrawerOpen(true) }
-  function openView(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setDrawerMode('view'); setDrawerOpen(true) }
-  function openEdit(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setDrawerMode('edit'); setDrawerOpen(true) }
+  function openAdd() { setForm(EMPTY_FORM); setActiveRow(null); setDrawerMode('add'); setErrors({}); setDrawerOpen(true) }
+  function openView(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setDrawerMode('view'); setErrors({}); setDrawerOpen(true) }
+  function openEdit(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setDrawerMode('edit'); setErrors({}); setDrawerOpen(true) }
 
   function set<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
+    setErrors(prev => ({ ...prev, [key]: '' }))
   }
 
   // ── save ──────────────────────────────────────────────────────────────────
 
   async function handleSave() {
-    if (!form.category || !form.typeName.trim()) return
+    const newErrors: Record<string, string> = {}
+    if (!form.category) newErrors.category = 'Category is required'
+    if (!form.typeName.trim()) newErrors.typeName = 'Type name is required'
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
     setSaving(true)
 
     const payload = {
@@ -290,6 +298,19 @@ export default function DutyTypesPage() {
     setDeleteTarget(null)
   }
 
+  async function handleBulkDelete() {
+    setBulkDeleting(true)
+    const ids = Array.from(selected)
+    const { error } = await supabase.from('duty_types').delete().in('id', ids)
+    if (!error) {
+      setSelected(new Set())
+      await fetchData()
+      showToast(`${ids.length} duty type${ids.length > 1 ? 's' : ''} deleted`)
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+  }
+
   const readOnly = drawerMode === 'view'
   const cat = form.category
 
@@ -310,11 +331,19 @@ export default function DutyTypesPage() {
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             className="w-full pl-[42px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow" />
         </div>
-        <button onClick={openAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-violet-700 transition-colors shrink-0">
-          <Plus className="size-5" strokeWidth={2} />
-          Add duty type
-        </button>
+        {selected.size > 0 ? (
+          <button onClick={() => setBulkDeleteOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-red-700 transition-colors shrink-0">
+            <Trash2 className="size-5" strokeWidth={2} />
+            Delete {selected.size} selected
+          </button>
+        ) : (
+          <button onClick={openAdd}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-violet-700 transition-colors shrink-0">
+            <Plus className="size-5" strokeWidth={2} />
+            Add duty type
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -341,7 +370,7 @@ export default function DutyTypesPage() {
           </thead>
           <tbody>
             {pageRows.map(row => (
-              <tr key={row.id} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors">
+              <tr key={row.id} onClick={() => openView(row)} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer">
                 <td className="h-[72px] px-6 py-4">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)}
@@ -357,12 +386,7 @@ export default function DutyTypesPage() {
                       className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
                       <Trash2 className="size-5" strokeWidth={1.75} />
                     </button>
-                    <div className="relative group">
-                      <button className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer peer">
-                        <MoreHorizontal className="size-5" strokeWidth={1.75} />
-                      </button>
-                      <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} />
-                    </div>
+                    <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} />
                   </div>
                 </td>
               </tr>
@@ -376,6 +400,7 @@ export default function DutyTypesPage() {
         </table>
 
         {/* Pagination */}
+        {totalPages > 1 && (
         <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
@@ -396,6 +421,7 @@ export default function DutyTypesPage() {
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>
+        )}
       </div>
 
       {/* Drawer */}
@@ -406,21 +432,23 @@ export default function DutyTypesPage() {
         description="Add details of your duty type"
         footer={
           readOnly ? (
-            <button type="button" onClick={() => setDrawerOpen(false)}
-              className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
-              Close
-            </button>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setDrawerMode('edit')}
+                className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                Edit
+              </button>
+            </div>
           ) : (
-            <>
-              <button type="button" onClick={() => setDrawerOpen(false)}
-                className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center justify-end gap-3">
+              <button type="button" onClick={drawerMode === 'edit' ? () => { setDrawerMode('view'); setErrors({}) } : () => setDrawerOpen(false)}
+                className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button type="button" onClick={handleSave} disabled={saving || !form.category || !form.typeName.trim()}
-                className="flex-1 h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {saving ? 'Saving…' : drawerMode === 'add' ? 'Save' : 'Save Changes'}
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                {saving ? 'Saving…' : 'Save'}
               </button>
-            </>
+            </div>
           )
         }
       >
@@ -434,14 +462,16 @@ export default function DutyTypesPage() {
             placeholder="Select category"
             options={CATEGORIES.map(c => ({ value: c, label: c }))}
             disabled={readOnly}
+            error={errors.category}
           />
 
           {/* Dynamic fields — only shown after category is selected */}
           {cat && (
             <>
-              <Field label="Type Name" required={!readOnly}>
+              <Field label="Type Name" required={!readOnly} error={errors.typeName}>
                 <input type="text" placeholder="Enter type name" value={form.typeName}
-                  onChange={e => set('typeName', e.target.value)} disabled={readOnly} className={inputCls} />
+                  onChange={e => set('typeName', e.target.value)} disabled={readOnly}
+                  className={clsx(inputCls, errors.typeName && 'border-red-300 focus:border-red-400 focus:ring-red-100')} />
               </Field>
 
               <SelectField
@@ -550,6 +580,14 @@ export default function DutyTypesPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         deleting={deleting}
+      />
+      <ConfirmDeleteModal
+        open={bulkDeleteOpen}
+        title={`Delete ${selected.size} duty type${selected.size > 1 ? 's' : ''}`}
+        description={`Are you sure you want to delete ${selected.size} selected duty type${selected.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+        deleting={bulkDeleting}
       />
     </div>
   )

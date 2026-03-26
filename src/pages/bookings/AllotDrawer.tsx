@@ -74,12 +74,19 @@ interface AllotDrawerProps {
   duty: AllotDutyInfo | null
   onClose: () => void
   onAllot: (vehicle: MockVehicle, driver: MockDriver | null) => void
+  /** When true, skips the single-duty info table and applies to all duties in the booking */
+  bulkMode?: boolean
+  bulkDutyCount?: number
+  /** When true, skips vehicle selection and goes straight to driver selection (re-using existing vehicle) */
+  driverOnlyMode?: boolean
+  /** The vehicle already assigned (used in driverOnlyMode to pass through to onAllot) */
+  currentVehicle?: MockVehicle
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawerProps) {
-  const [step, setStep] = useState<1 | 2>(1)
+export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = false, bulkDutyCount, driverOnlyMode = false, currentVehicle }: AllotDrawerProps) {
+  const [step, setStep] = useState<1 | 2>(driverOnlyMode ? 2 : 1)
   const [selectedVehicle, setSelectedVehicle] = useState<MockVehicle | null>(null)
   const [selectedDriver, setSelectedDriver] = useState<MockDriver | null>(null)
   const [vehicles, setVehicles] = useState<MockVehicle[]>([])
@@ -127,8 +134,12 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
 
   // Reset when opened
   useEffect(() => {
-    if (open) { setStep(1); setSelectedVehicle(null); setSelectedDriver(null) }
-  }, [open])
+    if (open) {
+      setStep(driverOnlyMode ? 2 : 1)
+      setSelectedVehicle(driverOnlyMode ? (currentVehicle ?? null) : null)
+      setSelectedDriver(null)
+    }
+  }, [open, driverOnlyMode, currentVehicle])
 
   // Escape key
   useEffect(() => {
@@ -150,8 +161,9 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
   }
 
   function handleSave() {
-    if (!selectedVehicle) return
-    onAllot(selectedVehicle, selectedDriver)
+    const vehicle = driverOnlyMode ? (currentVehicle ?? selectedVehicle) : selectedVehicle
+    if (!vehicle) return
+    onAllot(vehicle, selectedDriver)
     onClose()
   }
 
@@ -198,7 +210,9 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
               <div className="flex-1 min-w-0 pt-0">
                 <h2 className="text-xl font-semibold leading-[30px] text-gray-900">Assign Vehicle</h2>
                 <p className="mt-1 text-sm font-normal text-gray-500 leading-5">
-                  Select a vehicle from the list below to assign to this duty
+                  {bulkMode
+                    ? 'Select a vehicle to assign to all duties in this booking'
+                    : 'Select a vehicle from the list below to assign to this duty'}
                 </p>
               </div>
               <button
@@ -213,12 +227,22 @@ export default function AllotDrawer({ open, duty, onClose, onAllot }: AllotDrawe
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
 
-              {/* Duty info table */}
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
-                {infoRows.map((row, i) => (
-                  <InfoRow key={row.label} label={row.label} value={row.value} alt={i % 2 === 0} tall={row.tall} />
-                ))}
-              </div>
+              {/* Duty info: single duty or bulk notice */}
+              {bulkMode ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-800">
+                  The selected vehicle and driver will be assigned to{' '}
+                  <span className="font-semibold">
+                    {bulkDutyCount != null ? `all ${bulkDutyCount} duties` : 'all duties'}
+                  </span>{' '}
+                  in this booking.
+                </div>
+              ) : (
+                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                  {infoRows.map((row, i) => (
+                    <InfoRow key={row.label} label={row.label} value={row.value} alt={i % 2 === 0} tall={row.tall} />
+                  ))}
+                </div>
+              )}
 
               {/* My Vehicles section */}
               <div>

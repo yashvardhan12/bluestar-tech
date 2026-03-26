@@ -11,6 +11,7 @@ interface DateRangePickerProps {
   value?: DateRange | null
   onChange: (range: DateRange | null) => void
   placeholder?: string
+  className?: string
 }
 
 const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
@@ -106,6 +107,7 @@ function Calendar2({
       <div className="grid grid-cols-7">
         {days.map((day, i) => {
           const isCurrentMonth = day.getMonth() === viewMonth
+          const isFuture = day > startOfDay(new Date())
           const isStart = rangeStart && isSameDay(day, rangeStart)
           const isEnd = rangeEnd && isSameDay(day, rangeEnd)
           const inRange = rangeStart && rangeEnd &&
@@ -116,17 +118,19 @@ function Calendar2({
             <button
               key={i}
               type="button"
-              onClick={() => onDayClick(day)}
-              onMouseEnter={() => onDayHover(day)}
+              disabled={isFuture}
+              onClick={() => !isFuture && onDayClick(day)}
+              onMouseEnter={() => !isFuture && onDayHover(day)}
               onMouseLeave={() => onDayHover(null)}
               className={clsx(
                 'size-[40px] flex items-center justify-center text-sm relative',
-                !isCurrentMonth && 'text-gray-400',
-                isCurrentMonth && !isEdge && !inRange && 'text-gray-700 hover:bg-gray-100',
-                inRange && !isEdge && 'bg-violet-50 text-gray-700',
-                isEdge && 'bg-violet-600 text-white rounded-full z-10',
-                isStart && rangeEnd && !isSameDay(rangeStart!, rangeEnd!) && 'rounded-l-none rounded-r-full',
-                isEnd && rangeStart && !isSameDay(rangeStart!, rangeEnd!) && 'rounded-r-none rounded-l-full',
+                isFuture && 'text-gray-300 cursor-not-allowed',
+                !isFuture && !isCurrentMonth && 'text-gray-400',
+                !isFuture && isCurrentMonth && !isEdge && !inRange && 'text-gray-700 hover:bg-gray-100',
+                !isFuture && inRange && !isEdge && 'bg-violet-50 text-gray-700',
+                !isFuture && isEdge && 'bg-violet-600 text-white rounded-full z-10',
+                isStart && rangeEnd && !isSameDay(rangeStart!, rangeEnd!) && 'rounded-r-none rounded-l-full',
+                isEnd && rangeStart && !isSameDay(rangeStart!, rangeEnd!) && 'rounded-l-none rounded-r-full',
                 (isEdge && (!rangeEnd || isSameDay(rangeStart!, rangeEnd!))) && 'rounded-full',
               )}
             >
@@ -139,7 +143,7 @@ function Calendar2({
   )
 }
 
-export default function DateRangePicker({ value, onChange, placeholder = 'Select date range' }: DateRangePickerProps) {
+export default function DateRangePicker({ value, onChange, placeholder = 'Select date range', className }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
   const [viewYear, setViewYear] = useState(() => value?.start.getFullYear() ?? new Date().getFullYear())
   const [viewMonth, setViewMonth] = useState(() => value?.start.getMonth() ?? new Date().getMonth())
@@ -236,13 +240,13 @@ export default function DateRangePicker({ value, onChange, placeholder = 'Select
   const activeSelecting = selecting
 
   return (
-    <div className="relative inline-block" ref={containerRef}>
+    <div className={clsx('relative inline-block', className)} ref={containerRef}>
       {/* Trigger */}
       <button
         type="button"
         onClick={openPicker}
         className={clsx(
-          'inline-flex items-center gap-2 h-10 px-3.5 rounded-lg border text-sm font-medium',
+          'flex items-center gap-2 h-10 px-3.5 rounded-lg border text-sm font-medium w-full',
           'border-gray-300 bg-white text-gray-700 shadow-xs hover:bg-gray-50',
           open && 'ring-2 ring-violet-600 border-violet-600',
         )}
