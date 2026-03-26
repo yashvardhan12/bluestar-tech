@@ -255,7 +255,7 @@ export default function AllBookingsPage() {
       .from('duties')
       .select('id')
       .eq('booking_id', booking.id)
-    if (error) { showToast('Failed to load duties', 'error'); return }
+    if (error) { showToast('Failed to load duties'); return }
     setAllotDrawer({ open: true, bookingId: booking.id, vehicleGroup: booking.vehicleGroup, dutyCount: data?.length ?? 0 })
   }
 
@@ -265,7 +265,7 @@ export default function AllBookingsPage() {
       .from('duties')
       .update({ vehicle_id: vehicle.id, driver_id: driver?.id ?? null, status: 'Allotted' })
       .eq('booking_id', allotDrawer.bookingId)
-    if (error) { showToast('Failed to allot duties', 'error'); return }
+    if (error) { showToast('Failed to allot duties'); return }
     const newStatus = await syncBookingStatus(allotDrawer.bookingId)
     if (newStatus) setRows(prev => prev.map(r => r.id === allotDrawer.bookingId ? { ...r, status: newStatus } : r))
     showToast(`All duties allotted to ${vehicle.modelName}${driver ? ` · ${driver.name}` : ''}`)
@@ -363,7 +363,7 @@ export default function AllBookingsPage() {
   async function handleDelete() {
     if (!deleteTarget) return
     const { error } = await supabase.from('bookings').delete().eq('id', deleteTarget.id)
-    if (error) { showToast('Failed to delete booking', 'error'); return }
+    if (error) { showToast('Failed to delete booking'); return }
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
     setDeleteTarget(null)
@@ -372,13 +372,13 @@ export default function AllBookingsPage() {
 
   async function updateBookingStatus(id: number, status: BookingStatus) {
     const { error } = await supabase.from('bookings').update({ status }).eq('id', id)
-    if (error) { showToast('Failed to update booking', 'error'); return }
+    if (error) { showToast('Failed to update booking'); return }
     setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r))
   }
 
   async function handleConfirmBooking(id: number) {
     const { error } = await supabase.from('bookings').update({ status: 'Confirmed' }).eq('id', id)
-    if (error) { showToast('Failed to confirm booking', 'error'); return }
+    if (error) { showToast('Failed to confirm booking'); return }
     // Set all non-cancelled, non-completed duties to Confirmed
     await supabase
       .from('duties')

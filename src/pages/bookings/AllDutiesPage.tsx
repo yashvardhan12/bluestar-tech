@@ -367,7 +367,7 @@ export default function AllDutiesPage() {
       .from('duties')
       .update({ vehicle_id: vehicle.id, driver_id: driver?.id ?? null })
       .eq('id', duty.id)
-    if (error) { showToast('Failed to allot duty', 'error'); return }
+    if (error) { showToast('Failed to allot duty'); return }
     const newStatus = (await syncDutyStatus(duty.id)) ?? 'Allotted'
     setRows(prev => prev.map(d => d.id === duty.id ? {
       ...d,
@@ -383,7 +383,7 @@ export default function AllDutiesPage() {
 
   async function handleChangeDriver(duty: DutyRow, driver: MockDriver | null) {
     const { error } = await supabase.from('duties').update({ driver_id: driver?.id ?? null }).eq('id', duty.id)
-    if (error) { showToast('Failed to change driver', 'error'); return }
+    if (error) { showToast('Failed to change driver'); return }
     setRows(prev => prev.map(d => d.id === duty.id
       ? { ...d, driver: driver ? { id: driver.id, initials: driver.initials, name: driver.name } : undefined }
       : d,
@@ -396,7 +396,7 @@ export default function AllDutiesPage() {
       .from('duties')
       .update({ vehicle_id: null, driver_id: null })
       .eq('id', duty.id)
-    if (error) { showToast('Failed to clear allotment', 'error'); return }
+    if (error) { showToast('Failed to clear allotment'); return }
     const newStatus = (await syncDutyStatus(duty.id)) ?? 'Booked'
     setRows(prev => prev.map(d => d.id === duty.id
       ? { ...d, status: newStatus, vehicleId: undefined, vehicleName: undefined, vehicleNumber: undefined, driver: undefined }
@@ -408,7 +408,7 @@ export default function AllDutiesPage() {
 
   async function handleRestore(duty: DutyRow) {
     const { error } = await supabase.from('duties').update({ status: 'Booked' }).eq('id', duty.id)
-    if (error) { showToast('Failed to restore duty', 'error'); return }
+    if (error) { showToast('Failed to restore duty'); return }
     setRows(prev => prev.map(d => d.id === duty.id ? { ...d, status: 'Booked' } : d))
     await syncBookingStatus(duty.bookingId)
     showToast('Duty restored')
@@ -417,7 +417,7 @@ export default function AllDutiesPage() {
 
   async function handleCancel(duty: DutyRow) {
     const { error } = await supabase.from('duties').update({ status: 'Cancelled' }).eq('id', duty.id)
-    if (error) { showToast('Failed to cancel duty', 'error'); return }
+    if (error) { showToast('Failed to cancel duty'); return }
     setRows(prev => prev.filter(d => d.id !== duty.id))
     await syncBookingStatus(duty.bookingId)
     showToast('Duty cancelled')
@@ -719,7 +719,6 @@ export default function AllDutiesPage() {
         mode="view"
         bookingId={viewBookingId ?? undefined}
         onClose={() => setViewBookingId(null)}
-        onSaved={() => setViewBookingId(null)}
       />
     </div>
   )

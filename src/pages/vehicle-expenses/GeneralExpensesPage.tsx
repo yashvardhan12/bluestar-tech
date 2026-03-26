@@ -520,9 +520,9 @@ export default function GeneralExpensesPage() {
         open={!!deleteTarget}
         title="Delete expense"
         description={deleteTarget ? `Delete the expense for ${deleteTarget.vehicleName} (${deleteTarget.expenseNumber})? This cannot be undone.` : ''}
-        loading={deleting}
+        deleting={deleting}
         onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onClose={() => setDeleteTarget(null)}
       />
 
       {/* Bulk delete confirm */}
@@ -530,9 +530,9 @@ export default function GeneralExpensesPage() {
         open={bulkDeleteOpen}
         title={`Delete ${selected.size} expense${selected.size > 1 ? 's' : ''}`}
         description={`This will permanently delete ${selected.size} selected expense${selected.size > 1 ? 's' : ''}. This cannot be undone.`}
-        loading={bulkDeleting}
+        deleting={bulkDeleting}
         onConfirm={handleBulkDelete}
-        onCancel={() => setBulkDeleteOpen(false)}
+        onClose={() => setBulkDeleteOpen(false)}
       />
     </div>
   )

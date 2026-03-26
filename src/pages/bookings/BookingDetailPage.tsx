@@ -2,13 +2,12 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Pencil, MoreHorizontal, Search,
-  ChevronLeft, ChevronRight, ChevronDown, Eye, Truck, UserMinus,
-  Trash2, RotateCcw, CheckCircle, XCircle, RefreshCw, UserX,
+  ChevronLeft, ChevronRight, ChevronDown, Eye, Truck,
+  RotateCcw, XCircle,
   Send, FileText, Printer, ArrowLeftRight, Car, FileX2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
-import type { BookingStatus } from '../../components/ui/StatusBadge'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import ClearAllotmentModal from '../../components/ui/ClearAllotmentModal'
 import DateRangePicker from '../../components/ui/DateRangePicker'
@@ -346,7 +345,7 @@ export default function BookingDetailPage() {
   /** Update a duty's status in DB, then re-sync the parent booking status. */
   async function updateDutyStatus(id: number, status: DutyStatus) {
     const { error } = await supabase.from('duties').update({ status }).eq('id', id)
-    if (error) { showToast('Failed to update duty', 'error'); return }
+    if (error) { showToast('Failed to update duty'); return }
     setDuties(prev => prev.map(d => d.id === id ? { ...d, status } : d))
     await syncBookingStatus(Number(bookingId))
   }
@@ -357,7 +356,7 @@ export default function BookingDetailPage() {
       .from('duties')
       .update({ vehicle_id: null, driver_id: null, status: 'Booked' })
       .eq('id', id)
-    if (error) { showToast('Failed to clear allotment', 'error'); return }
+    if (error) { showToast('Failed to clear allotment'); return }
     setDuties(prev => prev.map(d => d.id === id
       ? { ...d, status: 'Booked', vehicleName: undefined, vehicleNumber: undefined, driver: undefined }
       : d,
@@ -368,7 +367,7 @@ export default function BookingDetailPage() {
   async function handleDelete() {
     if (!deleteTarget) return
     const { error } = await supabase.from('duties').delete().eq('id', deleteTarget.id)
-    if (error) { showToast('Failed to delete duty', 'error'); return }
+    if (error) { showToast('Failed to delete duty'); return }
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setDuties(prev => prev.filter(d => d.id !== deleteTarget.id))
     setDeleteTarget(null)
@@ -704,7 +703,7 @@ export default function BookingDetailPage() {
               driver_notes:      form.driverNotes || null,
               status:            'Booked',
             })
-            if (error) { showToast('Failed to add duty', 'error'); return }
+            if (error) { showToast('Failed to add duty'); return }
             await syncBookingStatus(Number(bookingId))
             await fetchDuties()
           } else if (dutyDrawer.duty) {
@@ -717,7 +716,7 @@ export default function BookingDetailPage() {
               reporting_address: form.reportingAddress || null,
               drop_address:      form.dropAddress || null,
             }).eq('id', dutyDrawer.duty.id)
-            if (error) { showToast('Failed to update duty', 'error'); return }
+            if (error) { showToast('Failed to update duty'); return }
             await syncBookingStatus(Number(bookingId))
             await fetchDuties()
           }
@@ -737,7 +736,7 @@ export default function BookingDetailPage() {
               vehicle_id: vehicle.id,
               driver_id:  driver?.id ?? null,
             }).eq('id', allotDuty.id)
-            if (error) { showToast('Failed to allot duty', 'error'); return }
+            if (error) { showToast('Failed to allot duty'); return }
             await syncBookingStatus(Number(bookingId))
             await fetchDuties()
           }
@@ -759,12 +758,12 @@ export default function BookingDetailPage() {
           assignedDriver: null,
         } : undefined}
         onClose={closeChangeDriverDrawer}
-        onAllot={async (vehicle, driver) => {
+        onAllot={async (_vehicle, driver) => {
           if (changeDriverDuty) {
             const { error } = await supabase.from('duties').update({
               driver_id: driver?.id ?? null,
             }).eq('id', changeDriverDuty.id)
-            if (error) { showToast('Failed to change driver', 'error'); return }
+            if (error) { showToast('Failed to change driver'); return }
             await fetchDuties()
           }
           closeChangeDriverDrawer()

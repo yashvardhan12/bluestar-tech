@@ -172,7 +172,7 @@ function AccountRow({ label, children }: { label: string; children: React.ReactN
 }
 
 function AccountTab() {
-  const { toast } = useToast()
+  const { showToast } = useToast()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: '' })
@@ -220,10 +220,10 @@ function AccountTab() {
       .update({ first_name: form.firstName, last_name: form.lastName, email: form.email, role: form.role })
       .eq('id', profile.id)
     setSaving(false)
-    if (error) { toast({ title: 'Error saving profile', variant: 'error' }); return }
+    if (error) { showToast('Error saving profile'); return }
     setProfile(p => p ? { ...p, ...form } : p)
     setEditing(false)
-    toast({ title: 'Profile updated', variant: 'success' })
+    showToast('Profile updated')
   }
 
   function handleCancel() {
@@ -376,7 +376,7 @@ function InviteTeamMemberDrawer({
   onClose: () => void
   onSaved: (member: TeamMember) => void
 }) {
-  const { toast } = useToast()
+  const { showToast } = useToast()
   const [form, setForm] = useState<TeamMemberForm>(EMPTY_MEMBER_FORM)
   const [saving, setSaving] = useState(false)
 
@@ -403,8 +403,8 @@ function InviteTeamMemberDrawer({
   }
 
   async function handleSubmit() {
-    if (!form.name.trim()) { toast({ title: 'Name is required', variant: 'error' }); return }
-    if (!form.phoneNumber.trim()) { toast({ title: 'Phone number is required', variant: 'error' }); return }
+    if (!form.name.trim()) { showToast('Name is required'); return }
+    if (!form.phoneNumber.trim()) { showToast('Phone number is required'); return }
 
     setSaving(true)
     const payload = {
@@ -419,15 +419,15 @@ function InviteTeamMemberDrawer({
     if (mode === 'add') {
       const { data, error } = await supabase.from('team_members').insert(payload).select().single()
       setSaving(false)
-      if (error || !data) { toast({ title: 'Error adding team member', variant: 'error' }); return }
+      if (error || !data) { showToast('Error adding team member'); return }
       onSaved({ id: data.id, name: data.name, phoneNumber: data.phone_number, email: data.email, address: data.address, notes: data.notes, role: data.role as TeamRole })
-      toast({ title: 'Team member added', variant: 'success' })
+      showToast('Team member added')
     } else if (initial) {
       const { error } = await supabase.from('team_members').update(payload).eq('id', initial.id)
       setSaving(false)
-      if (error) { toast({ title: 'Error updating team member', variant: 'error' }); return }
+      if (error) { showToast('Error updating team member'); return }
       onSaved({ ...initial, ...{ name: payload.name, phoneNumber: payload.phone_number, email: payload.email, address: payload.address, notes: payload.notes, role: form.role } })
-      toast({ title: 'Team member updated', variant: 'success' })
+      showToast('Team member updated')
     }
 
     onClose()
@@ -497,7 +497,7 @@ function InviteTeamMemberDrawer({
 // ── TEAM MEMBERS TAB ──────────────────────────────────────────────────────────
 
 function TeamMembersTab() {
-  const { toast } = useToast()
+  const { showToast } = useToast()
   const [members, setMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -549,9 +549,9 @@ function TeamMembersTab() {
   async function handleDelete() {
     if (!deleteTarget) return
     const { error } = await supabase.from('team_members').delete().eq('id', deleteTarget.id)
-    if (error) { toast({ title: 'Error deleting member', variant: 'error' }); return }
+    if (error) { showToast('Error deleting member'); return }
     setMembers(prev => prev.filter(m => m.id !== deleteTarget.id))
-    toast({ title: 'Team member removed', variant: 'success' })
+    showToast('Team member removed')
     setDeleteTarget(null)
   }
 
@@ -640,7 +640,7 @@ function TeamMembersTab() {
         open={!!deleteTarget}
         title="Delete team member"
         description={`Remove ${deleteTarget?.name} from your team? This action cannot be undone.`}
-        onCancel={() => setDeleteTarget(null)}
+        onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
     </>
@@ -683,7 +683,7 @@ function AddCompanyDrawer({
   onClose: () => void
   onSaved: (company: Company) => void
 }) {
-  const { toast } = useToast()
+  const { showToast } = useToast()
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY_FORM)
   const [saving, setSaving] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -719,8 +719,8 @@ function AddCompanyDrawer({
   }
 
   async function handleSubmit() {
-    if (!form.name.trim()) { toast({ title: 'Company name is required', variant: 'error' }); return }
-    if (!form.phoneNumber.trim()) { toast({ title: 'Phone number is required', variant: 'error' }); return }
+    if (!form.name.trim()) { showToast('Company name is required'); return }
+    if (!form.phoneNumber.trim()) { showToast('Phone number is required'); return }
 
     setSaving(true)
     const payload = {
@@ -741,7 +741,7 @@ function AddCompanyDrawer({
     if (mode === 'add') {
       const { data, error } = await supabase.from('companies').insert(payload).select().single()
       setSaving(false)
-      if (error || !data) { toast({ title: 'Error adding company', variant: 'error' }); return }
+      if (error || !data) { showToast('Error adding company'); return }
       onSaved({
         id: data.id, name: data.name, phoneNumber: data.phone_number, email: data.email,
         address: data.address, businessType: data.business_type, gstinNumber: data.gstin_number,
@@ -749,11 +749,11 @@ function AddCompanyDrawer({
         cstTinNumber: data.cst_tin_number, dutySlipTerms: data.duty_slip_terms,
         signatureUrl: data.signature_url, notes: data.notes,
       })
-      toast({ title: 'Company added', variant: 'success' })
+      showToast('Company added')
     } else if (initial) {
       const { error } = await supabase.from('companies').update(payload).eq('id', initial.id)
       setSaving(false)
-      if (error) { toast({ title: 'Error updating company', variant: 'error' }); return }
+      if (error) { showToast('Error updating company'); return }
       onSaved({
         ...initial,
         name: payload.name, phoneNumber: payload.phone_number, email: payload.email,
@@ -762,7 +762,7 @@ function AddCompanyDrawer({
         cstTinNumber: payload.cst_tin_number, dutySlipTerms: payload.duty_slip_terms,
         signatureUrl: payload.signature_url, notes: payload.notes,
       })
-      toast({ title: 'Company updated', variant: 'success' })
+      showToast('Company updated')
     }
 
     onClose()
@@ -866,7 +866,7 @@ function AddCompanyDrawer({
 // ── COMPANIES TAB ─────────────────────────────────────────────────────────────
 
 function CompaniesTab() {
-  const { toast } = useToast()
+  const { showToast } = useToast()
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -924,9 +924,9 @@ function CompaniesTab() {
   async function handleDelete() {
     if (!deleteTarget) return
     const { error } = await supabase.from('companies').delete().eq('id', deleteTarget.id)
-    if (error) { toast({ title: 'Error deleting company', variant: 'error' }); return }
+    if (error) { showToast('Error deleting company'); return }
     setCompanies(prev => prev.filter(c => c.id !== deleteTarget.id))
-    toast({ title: 'Company removed', variant: 'success' })
+    showToast('Company removed')
     setDeleteTarget(null)
   }
 
@@ -1015,7 +1015,7 @@ function CompaniesTab() {
         open={!!deleteTarget}
         title="Delete company"
         description={`Remove ${deleteTarget?.name}? This action cannot be undone.`}
-        onCancel={() => setDeleteTarget(null)}
+        onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
     </>

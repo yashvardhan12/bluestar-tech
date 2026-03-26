@@ -493,9 +493,9 @@ export default function PayrollPage() {
       })
       await fetchPayroll()
       setAdvanceOpen(false)
-      showToast('Advance payment recorded', 'success')
+      showToast('Advance payment recorded')
     } catch (err: any) {
-      showToast(err.message ?? 'Failed to record advance', 'error')
+      showToast(err.message ?? 'Failed to record advance')
     } finally {
       setAdvanceSaving(false)
     }
@@ -569,9 +569,9 @@ export default function PayrollPage() {
         : remaining > 0
           ? `Payment recorded — ₹${remaining.toLocaleString('en-IN')} carried to next month`
           : 'Payment confirmed'
-      showToast(msg, 'success')
+      showToast(msg)
     } catch (err: any) {
-      showToast(err.message ?? 'Failed to confirm payment', 'error')
+      showToast(err.message ?? 'Failed to confirm payment')
     } finally {
       setConfirmSaving(false)
     }
@@ -645,9 +645,9 @@ export default function PayrollPage() {
 
       await fetchPayroll()
       setDrawerOpen(false)
-      showToast('Expense saved successfully', 'success')
+      showToast('Expense saved successfully')
     } catch (err: any) {
-      showToast(err.message ?? 'Failed to save expense', 'error')
+      showToast(err.message ?? 'Failed to save expense')
     } finally {
       setSaving(false)
     }
