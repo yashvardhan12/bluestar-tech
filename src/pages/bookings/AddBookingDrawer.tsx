@@ -162,7 +162,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
 
   useEffect(() => {
     if (!open) return
-    if (activeMode === 'add') {
+    if (mode === 'add') {
       supabase
         .from('bookings')
         .select('booking_ref')
@@ -236,9 +236,15 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
   const [dutyCategory, setDutyCategory] = useState('')
 
   useEffect(() => {
-    if (!dutyType) { setDutyCategory(''); return }
-    supabase.from('duty_types').select('category').eq('type_name', dutyType).maybeSingle()
-      .then(({ data }) => setDutyCategory(data?.category ?? ''))
+    if (!dutyType) { setDutyCategory(''); setVehicleGroup(''); return }
+    supabase.from('duty_types').select('category, vehicle_groups(name)').eq('type_name', dutyType).maybeSingle()
+      .then(({ data }) => {
+        setDutyCategory(data?.category ?? '')
+        // Vehicle group is derived from the duty type (field is non-editable).
+        // ponytail: PostgREST embeds a to-one FK as an object, but normalize the array case too.
+        const vg = (data as any)?.vehicle_groups
+        setVehicleGroup((Array.isArray(vg) ? vg[0]?.name : vg?.name) ?? '')
+      })
   }, [dutyType])
 
   function handleStartDateChange(v: string) {
@@ -392,8 +398,8 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
   }
 
   async function handleSubmit() {
-    if (!customer || !startDate || !endDate || !reportingTime || !estDropTime) {
-      setError('Customer, Start Date, End Date, Reporting Time, and Drop Time are required.')
+    if (!customer || !dutyType || !startDate || !endDate || !reportingTime || !estDropTime) {
+      setError('Customer, Duty Type, Start Date, End Date, Reporting Time, and Drop Time are required.')
       return
     }
     if (dutyCategory === 'Airport' && startDate && endDate) {
@@ -424,6 +430,15 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
         await supabase.from('booking_passengers').insert(
           validPassengers.map((p, i) => ({ booking_id: bookingId, name: p.name || null, phone: p.phone || null, sort_order: i }))
         )
+      }
+      // Backfill duties if this booking has none yet (e.g. a duty type added on edit).
+      // ponytail: only fills the empty case; changing the type on a booking that already
+      // has duties won't regenerate them — separate concern if that's ever needed.
+      const { count } = await supabase.from('duties')
+        .select('id', { count: 'exact', head: true }).eq('booking_id', bookingId)
+      if (!count && dutyCategory && startDate && endDate) {
+        const { error: dutiesErr } = await createDuties(bookingId)
+        if (dutiesErr) console.error('[AddBookingDrawer] duties insert failed:', dutiesErr)
       }
       setSaving(false)
       onCreated?.()
@@ -567,9 +582,9 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
               options={dutyTypes} readOnly={readOnly}
             />
             <SelectField
-              label="Vehicle Group" required={!readOnly} placeholder="Select one"
+              label="Vehicle Group" placeholder="Set by duty type"
               value={vehicleGroup} onChange={setVehicleGroup}
-              options={vehicleGroups} readOnly={readOnly}
+              options={vehicleGroups} readOnly
             />
 
             {/* Alt vehicle checkbox */}
