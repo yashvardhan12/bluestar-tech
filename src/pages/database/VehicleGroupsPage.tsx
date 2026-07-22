@@ -4,6 +4,7 @@ import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { useToast } from '../../components/ui/Toast'
 
 interface VehicleGroup {
   id: number
@@ -50,6 +51,7 @@ function formFromGroup(g: VehicleGroup) {
 }
 
 export default function VehicleGroupsPage() {
+  const { showToast } = useToast()
   const [rows, setRows] = useState<VehicleGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -127,7 +129,12 @@ export default function VehicleGroupsPage() {
     if (!deleteTarget) return
     setDeleting(true)
     const { error } = await supabase.from('vehicle_groups').delete().eq('id', deleteTarget.id)
-    if (error) console.error('[VehicleGroupsPage] delete failed:', error)
+    if (error) {
+      console.error('[VehicleGroupsPage] delete failed:', error)
+      showToast('Failed to delete vehicle group')
+      setDeleting(false)
+      return
+    }
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
     setDeleting(false)
@@ -138,7 +145,10 @@ export default function VehicleGroupsPage() {
     setBulkDeleting(true)
     const ids = Array.from(selected)
     const { error } = await supabase.from('vehicle_groups').delete().in('id', ids)
-    if (!error) {
+    if (error) {
+      console.error('[VehicleGroupsPage] bulk delete failed:', error)
+      showToast('Failed to delete vehicle groups')
+    } else {
       setSelected(new Set())
       setRows(prev => prev.filter(r => !ids.includes(r.id)))
     }

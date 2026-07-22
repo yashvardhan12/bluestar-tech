@@ -5,6 +5,7 @@ import Drawer from '../../components/ui/Drawer'
 import FileUpload from '../../components/ui/FileUpload'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { useToast } from '../../components/ui/Toast'
 
 type Status = 'Active' | 'Inactive' | 'Assigned'
 type DrawerMode = 'add' | 'view' | 'edit'
@@ -214,6 +215,7 @@ const EMPTY_FORM = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function VehiclesPage() {
+  const { showToast } = useToast()
   const [rows, setRows] = useState<Vehicle[]>([])
   const [vehicleGroups, setVehicleGroups] = useState<{ id: number; name: string }[]>([])
   const [saving, setSaving] = useState(false)
@@ -371,7 +373,12 @@ export default function VehiclesPage() {
     if (!deleteTarget) return
     setDeleting(true)
     const { error } = await supabase.from('vehicles').delete().eq('id', deleteTarget.id)
-    if (error) console.error('[VehiclesPage] delete failed:', error)
+    if (error) {
+      console.error('[VehiclesPage] delete failed:', error)
+      showToast('Failed to delete vehicle')
+      setDeleting(false)
+      return
+    }
     setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
     setDeleting(false)
