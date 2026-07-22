@@ -627,15 +627,28 @@ export default function AllDutiesPage() {
           startDate: (() => { const [dd, mm, yyyy] = dutyDrawer.row.startDate.split('/'); return `${yyyy}-${mm}-${dd}` })(),
           endDate:   (() => { const [dd, mm, yyyy] = dutyDrawer.row.endDate.split('/');   return `${yyyy}-${mm}-${dd}` })(),
         } : undefined}
+        dutyId={dutyDrawer.row?.id}
         onClose={() => setDutyDrawer(prev => ({ ...prev, open: false }))}
         onSave={async form => {
           if (!dutyDrawer.row) return
           await supabase.from('duties').update({
-            duty_type:      form.dutyType,
-            vehicle_group:  form.vehicleGroup,
-            start_date:     form.startDate,
-            end_date:       form.endDate,
-            reporting_time: form.reportingTime,
+            duty_type:         form.dutyType || null,
+            vehicle_group:     form.vehicleGroup || null,
+            from_location:     form.fromLocation || null,
+            to_location:       form.toLocation || null,
+            reporting_address: form.reportingAddress || null,
+            drop_address:      form.dropAddress || null,
+            start_date:        form.startDate || undefined,
+            end_date:          form.endDate || form.startDate || undefined,
+            reporting_time:    form.reportingTime || null,
+            est_drop_time:     form.estDropTime || null,
+            garage_start_mins: form.garageStartMins ? parseInt(form.garageStartMins) : null,
+            base_rate:         form.baseRate ? parseFloat(form.baseRate) : null,
+            extra_km_rate:     form.extraKmRate ? parseFloat(form.extraKmRate) : null,
+            extra_hour_rate:   form.extraHourRate ? parseFloat(form.extraHourRate) : null,
+            bill_to:           form.billTo || null,
+            operator_notes:    form.operatorNotes || null,
+            driver_notes:      form.driverNotes || null,
           }).eq('id', dutyDrawer.row.id)
           setRows(prev => prev.map(d => d.id === dutyDrawer.row!.id ? {
             ...d,

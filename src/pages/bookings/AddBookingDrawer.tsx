@@ -268,9 +268,10 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
     }
   }
 
-  async function createDuties(bookingId: number) {
-    const base = {
-      booking_id:        bookingId,
+  // Duty columns copied from the booking form — the single source of truth shared by
+  // duty creation and the edit-time sync that propagates booking changes to duties.
+  function dutySharedFields() {
+    return {
       duty_type:         dutyType || null,
       vehicle_group:     vehicleGroup || null,
       from_location:     fromLocation || null,
@@ -286,8 +287,11 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
       bill_to:           billTo || null,
       operator_notes:    operatorNotes || null,
       driver_notes:      driverNotes || null,
-      status:            'Booked',
     }
+  }
+
+  async function createDuties(bookingId: number) {
+    const base = { booking_id: bookingId, ...dutySharedFields(), status: 'Booked' }
 
     if (dutyCategory === 'Airport' || dutyCategory === 'Outstation') {
       return supabase.from('duties').insert({ ...base, start_date: startDate, end_date: endDate })
@@ -431,14 +435,23 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
           validPassengers.map((p, i) => ({ booking_id: bookingId, name: p.name || null, phone: p.phone || null, sort_order: i }))
         )
       }
-      // Backfill duties if this booking has none yet (e.g. a duty type added on edit).
-      // ponytail: only fills the empty case; changing the type on a booking that already
-      // has duties won't regenerate them — separate concern if that's ever needed.
+      // Keep this booking's duties in sync with the edited details.
       const { count } = await supabase.from('duties')
         .select('id', { count: 'exact', head: true }).eq('booking_id', bookingId)
-      if (!count && dutyCategory && startDate && endDate) {
-        const { error: dutiesErr } = await createDuties(bookingId)
-        if (dutiesErr) console.error('[AddBookingDrawer] duties insert failed:', dutiesErr)
+      if (!count) {
+        // No duties yet (e.g. a duty type was just added) — create them.
+        if (dutyCategory && startDate && endDate) {
+          const { error: dutiesErr } = await createDuties(bookingId)
+          if (dutiesErr) console.error('[AddBookingDrawer] duties insert failed:', dutiesErr)
+        }
+      } else {
+        // Propagate the booking's shared fields onto its existing duties, preserving each
+        // duty's own vehicle_id / driver_id / status / dates.
+        // ponytail: does not add/remove duties when the duty type's *category* changes
+        // (Airport↔Hourly changes the expected count) — that needs regeneration + re-allotment.
+        const { error: syncErr } = await supabase.from('duties')
+          .update(dutySharedFields()).eq('booking_id', bookingId)
+        if (syncErr) console.error('[AddBookingDrawer] duties sync failed:', syncErr)
       }
       setSaving(false)
       onCreated?.()

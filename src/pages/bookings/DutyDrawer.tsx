@@ -156,13 +156,15 @@ interface DutyDrawerProps {
   open: boolean
   mode: DutyDrawerMode
   initial?: Partial<DutyForm>
+  /** In edit/view, the duty to load in full so every field round-trips (not just summary columns). */
+  dutyId?: number
   onClose: () => void
   onSave?: (form: DutyForm) => void
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export default function DutyDrawer({ open, mode, initial, onClose, onSave }: DutyDrawerProps) {
+export default function DutyDrawer({ open, mode, initial, dutyId, onClose, onSave }: DutyDrawerProps) {
   const [form, setForm] = useState<DutyForm>({ ...EMPTY_FORM, ...initial })
   const [vehicleGroups, setVehicleGroups] = useState<string[]>([])
   const [dutyTypes, setDutyTypes]         = useState<string[]>([])
@@ -181,6 +183,36 @@ export default function DutyDrawer({ open, mode, initial, onClose, onSave }: Dut
     if (open) setForm({ ...EMPTY_FORM, ...initial })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  // In edit/view, load the full duty so every field round-trips (not just summary columns)
+  useEffect(() => {
+    if (!open || mode === 'add' || !dutyId) return
+    supabase.from('duties')
+      .select('duty_type, vehicle_group, from_location, to_location, reporting_address, drop_address, start_date, end_date, reporting_time, est_drop_time, garage_start_mins, base_rate, extra_km_rate, extra_hour_rate, bill_to, operator_notes, driver_notes')
+      .eq('id', dutyId).single()
+      .then(({ data: d }) => {
+        if (!d) return
+        setForm({
+          dutyType:         d.duty_type ?? '',
+          vehicleGroup:     d.vehicle_group ?? '',
+          fromLocation:     d.from_location ?? '',
+          toLocation:       d.to_location ?? '',
+          reportingAddress: d.reporting_address ?? '',
+          dropAddress:      d.drop_address ?? '',
+          startDate:        d.start_date ?? '',
+          endDate:          d.end_date ?? '',
+          reportingTime:    (d.reporting_time ?? '').slice(0, 5),
+          estDropTime:      (d.est_drop_time ?? '').slice(0, 5),
+          garageStartMins:  d.garage_start_mins != null ? String(d.garage_start_mins) : '',
+          baseRate:         d.base_rate != null ? String(d.base_rate) : '',
+          extraKmRate:      d.extra_km_rate != null ? String(d.extra_km_rate) : '',
+          extraHourRate:    d.extra_hour_rate != null ? String(d.extra_hour_rate) : '',
+          billTo:           d.bill_to ?? '',
+          operatorNotes:    d.operator_notes ?? '',
+          driverNotes:      d.driver_notes ?? '',
+        })
+      })
+  }, [open, mode, dutyId])
 
   // Escape key
   useEffect(() => {
