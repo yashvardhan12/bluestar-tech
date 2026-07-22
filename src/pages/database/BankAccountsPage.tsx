@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, Building2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
+import Field from '../../components/ui/Field'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/ui/Toast'
@@ -75,18 +76,6 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
 // ── drawer field helpers ──────────────────────────────────────────────────────
 
 const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
-
-function Field({ label, required, children, error }: { label: string; required?: boolean; children: React.ReactNode; error?: string }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="flex items-center gap-0.5 text-sm font-medium text-gray-700">
-        {label}{required && <span className="text-violet-600">*</span>}
-      </label>
-      {children}
-      {error && <p className="mt-0.5 text-xs text-red-600">{error}</p>}
-    </div>
-  )
-}
 
 // ── form state ────────────────────────────────────────────────────────────────
 
