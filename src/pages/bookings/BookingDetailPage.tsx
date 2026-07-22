@@ -728,6 +728,7 @@ export default function BookingDetailPage() {
       <AllotDrawer
         open={allotDuty !== null}
         duty={allotDuty ? dutyToAllotInfo(allotDuty) : null}
+        bookingId={Number(bookingId)}
         onClose={closeAllotDrawer}
         onAllot={async (vehicle, driver) => {
           if (allotDuty) {

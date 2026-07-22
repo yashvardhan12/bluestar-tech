@@ -660,6 +660,7 @@ export default function AllDutiesPage() {
           dutyType:     allotDuty.dutyType,
           vehicleGroup: allotDuty.vehicleGroup,
         } : null}
+        bookingId={allotDuty?.bookingId}
         onClose={() => setAllotDuty(null)}
         onAllot={async (vehicle, driver) => {
           if (allotDuty) await handleAllot(allotDuty, vehicle, driver)

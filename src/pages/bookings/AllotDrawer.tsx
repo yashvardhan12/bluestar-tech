@@ -10,7 +10,7 @@ export interface MockVehicle {
   modelName: string
   vehicleNumber: string
   vehicleGroup: string
-  assignedDriver: { initials: string; name: string } | null
+  assignedDriver: { id: number; initials: string; name: string; phone: string } | null
 }
 
 export interface MockDriver {
@@ -18,6 +18,47 @@ export interface MockDriver {
   initials: string
   name: string
   phone: string
+}
+
+// ── availability: time-precise duty-interval overlap ──────────────────────────
+// A vehicle is unavailable if any of its non-cancelled duties overlaps the target
+// duty window. Each duty is [start_date+reporting_time, end_date+est_drop_time];
+// a missing reporting time = start of day, a missing drop time = end of day.
+// Validated in scratchpad/overlap-check.mjs.
+
+interface DutyWindow { start_date: string; end_date: string | null; reporting_time: string | null; est_drop_time: string | null }
+interface Interval { start: number; end: number }
+interface DriverRow { id: number; name: string; initials: string; phone: string | null }
+interface VehicleRow { id: number; model_name: string; vehicle_number: string; assigned_driver: DriverRow | DriverRow[] | null }
+
+function toMs(date: string, time: string | null, fallback: string): number {
+  const [h, m] = (time ?? fallback).split(':')
+  const d = new Date(`${date}T00:00:00`)
+  d.setHours(Number(h), Number(m), 0, 0)
+  return d.getTime()
+}
+function dutyInterval(d: DutyWindow): Interval {
+  return { start: toMs(d.start_date, d.reporting_time, '00:00'), end: toMs(d.end_date ?? d.start_date, d.est_drop_time, '23:59') }
+}
+function overlaps(a: Interval, b: Interval): boolean {
+  return a.start < b.end && a.end > b.start
+}
+/** Group busy duty windows by the given key (vehicle_id or driver_id). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function busyMap(rows: any[] | null, key: 'vehicle_id' | 'driver_id'): Map<number, Interval[]> {
+  const m = new Map<number, Interval[]>()
+  for (const r of rows ?? []) {
+    const id = r[key] as number | null
+    if (id == null) continue
+    const list = m.get(id) ?? []
+    list.push(dutyInterval(r))
+    m.set(id, list)
+  }
+  return m
+}
+/** True if none of the entity's busy windows overlap any target window. */
+function isFree(busy: Interval[] | undefined, targets: Interval[]): boolean {
+  return !(busy ?? []).some(bi => targets.some(t => overlaps(bi, t)))
 }
 
 
@@ -81,56 +122,85 @@ interface AllotDrawerProps {
   driverOnlyMode?: boolean
   /** The vehicle already assigned (used in driverOnlyMode to pass through to onAllot) */
   currentVehicle?: MockVehicle
+  /** Booking being allotted — used to load duty windows for availability and to exclude the booking's own duties */
+  bookingId?: number
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = false, bulkDutyCount, driverOnlyMode = false, currentVehicle }: AllotDrawerProps) {
+export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = false, bulkDutyCount, driverOnlyMode = false, currentVehicle, bookingId }: AllotDrawerProps) {
   const [step, setStep] = useState<1 | 2>(driverOnlyMode ? 2 : 1)
   const [selectedVehicle, setSelectedVehicle] = useState<MockVehicle | null>(null)
   const [selectedDriver, setSelectedDriver] = useState<MockDriver | null>(null)
   const [vehicles, setVehicles] = useState<MockVehicle[]>([])
   const [drivers, setDrivers] = useState<MockDriver[]>([])
+  const [loadingVehicles, setLoadingVehicles] = useState(false)
+  const [loadingDrivers, setLoadingDrivers] = useState(false)
 
-  // Fetch vehicles + drivers from Supabase when drawer opens
+  // Load vehicles + drivers that are free during the duty window(s)
   useEffect(() => {
     if (!open) return
-
-    let vehicleQuery = supabase
-      .from('vehicles')
-      .select('id, model_name, vehicle_number, vehicle_groups!inner(name)')
-      .order('model_name')
-    if (duty?.vehicleGroup) {
-      vehicleQuery = vehicleQuery.eq('vehicle_groups.name', duty.vehicleGroup)
-    }
-    vehicleQuery.then(({ data }) => {
-      if (data) {
-        setVehicles(data.map((v: { id: number; model_name: string; vehicle_number: string }) => ({
-          id: v.id,
-          modelName: v.model_name,
-          vehicleNumber: v.vehicle_number,
-          vehicleGroup: duty?.vehicleGroup ?? '',
-          assignedDriver: null,
-        })))
+    let cancelled = false
+    async function load() {
+      setLoadingVehicles(true)
+      setLoadingDrivers(true)
+      // Target window(s) to keep free: all the booking's duties (bulk) or just this duty (single)
+      let targetRows: DutyWindow[] = []
+      if (bulkMode && bookingId) {
+        const { data } = await supabase.from('duties')
+          .select('start_date, end_date, reporting_time, est_drop_time').eq('booking_id', bookingId)
+        targetRows = (data ?? []) as DutyWindow[]
+      } else if (duty?.id != null) {
+        const { data } = await supabase.from('duties')
+          .select('start_date, end_date, reporting_time, est_drop_time').eq('id', duty.id)
+        targetRows = (data ?? []) as DutyWindow[]
       }
-    })
+      const targets = targetRows.map(dutyInterval)
 
-    supabase
-      .from('drivers')
-      .select('id, name, initials, phone')
-      .in('status', ['Active', 'Available'])
-      .order('name')
-      .then(({ data }) => {
-        if (data) {
-          setDrivers(data.map((d: { id: number; name: string; initials: string; phone: string | null }) => ({
-            id: d.id,
-            name: d.name,
-            initials: d.initials,
-            phone: d.phone ?? '',
-          })))
-        }
-      })
-  }, [open, duty?.vehicleGroup])
+      // ── Drivers: Active/Available AND free during the target window(s) ──
+      const { data: dData } = await supabase.from('drivers')
+        .select('id, name, initials, phone').in('status', ['Active', 'Available']).order('name')
+      let dbq = supabase.from('duties')
+        .select('driver_id, start_date, end_date, reporting_time, est_drop_time')
+        .not('driver_id', 'is', null).neq('status', 'Cancelled')
+      if (bookingId) dbq = dbq.neq('booking_id', bookingId)
+      const { data: driverBusy } = await dbq
+      const busyByDriver = busyMap(driverBusy, 'driver_id')
+      const availDrivers: MockDriver[] = ((dData ?? []) as DriverRow[])
+        .filter(d => isFree(busyByDriver.get(d.id), targets))
+        .map(d => ({ id: d.id, name: d.name, initials: d.initials, phone: d.phone ?? '' }))
+      if (!cancelled) { setDrivers(availDrivers); setLoadingDrivers(false) }
+
+      // ── Vehicles (skipped in driverOnlyMode — step starts at driver selection) ──
+      if (driverOnlyMode) { if (!cancelled) setLoadingVehicles(false); return }
+      let vq = supabase.from('vehicles')
+        .select('id, model_name, vehicle_number, vehicle_groups!inner(name), assigned_driver:drivers(id, name, initials, phone)')
+        .order('model_name')
+      if (duty?.vehicleGroup) vq = vq.eq('vehicle_groups.name', duty.vehicleGroup)
+      const { data: vData } = await vq
+      let vbq = supabase.from('duties')
+        .select('vehicle_id, start_date, end_date, reporting_time, est_drop_time')
+        .not('vehicle_id', 'is', null).neq('status', 'Cancelled')
+      if (bookingId) vbq = vbq.neq('booking_id', bookingId)
+      const { data: vehicleBusy } = await vbq
+      const busyByVehicle = busyMap(vehicleBusy, 'vehicle_id')
+      const availVehicles: MockVehicle[] = ((vData ?? []) as VehicleRow[])
+        .filter(v => isFree(busyByVehicle.get(v.id), targets))
+        .map(v => {
+          const drv = Array.isArray(v.assigned_driver) ? v.assigned_driver[0] : v.assigned_driver
+          return {
+            id: v.id,
+            modelName: v.model_name,
+            vehicleNumber: v.vehicle_number,
+            vehicleGroup: duty?.vehicleGroup ?? '',
+            assignedDriver: drv ? { id: drv.id, initials: drv.initials, name: drv.name, phone: drv.phone ?? '' } : null,
+          }
+        })
+      if (!cancelled) { setVehicles(availVehicles); setLoadingVehicles(false) }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [open, driverOnlyMode, duty?.vehicleGroup, duty?.id, bulkMode, bookingId])
 
   // Reset when opened
   useEffect(() => {
@@ -151,11 +221,12 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
   function handleNext() {
     if (!selectedVehicle) return
     if (selectedVehicle.assignedDriver) {
-      // Vehicle already has a driver — allot directly
-      onAllot(selectedVehicle, null)
+      // Vehicle already has a driver — allot the vehicle + its own driver directly
+      const d = selectedVehicle.assignedDriver
+      onAllot(selectedVehicle, { id: d.id, initials: d.initials, name: d.name, phone: d.phone })
       onClose()
     } else {
-      // No driver — go to step 2
+      // No driver — go to step 2 to choose one
       setStep(2)
     }
   }
@@ -210,9 +281,9 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
               <div className="flex-1 min-w-0 pt-0">
                 <h2 className="text-xl font-semibold leading-[30px] text-gray-900">Assign Vehicle</h2>
                 <p className="mt-1 text-sm font-normal text-gray-500 leading-5">
-                  {bulkMode
-                    ? 'Select a vehicle to assign to all duties in this booking'
-                    : 'Select a vehicle from the list below to assign to this duty'}
+                  {duty?.vehicleGroup
+                    ? `Showing ${duty.vehicleGroup} vehicles that are free ${bulkMode ? 'for every duty in this booking' : 'during this duty'}.`
+                    : `Showing vehicles that are free ${bulkMode ? 'for every duty in this booking' : 'during this duty'}.`}
                 </p>
               </div>
               <button
@@ -230,9 +301,9 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
               {/* Duty info: single duty or bulk notice */}
               {bulkMode ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-800">
-                  The selected vehicle and driver will be assigned to{' '}
+                  The vehicle and driver you pick will be assigned to{' '}
                   <span className="font-semibold">
-                    {bulkDutyCount != null ? `all ${bulkDutyCount} duties` : 'all duties'}
+                    {bulkDutyCount === 1 ? 'the 1 duty' : bulkDutyCount != null ? `all ${bulkDutyCount} duties` : 'all duties'}
                   </span>{' '}
                   in this booking.
                 </div>
@@ -251,8 +322,10 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
                     <Car className="size-5 text-gray-500" strokeWidth={1.75} />
                   </div>
                   <div>
-                    <p className="text-base font-medium text-gray-900">My Vehicles</p>
-                    <p className="text-sm text-gray-500">Select from the list of available vehicles to assign to this duty</p>
+                    <p className="text-base font-medium text-gray-900">Available vehicles</p>
+                    <p className="text-sm text-gray-500">
+                      Tap a vehicle to select it. Vehicles with a driver already assigned show it below.
+                    </p>
                   </div>
                 </div>
 
@@ -265,7 +338,18 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
                   </div>
 
                   {/* Rows */}
-                  {vehicles.map(vehicle => {
+                  {loadingVehicles ? (
+                    <div className="px-6 py-10 text-center text-sm text-gray-400">Checking availability…</div>
+                  ) : vehicles.length === 0 ? (
+                    <div className="px-6 py-10 text-center">
+                      <p className="text-sm font-medium text-gray-700">No available vehicles</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {duty?.vehicleGroup
+                          ? `No ${duty.vehicleGroup} vehicle is free during this time. Free one up, or add a vehicle under Database → Vehicles.`
+                          : 'No vehicle is free during this time.'}
+                      </p>
+                    </div>
+                  ) : vehicles.map(vehicle => {
                     const isSelected = selectedVehicle?.id === vehicle.id
                     return (
                       <button
@@ -327,9 +411,11 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
             {/* Header */}
             <div className="relative flex items-start gap-2 px-6 pt-6 pb-0 shrink-0">
               <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-semibold leading-[30px] text-gray-900">Assign Drivers</h2>
+                <h2 className="text-xl font-semibold leading-[30px] text-gray-900">Assign Driver</h2>
                 <p className="mt-1 text-sm font-normal text-gray-500 leading-5">
-                  Select from the list of available drivers to assign to this duty
+                  {selectedVehicle
+                    ? `${selectedVehicle.modelName} has no driver assigned — choose one for this duty.`
+                    : 'Choose a driver for this duty.'}
                 </p>
               </div>
               <button
@@ -351,7 +437,14 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
                 </div>
 
                 {/* Rows */}
-                {drivers.map(driver => {
+                {loadingDrivers ? (
+                  <div className="px-6 py-10 text-center text-sm text-gray-400">Checking availability…</div>
+                ) : drivers.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm font-medium text-gray-700">No available drivers</p>
+                    <p className="mt-1 text-sm text-gray-500">Every active driver is already on a duty during this time.</p>
+                  </div>
+                ) : drivers.map(driver => {
                   const isSelected = selectedDriver?.id === driver.id
                   return (
                     <button

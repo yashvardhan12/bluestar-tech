@@ -634,6 +634,7 @@ export default function AllBookingsPage() {
         duty={allotDrawer.vehicleGroup ? { id: 0, date: '', repTime: '', dutyType: '', vehicleGroup: allotDrawer.vehicleGroup } : null}
         bulkMode
         bulkDutyCount={allotDrawer.dutyCount}
+        bookingId={allotDrawer.bookingId}
         onClose={() => setAllotDrawer(d => ({ ...d, open: false }))}
         onAllot={async (vehicle, driver) => {
           await handleBulkAllot(vehicle, driver)
