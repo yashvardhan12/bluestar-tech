@@ -1,37 +1,34 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Plus, MoreHorizontal, Pencil, Trash2, ChevronDown, ChevronRight, Mail } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, Plus, MoreHorizontal, Pencil, Trash2, ChevronDown, ChevronRight, Mail, Check, LogOut } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
 import FileUpload from '../../components/ui/FileUpload'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../lib/auth'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
+import type { CompanyOption } from '../../components/CompanySwitcher'
 
 // ── types ──────────────────────────────────────────────────────────────────────
 
 type Tab = 'account' | 'team' | 'companies'
-type TeamRole = 'Owner' | 'Admin' | 'Manager' | 'Staff'
+// Two roles only. Manager and Staff were cut — an unused enum value that no
+// policy branches on is a silent hole waiting for someone to set it.
+type TeamRole = 'Owner' | 'Admin'
 type DrawerMode = 'add' | 'edit'
 
-interface UserProfile {
-  id: number
+interface TeamMember {
+  id: string
   firstName: string
   lastName: string
   email: string
-  role: string
-  accessType: TeamRole
-}
-
-interface TeamMember {
-  id: number
-  name: string
-  phoneNumber: string
-  email: string | null
-  address: string | null
-  notes: string | null
+  jobTitle: string
+  phoneNumber: string | null
   role: TeamRole
+  companyIds: number[]
 }
 
 interface Company {
@@ -60,10 +57,8 @@ function getInitials(name: string): string {
 }
 
 const ROLE_STYLES: Record<TeamRole, string> = {
-  Owner:   'bg-gray-50 border border-gray-200 text-gray-700',
-  Admin:   'bg-green-50 border border-green-200 text-green-700',
-  Manager: 'bg-blue-50 border border-blue-200 text-blue-700',
-  Staff:   'bg-purple-50 border border-purple-200 text-purple-700',
+  Owner: 'bg-violet-50 border border-violet-200 text-violet-700',
+  Admin: 'bg-gray-50 border border-gray-200 text-gray-700',
 }
 
 function RoleBadge({ role }: { role: TeamRole }) {
@@ -169,7 +164,7 @@ function FormField({ label, required, children }: { label: string; required?: bo
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-gray-700">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+        {label}{required && <span className="text-error-500 ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -194,270 +189,291 @@ function AccountRow({ label, children }: { label: string; children: React.ReactN
         <span className="shrink-0 w-[200px] text-sm font-semibold text-gray-700 pt-2.5">{label}</span>
         <div className="flex-1 min-w-0">{children}</div>
       </div>
-      <div className="h-px bg-[#e4e7ec]" />
+      <div className="h-px bg-gray-200" />
     </>
   )
 }
 
 function AccountTab() {
   const { showToast } = useToast()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const { profile, refreshProfile, signOut } = useAuth()
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', role: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', jobTitle: '' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      let { data } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .order('id')
-        .limit(1)
-        .maybeSingle()
-
-      if (!data) {
-        const { data: inserted } = await supabase
-          .from('user_profiles')
-          .insert({ first_name: '', last_name: '', email: '', role: '', access_type: 'Owner' })
-          .select()
-          .single()
-        data = inserted
-      }
-
-      if (data) {
-        const p: UserProfile = {
-          id: data.id,
-          firstName: data.first_name,
-          lastName: data.last_name,
-          email: data.email,
-          role: data.role,
-          accessType: data.access_type as TeamRole,
-        }
-        setProfile(p)
-        setForm({ firstName: p.firstName, lastName: p.lastName, email: p.email, role: p.role })
-      }
+    if (profile) {
+      setForm({
+        firstName: profile.firstName,
+        lastName:  profile.lastName,
+        email:     profile.email,
+        jobTitle:  profile.jobTitle,
+      })
     }
-    load()
-  }, [])
+  }, [profile])
 
   async function handleSave() {
     if (!profile) return
     setSaving(true)
     const { error } = await supabase
-      .from('user_profiles')
-      .update({ first_name: form.firstName, last_name: form.lastName, email: form.email, role: form.role })
+      .from('profiles')
+      .update({
+        first_name: form.firstName,
+        last_name:  form.lastName,
+        email:      form.email,
+        job_title:  form.jobTitle,
+      })
       .eq('id', profile.id)
     setSaving(false)
-    if (error) { showToast('Error saving profile'); return }
-    setProfile(p => p ? { ...p, ...form } : p)
+    if (error) { showToast(`Couldn’t save: ${error.message}`); return }
+    await refreshProfile()
     setEditing(false)
     showToast('Profile updated')
   }
 
   function handleCancel() {
-    if (profile) setForm({ firstName: profile.firstName, lastName: profile.lastName, email: profile.email, role: profile.role })
+    if (profile) {
+      setForm({
+        firstName: profile.firstName, lastName: profile.lastName,
+        email: profile.email, jobTitle: profile.jobTitle,
+      })
+    }
     setEditing(false)
+  }
+
+  if (!profile) {
+    return (
+      <div className="w-full max-w-3xl flex flex-col gap-3">
+        {[...Array(3)].map((_, i) => <span key={i} aria-hidden className="block h-10 rounded-lg bg-gray-100" />)}
+      </div>
+    )
   }
 
   return (
     <div className="w-full max-w-3xl flex flex-col gap-6">
 
-      {/* Personal info section */}
       <div>
-        {/* Section header */}
         <div className="flex items-start justify-between mb-5">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Personal info</h3>
             <p className="text-sm text-gray-500 mt-1">Update and manage your personal details here.</p>
           </div>
           {!editing ? (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="flex items-center gap-2 h-10 px-4 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer shadow-sm"
-            >
+            <button type="button" onClick={() => setEditing(true)}
+              className="flex items-center gap-2 h-10 px-4 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer shadow-sm">
               <Pencil className="size-4" />
               Edit
             </button>
           ) : (
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="h-10 px-4 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-              >
+              <button type="button" onClick={handleCancel}
+                className="h-10 px-4 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="h-10 px-4 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="h-10 px-4 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           )}
         </div>
 
-        {/* Divider */}
-        <div className="h-px bg-[#e4e7ec]" />
+        <div className="h-px bg-gray-200" />
 
-        {/* Name row */}
         <AccountRow label="Name">
           <div className="flex gap-4">
-            <input
-              className={editing ? ACTIVE_INPUT : DISABLED_INPUT}
-              value={form.firstName}
+            <input className={editing ? ACTIVE_INPUT : DISABLED_INPUT} value={form.firstName}
               onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-              placeholder="First name"
-              disabled={!editing}
-            />
-            <input
-              className={editing ? ACTIVE_INPUT : DISABLED_INPUT}
-              value={form.lastName}
+              placeholder="First name" disabled={!editing} />
+            <input className={editing ? ACTIVE_INPUT : DISABLED_INPUT} value={form.lastName}
               onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-              placeholder="Last name"
-              disabled={!editing}
-            />
+              placeholder="Last name" disabled={!editing} />
           </div>
         </AccountRow>
 
-        {/* Email row */}
         <AccountRow label="Email address">
           <div className={ICON_INPUT_WRAP}>
             <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-            <input
-              className={editing ? ICON_INPUT_ACTIVE : ICON_INPUT_DISABLED}
-              type="email"
-              value={form.email}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="you@example.com"
-              disabled={!editing}
-            />
+            <input className={editing ? ICON_INPUT_ACTIVE : ICON_INPUT_DISABLED} type="email"
+              value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="you@example.com" disabled={!editing} />
           </div>
         </AccountRow>
 
-        {/* Role row */}
-        <AccountRow label="Role">
-          <input
-            className={editing ? ACTIVE_INPUT : DISABLED_INPUT}
-            value={form.role}
-            onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            placeholder="e.g. Operations Manager"
-            disabled={!editing}
-          />
+        <AccountRow label="Job title">
+          <input className={editing ? ACTIVE_INPUT : DISABLED_INPUT} value={form.jobTitle}
+            onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
+            placeholder="e.g. Operations Manager" disabled={!editing} />
         </AccountRow>
       </div>
 
-      {/* Access type section */}
       <div>
         <div className="flex items-start justify-between mb-5">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Access Type</h3>
-            <p className="text-sm text-gray-500 mt-1">You have Owner access to this organisation.</p>
+            <h3 className="text-lg font-semibold text-gray-900">Access</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              You have {profile.role} access to this organisation.
+            </p>
           </div>
-          {/* Disabled owner button */}
+        </div>
+        <div className="h-px bg-gray-200" />
+        <AccountRow label="Role">
+          <div className="flex items-center gap-3">
+            <RoleBadge role={profile.role} />
+            <span className="text-sm text-gray-500">
+              {profile.role === 'Owner'
+                ? 'Owners create companies and manage roles.'
+                : 'Only an Owner can change your role.'}
+            </span>
+          </div>
+        </AccountRow>
+      </div>
+
+      <div>
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Session</h3>
+            <p className="text-sm text-gray-500 mt-1">Signed in as {profile.email}.</p>
+          </div>
           <button
             type="button"
-            disabled
-            className="h-10 px-4 rounded-lg border border-[#e4e7ec] bg-white text-sm font-semibold text-[#98a2b3] cursor-not-allowed"
+            onClick={() => { void signOut().then(() => navigate('/login', { replace: true })) }}
+            className="flex items-center gap-2 h-10 px-4 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
           >
-            {profile?.accessType ?? 'Owner'}
+            <LogOut className="size-4" strokeWidth={1.75} />
+            Sign out
           </button>
         </div>
-        <div className="h-px bg-[#e4e7ec]" />
-        <AccountRow label="Access type">
-          {profile && <RoleBadge role={profile.accessType} />}
-        </AccountRow>
+        <div className="h-px bg-gray-200" />
       </div>
 
     </div>
   )
 }
 
-// ── INVITE TEAM MEMBER DRAWER ─────────────────────────────────────────────────
+// ── MEMBER DRAWER ─────────────────────────────────────────────────────────────
 
-interface TeamMemberForm {
-  name: string
-  phoneNumber: string
+interface MemberForm {
+  firstName: string
+  lastName: string
   email: string
-  address: string
-  notes: string
+  jobTitle: string
+  phoneNumber: string
   role: TeamRole
+  companyIds: number[]
 }
 
-const EMPTY_MEMBER_FORM: TeamMemberForm = {
-  name: '', phoneNumber: '', email: '', address: '', notes: '', role: 'Staff',
-}
-
-function InviteTeamMemberDrawer({
+function MemberDrawer({
   open,
-  mode,
-  initial,
+  member,
+  companies,
+  isSelf,
+  viewerIsOwner,
   onClose,
   onSaved,
 }: {
   open: boolean
-  mode: DrawerMode
-  initial?: TeamMember | null
+  member: TeamMember | null
+  companies: CompanyOption[]
+  isSelf: boolean
+  viewerIsOwner: boolean
   onClose: () => void
-  onSaved: (member: TeamMember) => void
+  onSaved: () => void
 }) {
   const { showToast } = useToast()
-  const [form, setForm] = useState<TeamMemberForm>(EMPTY_MEMBER_FORM)
+  const [form, setForm] = useState<MemberForm>({
+    firstName: '', lastName: '', email: '', jobTitle: '', phoneNumber: '', role: 'Admin', companyIds: [],
+  })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (open) {
-      if (mode === 'edit' && initial) {
-        setForm({
-          name:        initial.name,
-          phoneNumber: initial.phoneNumber,
-          email:       initial.email ?? '',
-          address:     initial.address ?? '',
-          notes:       initial.notes ?? '',
-          role:        initial.role,
-        })
-      } else {
-        setForm(EMPTY_MEMBER_FORM)
-      }
+    if (open && member) {
+      setForm({
+        firstName:   member.firstName,
+        lastName:    member.lastName,
+        email:       member.email,
+        jobTitle:    member.jobTitle,
+        phoneNumber: member.phoneNumber ?? '',
+        role:        member.role,
+        companyIds:  [...member.companyIds],
+      })
     }
-  }, [open, mode, initial])
+  }, [open, member])
 
-  function f(key: keyof TeamMemberForm) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-      setForm(prev => ({ ...prev, [key]: e.target.value }))
+  // Member rule 3 — the checklist is read-only on your own row, for every role
+  // including Owner. Nobody grants themselves access; creating a company
+  // auto-joins you and that is the only exception.
+  const accessLocked = isSelf
+
+  function toggleCompany(id: number) {
+    if (accessLocked) return
+    setForm(prev => ({
+      ...prev,
+      companyIds: prev.companyIds.includes(id)
+        ? prev.companyIds.filter(c => c !== id)
+        : [...prev.companyIds, id],
+    }))
   }
 
   async function handleSubmit() {
-    if (!form.name.trim()) { showToast('Name is required'); return }
-    if (!form.phoneNumber.trim()) { showToast('Phone number is required'); return }
+    if (!member) return
+    if (!form.firstName.trim()) { showToast('First name is required'); return }
+
+    // Member rule 6 — at least one company must remain, validated against the
+    // member's TOTAL memberships, not just the ones this editor can see.
+    const visibleIds = companies.map(c => c.id)
+    const hiddenKept = member.companyIds.filter(id => !visibleIds.includes(id))
+    if (!accessLocked && form.companyIds.length + hiddenKept.length === 0) {
+      showToast('A member must belong to at least one company')
+      return
+    }
 
     setSaving(true)
-    const payload = {
-      name:         form.name.trim(),
-      phone_number: form.phoneNumber.trim(),
-      email:        form.email.trim() || null,
-      address:      form.address.trim() || null,
-      notes:        form.notes.trim() || null,
-      role:         form.role,
+
+    const { error: profileErr } = await supabase
+      .from('profiles')
+      .update({
+        first_name:   form.firstName.trim(),
+        last_name:    form.lastName.trim(),
+        email:        form.email.trim(),
+        job_title:    form.jobTitle.trim(),
+        phone_number: form.phoneNumber.trim() || null,
+      })
+      .eq('id', member.id)
+
+    if (profileErr) { setSaving(false); showToast(`Error saving: ${profileErr.message}`); return }
+
+    // Member rule 5 — role changes are Owner-only and go through an RPC, never
+    // a direct column write (UPDATE on profiles.role is revoked).
+    if (viewerIsOwner && !isSelf && form.role !== member.role) {
+      const { error } = await supabase.rpc('set_member_role', { target: member.id, new_role: form.role })
+      if (error) { setSaving(false); showToast(`Error changing role: ${error.message}`); return }
     }
 
-    if (mode === 'add') {
-      const { data, error } = await supabase.from('team_members').insert(payload).select().single()
-      setSaving(false)
-      if (error || !data) { showToast('Error adding team member'); return }
-      onSaved({ id: data.id, name: data.name, phoneNumber: data.phone_number, email: data.email, address: data.address, notes: data.notes, role: data.role as TeamRole })
-      showToast('Team member added')
-    } else if (initial) {
-      const { error } = await supabase.from('team_members').update(payload).eq('id', initial.id)
-      setSaving(false)
-      if (error) { showToast('Error updating team member'); return }
-      onSaved({ ...initial, ...{ name: payload.name, phoneNumber: payload.phone_number, email: payload.email, address: payload.address, notes: payload.notes, role: form.role } })
-      showToast('Team member updated')
+    // Member rule 4 — apply a DELTA within the editor's visible set only, so a
+    // membership this editor cannot see is never silently revoked.
+    if (!accessLocked) {
+      const before = new Set(member.companyIds.filter(id => visibleIds.includes(id)))
+      const after  = new Set(form.companyIds.filter(id => visibleIds.includes(id)))
+      const toAdd    = [...after].filter(id => !before.has(id))
+      const toRemove = [...before].filter(id => !after.has(id))
+
+      if (toAdd.length) {
+        const { error } = await supabase.from('company_members')
+          .insert(toAdd.map(company_id => ({ company_id, profile_id: member.id })))
+        if (error) { setSaving(false); showToast(`Error granting access: ${error.message}`); return }
+      }
+      for (const company_id of toRemove) {
+        const { error } = await supabase.from('company_members')
+          .delete().eq('company_id', company_id).eq('profile_id', member.id)
+        if (error) { setSaving(false); showToast(`Error removing access: ${error.message}`); return }
+      }
     }
 
+    setSaving(false)
+    showToast('Member updated')
+    onSaved()
     onClose()
   }
 
@@ -465,58 +481,114 @@ function InviteTeamMemberDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title={mode === 'add' ? 'Invite team member' : 'Edit team member'}
-      description={mode === 'add' ? 'Add a new member to your team.' : 'Update member details.'}
+      title="Edit team member"
+      description="Update member details and company access."
       footer={
         <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-          >
+          <button type="button" onClick={onClose}
+            className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex-1 h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {saving ? 'Saving…' : mode === 'add' ? 'Invite member' : 'Save changes'}
+          <button type="button" onClick={handleSubmit} disabled={saving}
+            className="flex-1 h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+            {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       }
     >
       <div className="flex flex-col gap-5">
-        <FormField label="Name" required>
-          <input className={INPUT_CLS} placeholder="Full name" value={form.name} onChange={f('name')} />
-        </FormField>
-        <FormField label="Phone number" required>
-          <input className={INPUT_CLS} placeholder="+91 00000 00000" value={form.phoneNumber} onChange={f('phoneNumber')} />
-        </FormField>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="First name" required>
+            <input className={INPUT_CLS} value={form.firstName}
+              onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} />
+          </FormField>
+          <FormField label="Last name">
+            <input className={INPUT_CLS} value={form.lastName}
+              onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} />
+          </FormField>
+        </div>
+
         <FormField label="Email">
-          <input className={INPUT_CLS} type="email" placeholder="member@example.com" value={form.email} onChange={f('email')} />
+          <input className={INPUT_CLS} type="email" value={form.email}
+            onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
         </FormField>
-        <FormField label="Address">
-          <textarea className={TEXTAREA_CLS} rows={3} placeholder="Address" value={form.address} onChange={f('address')} />
+
+        <FormField label="Job title">
+          <input className={INPUT_CLS} placeholder="e.g. Operations Manager" value={form.jobTitle}
+            onChange={e => setForm(p => ({ ...p, jobTitle: e.target.value }))} />
         </FormField>
-        <FormField label="Notes">
-          <textarea className={TEXTAREA_CLS} rows={3} placeholder="Any notes about this member…" value={form.notes} onChange={f('notes')} />
+
+        <FormField label="Phone number">
+          <input className={INPUT_CLS} placeholder="+91 00000 00000" value={form.phoneNumber}
+            onChange={e => setForm(p => ({ ...p, phoneNumber: e.target.value }))} />
         </FormField>
-        <FormField label="Invite as">
-          <div className="relative">
-            <select
-              className={clsx(INPUT_CLS, 'appearance-none pr-8 cursor-pointer')}
-              value={form.role}
-              onChange={f('role')}
-            >
-              {(['Owner', 'Admin', 'Manager', 'Staff'] as TeamRole[]).map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+
+        <FormField label="Role">
+          {viewerIsOwner && !isSelf ? (
+            <div className="relative">
+              <select
+                className={clsx(INPUT_CLS, 'appearance-none pr-8 cursor-pointer')}
+                value={form.role}
+                onChange={e => setForm(p => ({ ...p, role: e.target.value as TeamRole }))}
+              >
+                {(['Owner', 'Admin'] as TeamRole[]).map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+            </div>
+          ) : (
+            <>
+              <div className={clsx(INPUT_CLS, 'flex items-center bg-gray-50 text-gray-500')}>{form.role}</div>
+              <p className="text-xs text-gray-500">
+                {isSelf ? 'You cannot change your own role.' : 'Only an Owner can change roles.'}
+              </p>
+            </>
+          )}
+        </FormField>
+
+        <div className="pt-1 border-t border-gray-200">
+          <p className="text-sm font-semibold text-gray-700 mt-4 mb-1">Company access</p>
+          <p className="text-xs text-gray-500 mb-3">
+            {accessLocked
+              ? 'Read-only — you can’t change your own company access.'
+              : 'They can see and work in the companies ticked here.'}
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            {companies.map(c => {
+              const on = form.companyIds.includes(c.id)
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleCompany(c.id)}
+                  disabled={accessLocked}
+                  className={clsx(
+                    'flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-colors',
+                    accessLocked ? 'border-gray-200 cursor-not-allowed' : 'border-gray-200 hover:bg-gray-50 cursor-pointer',
+                  )}
+                >
+                  <span className={clsx(
+                    'size-4 rounded flex items-center justify-center border shrink-0',
+                    on && !accessLocked ? 'bg-violet-600 border-violet-600'
+                      : on ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-300',
+                  )}>
+                    {on && <Check className={clsx('size-3', accessLocked ? 'text-gray-400' : 'text-white')} strokeWidth={3} />}
+                  </span>
+                  <span className="size-6 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold flex items-center justify-center">
+                    {c.short_code}
+                  </span>
+                  <span className={clsx('text-sm', accessLocked ? 'text-gray-500' : 'text-gray-900')}>{c.name}</span>
+                </button>
+              )
+            })}
           </div>
-        </FormField>
+
+          {accessLocked && (
+            <p className="mt-3 px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600 leading-relaxed">
+              Nobody grants themselves access. Creating a company adds you to it automatically — that’s the only exception.
+            </p>
+          )}
+        </div>
       </div>
     </Drawer>
   )
@@ -526,128 +598,168 @@ function InviteTeamMemberDrawer({
 
 function TeamMembersTab() {
   const { showToast } = useToast()
+  const { profile: me } = useAuth()
   const [members, setMembers] = useState<TeamMember[]>([])
+  const [companies, setCompanies] = useState<CompanyOption[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>('add')
   const [editTarget, setEditTarget] = useState<TeamMember | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null)
 
-  useEffect(() => {
-    supabase
-      .from('team_members')
-      .select('*')
-      .order('created_at')
-      .then(({ data }) => {
-        if (data) {
-          setMembers(data.map(r => ({
-            id:          r.id,
-            name:        r.name,
-            phoneNumber: r.phone_number,
-            email:       r.email,
-            address:     r.address,
-            notes:       r.notes,
-            role:        r.role as TeamRole,
-          })))
-        }
-        setLoading(false)
-      })
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+
+    const [{ data: profs, error: pErr }, { data: comps, error: cErr }, { data: mems, error: mErr }] =
+      await Promise.all([
+        supabase.from('profiles').select('id, first_name, last_name, email, job_title, role, phone_number'),
+        supabase.rpc('my_companies'),
+        supabase.from('company_members').select('company_id, profile_id'),
+      ])
+
+    if (pErr || cErr || mErr) {
+      setError((pErr ?? cErr ?? mErr)!.message)
+      setLoading(false)
+      return
+    }
+
+    setCompanies(comps ?? [])
+    setMembers((profs ?? []).map((p: Record<string, string>) => ({
+      id:          p.id,
+      firstName:   p.first_name,
+      lastName:    p.last_name,
+      email:       p.email,
+      jobTitle:    p.job_title,
+      phoneNumber: p.phone_number,
+      role:        p.role as TeamRole,
+      companyIds:  (mems ?? []).filter((m: { profile_id: string }) => m.profile_id === p.id)
+                               .map((m: { company_id: number }) => m.company_id),
+    })))
+    setLoading(false)
   }, [])
 
+  useEffect(() => { void load() }, [load])
+
   const filtered = search.trim()
-    ? members.filter(m =>
-        m.name.toLowerCase().includes(search.toLowerCase()) ||
-        (m.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
-        m.phoneNumber.toLowerCase().includes(search.toLowerCase())
-      )
+    ? members.filter(m => {
+        const q = search.toLowerCase()
+        return `${m.firstName} ${m.lastName}`.toLowerCase().includes(q)
+          || m.email.toLowerCase().includes(q)
+          || (m.phoneNumber ?? '').toLowerCase().includes(q)
+      })
     : members
-
-  function openAdd() { setDrawerMode('add'); setEditTarget(null); setDrawerOpen(true) }
-  function openEdit(m: TeamMember) { setDrawerMode('edit'); setEditTarget(m); setDrawerOpen(true) }
-
-  function handleSaved(member: TeamMember) {
-    if (drawerMode === 'add') {
-      setMembers(prev => [...prev, member])
-    } else {
-      setMembers(prev => prev.map(m => m.id === member.id ? member : m))
-    }
-  }
 
   async function handleDelete() {
     if (!deleteTarget) return
-    const { error } = await supabase.from('team_members').delete().eq('id', deleteTarget.id)
-    if (error) { showToast('Error deleting member'); return }
-    setMembers(prev => prev.filter(m => m.id !== deleteTarget.id))
+    const { error: delErr } = await supabase.from('profiles').delete().eq('id', deleteTarget.id)
+    if (delErr) { showToast(`Couldn’t remove member: ${delErr.message}`); return }
     showToast('Team member removed')
     setDeleteTarget(null)
+    void load()
   }
+
+  const nameOf = (m: TeamMember) => `${m.firstName} ${m.lastName}`.trim() || m.email
 
   return (
     <>
       <div className="flex flex-col gap-5">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Team members</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Manage who has access to this organisation.</p>
+            <p className="text-sm text-gray-500 mt-0.5">Manage who has access to which company.</p>
           </div>
           <button
             type="button"
-            onClick={openAdd}
-            className="flex items-center gap-2 h-10 px-4 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer"
+            disabled
+            title="Invites need the email edge function — Phase 4"
+            className="flex items-center gap-2 h-10 px-4 rounded-lg bg-gray-100 text-sm font-semibold text-gray-400 cursor-not-allowed"
           >
             <Plus className="size-4" />
-            Add team member
+            Invite member
           </button>
         </div>
 
-        {/* Search */}
         <div className="relative w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
           <input
-            type="text"
-            placeholder="Search members…"
-            value={search}
+            type="text" placeholder="Search members…" value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full h-10 pl-9 pr-3.5 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-600 focus:border-violet-600 bg-white"
           />
         </div>
 
-        {/* Table */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Email address</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Phone number</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Companies</th>
                 <th className="w-12 px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-400">Loading…</td></tr>
+                [...Array(3)].map((_, i) => (
+                  <tr key={i} aria-hidden>
+                    <td className="px-6 py-3.5"><span className="block h-3 w-32 rounded-lg bg-gray-100" /></td>
+                    <td className="px-6 py-3.5"><span className="block h-3 w-16 rounded-lg bg-gray-100" /></td>
+                    <td className="px-6 py-3.5"><span className="block h-3 w-40 rounded-lg bg-gray-100" /></td>
+                    <td className="px-6 py-3.5"><span className="block h-3 w-24 rounded-lg bg-gray-100" /></td>
+                    <td />
+                  </tr>
+                ))
+              ) : error ? (
+                <tr><td colSpan={5} className="px-6 py-12">
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-gray-900">Couldn’t load team members.</p>
+                    <p className="text-sm text-gray-500 mt-1">Something went wrong on our end. Your data is safe.</p>
+                    <button onClick={() => void load()}
+                      className="mt-4 h-9 px-4 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer">
+                      Try again
+                    </button>
+                    <details className="mt-4 mx-auto max-w-md text-left rounded-lg border border-gray-200 overflow-hidden">
+                      <summary className="px-3 py-2 bg-gray-50 text-xs font-semibold text-gray-600 cursor-pointer">Technical details</summary>
+                      <pre className="px-3 py-2 text-[11px] font-mono text-gray-600 whitespace-pre-wrap border-t border-gray-200">{error}</pre>
+                    </details>
+                  </div>
+                </td></tr>
               ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-400">
-                    {search ? `No members match "${search}".` : 'No team members yet. Click "Add team member" to get started.'}
-                  </td>
-                </tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-sm text-gray-400">
+                  {search ? `No members match “${search}”.` : 'No team members yet.'}
+                </td></tr>
               ) : filtered.map((m, i) => (
                 <tr key={m.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-3.5">
                     <div className="flex items-center gap-3">
-                      <Avatar name={m.name} index={i} />
-                      <span className="text-sm font-medium text-gray-900">{m.name}</span>
+                      <Avatar name={nameOf(m)} index={i} />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">{nameOf(m)}</span>
+                        {m.id === me?.id && <span className="ml-2 text-xs text-gray-400">you</span>}
+                        {m.jobTitle && <p className="text-xs text-gray-500">{m.jobTitle}</p>}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-3.5"><RoleBadge role={m.role} /></td>
                   <td className="px-6 py-3.5 text-sm text-gray-600">{m.email || <span className="text-gray-400">—</span>}</td>
-                  <td className="px-6 py-3.5 text-sm text-gray-600">{m.phoneNumber}</td>
+                  <td className="px-6 py-3.5">
+                    <div className="flex flex-wrap gap-1">
+                      {m.companyIds.length === 0
+                        ? <span className="text-gray-400 text-sm">—</span>
+                        : companies.filter(c => m.companyIds.includes(c.id)).map(c => (
+                            <span key={c.id} className="px-1.5 py-0.5 rounded bg-gray-100 text-[10px] font-bold text-gray-600">
+                              {c.short_code}
+                            </span>
+                          ))}
+                    </div>
+                  </td>
                   <td className="px-4 py-3.5 text-right">
-                    <ActionsMenu onEdit={() => openEdit(m)} onDelete={() => setDeleteTarget(m)} />
+                    <ActionsMenu
+                      onEdit={() => setEditTarget(m)}
+                      onDelete={m.id === me?.id ? undefined : () => setDeleteTarget(m)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -656,18 +768,20 @@ function TeamMembersTab() {
         </div>
       </div>
 
-      <InviteTeamMemberDrawer
-        open={drawerOpen}
-        mode={drawerMode}
-        initial={editTarget}
-        onClose={() => setDrawerOpen(false)}
-        onSaved={handleSaved}
+      <MemberDrawer
+        open={!!editTarget}
+        member={editTarget}
+        companies={companies}
+        isSelf={editTarget?.id === me?.id}
+        viewerIsOwner={me?.role === 'Owner'}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => void load()}
       />
 
       <ConfirmDeleteModal
         open={!!deleteTarget}
-        title="Delete team member"
-        description={`Remove ${deleteTarget?.name} from your team? This action cannot be undone.`}
+        title="Remove team member"
+        description={`Remove ${deleteTarget ? nameOf(deleteTarget) : ''}? They will lose access to every company.`}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
