@@ -54,12 +54,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!alive) return
-      setSession(data.session)
-      if (data.session) setProfile(await loadProfile(data.session.user.id))
-      if (alive) setLoading(false)
-    })
+    // ponytail: getSession() waits on a Web Lock with no timeout — a stale tab
+    // holding it hangs the app on the loading screen forever. 5s then fall
+    // through to /login; onAuthStateChange still picks the session up if it
+    // eventually resolves.
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('getSession timed out')), 5000),
+    )
+
+    Promise.race([supabase.auth.getSession(), timeout])
+      .then(async ({ data }) => {
+        if (!alive) return
+        setSession(data.session)
+        if (data.session) setProfile(await loadProfile(data.session.user.id))
+      })
+      .catch(err => console.error('[auth] session bootstrap failed:', err))
+      .finally(() => { if (alive) setLoading(false) })
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, next) => {
       if (!alive) return
