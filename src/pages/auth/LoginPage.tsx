@@ -35,10 +35,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-      {/* ponytail: explicit width, not max-w-sm — this project's @theme
-          --spacing-* tokens shadow Tailwind's container scale, so max-w-sm
-          resolves to 6px. Same trap applies to every named max-w-* utility. */}
-      <div className="w-full max-w-[24rem] bg-white border border-gray-200 rounded-xl p-7 shadow-xs">
+      <div className="w-full max-w-sm bg-white border border-gray-200 rounded-xl p-7 shadow-xs">
 
         <div className="flex items-center gap-2.5 mb-6">
           <img src="/logo.svg" alt="" className="size-8" />
