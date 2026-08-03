@@ -6,6 +6,7 @@ import Drawer from '../../components/ui/Drawer'
 import FileUpload from '../../components/ui/FileUpload'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
 
 // ── types ──────────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ interface TeamMember {
 interface Company {
   id: number
   name: string
+  shortCode: string
   phoneNumber: string
   email: string | null
   address: string | null
@@ -92,7 +94,9 @@ function Avatar({ name, index }: { name: string; index: number }) {
 
 // ── actions menu ───────────────────────────────────────────────────────────────
 
-function ActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+// onDelete is optional: companies cannot be deleted (EXPERIENCE.md Rule 4), and
+// this menu is shared with the Team members tab, which can.
+function ActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete?: () => void }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -118,6 +122,8 @@ function ActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () =>
     setOpen(o => !o)
   }
 
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
+
   return (
     <>
       <button
@@ -142,14 +148,16 @@ function ActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () =>
             <Pencil className="size-3.5" />
             Edit
           </button>
-          <button
-            type="button"
-            onClick={() => { setOpen(false); onDelete() }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-          >
-            <Trash2 className="size-3.5" />
-            Delete
-          </button>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); onDelete() }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-error-600 hover:bg-error-50 transition-colors cursor-pointer"
+            >
+              <Trash2 className="size-3.5" />
+              Delete
+            </button>
+          )}
         </div>,
         document.body,
       )}
@@ -671,6 +679,7 @@ function TeamMembersTab() {
 
 interface CompanyForm {
   name: string
+  shortCode: string
   phoneNumber: string
   email: string
   address: string
@@ -685,7 +694,7 @@ interface CompanyForm {
 }
 
 const EMPTY_COMPANY_FORM: CompanyForm = {
-  name: '', phoneNumber: '', email: '', address: '',
+  name: '', shortCode: '', phoneNumber: '', email: '', address: '',
   businessType: '', gstinNumber: '', serviceTaxNumber: '', cinNumber: '', cstTinNumber: '',
   dutySlipTerms: '', signatureUrl: null, notes: '',
 }
@@ -713,6 +722,7 @@ function AddCompanyDrawer({
       if (mode === 'edit' && initial) {
         setForm({
           name:             initial.name,
+          shortCode:        initial.shortCode,
           phoneNumber:      initial.phoneNumber,
           email:            initial.email ?? '',
           address:          initial.address ?? '',
@@ -738,13 +748,29 @@ function AddCompanyDrawer({
       setForm(prev => ({ ...prev, [key]: e.target.value }))
   }
 
+  // Suggest a short code from the distinguishing words: "Bluestar North" -> BN.
+  // Only a suggestion — the field stays editable (EXPERIENCE.md Rule 5).
+  function suggestCode(name: string): string {
+    const words = name.trim().split(/\s+/).filter(Boolean)
+    if (words.length === 0) return ''
+    const initials = words.map(w => w[0]).join('').toUpperCase()
+    return (initials.length >= 2 ? initials : words[0].toUpperCase()).slice(0, 3).replace(/[^A-Z0-9]/g, '')
+  }
+
   async function handleSubmit() {
     if (!form.name.trim()) { showToast('Company name is required'); return }
     if (!form.phoneNumber.trim()) { showToast('Phone number is required'); return }
 
+    const code = (form.shortCode.trim() || suggestCode(form.name)).toUpperCase()
+    if (!/^[A-Z0-9]{2,3}$/.test(code)) {
+      showToast('Short code must be 2–3 letters or numbers')
+      return
+    }
+
     setSaving(true)
     const payload = {
       name:               form.name.trim(),
+      short_code:         code,
       phone_number:       form.phoneNumber.trim(),
       email:              form.email.trim() || null,
       address:            form.address.trim() || null,
@@ -763,7 +789,7 @@ function AddCompanyDrawer({
       setSaving(false)
       if (error || !data) { showToast('Error adding company'); return }
       onSaved({
-        id: data.id, name: data.name, phoneNumber: data.phone_number, email: data.email,
+        id: data.id, name: data.name, shortCode: data.short_code, phoneNumber: data.phone_number, email: data.email,
         address: data.address, businessType: data.business_type, gstinNumber: data.gstin_number,
         serviceTaxNumber: data.service_tax_number, cinNumber: data.cin_number,
         cstTinNumber: data.cst_tin_number, dutySlipTerms: data.duty_slip_terms,
@@ -776,7 +802,7 @@ function AddCompanyDrawer({
       if (error) { showToast('Error updating company'); return }
       onSaved({
         ...initial,
-        name: payload.name, phoneNumber: payload.phone_number, email: payload.email,
+        name: payload.name, shortCode: payload.short_code, phoneNumber: payload.phone_number, email: payload.email,
         address: payload.address, businessType: payload.business_type, gstinNumber: payload.gstin_number,
         serviceTaxNumber: payload.service_tax_number, cinNumber: payload.cin_number,
         cstTinNumber: payload.cst_tin_number, dutySlipTerms: payload.duty_slip_terms,
@@ -816,7 +842,20 @@ function AddCompanyDrawer({
     >
       <div className="flex flex-col gap-5">
         <FormField label="Company name" required>
-          <input className={INPUT_CLS} placeholder="Company name" value={form.name} onChange={f('name')} />
+          <input className={INPUT_CLS} placeholder="e.g. Bluestar North" value={form.name} onChange={f('name')} />
+        </FormField>
+        <FormField label="Short code" required>
+          <input
+            className={clsx(INPUT_CLS, 'uppercase tracking-wide')}
+            placeholder={suggestCode(form.name) || 'BN'}
+            maxLength={3}
+            value={form.shortCode}
+            onChange={e => setForm(prev => ({ ...prev, shortCode: e.target.value.toUpperCase() }))}
+          />
+          <p className="text-xs text-gray-500">
+            2–3 characters, shown in the sidebar. Leave blank to use{' '}
+            <span className="font-medium text-gray-700">{suggestCode(form.name) || '—'}</span>.
+          </p>
         </FormField>
         <FormField label="Phone number" required>
           <input className={INPUT_CLS} placeholder="+91 00000 00000" value={form.phoneNumber} onChange={f('phoneNumber')} />
@@ -905,6 +944,7 @@ function CompaniesTab() {
           setCompanies(data.map(r => ({
             id:               r.id,
             name:             r.name,
+            shortCode:        r.short_code,
             phoneNumber:      r.phone_number,
             email:            r.email,
             address:          r.address,
@@ -1002,11 +1042,13 @@ function CompaniesTab() {
                     {search ? `No companies match "${search}".` : 'No companies yet. Click "Add company" to get started.'}
                   </td>
                 </tr>
-              ) : filtered.map((c, i) => (
+              ) : filtered.map(c => (
                 <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-3.5">
                     <div className="flex items-center gap-3">
-                      <Avatar name={c.name} index={i} />
+                      <span className="size-8 rounded-md bg-violet-50 border border-violet-100 text-violet-700 text-[11px] font-bold flex items-center justify-center shrink-0">
+                        {c.shortCode}
+                      </span>
                       <span className="text-sm font-medium text-gray-900">{c.name}</span>
                     </div>
                   </td>
@@ -1014,7 +1056,8 @@ function CompaniesTab() {
                   <td className="px-6 py-3.5 text-sm text-gray-600">{c.email || <span className="text-gray-400">—</span>}</td>
                   <td className="px-6 py-3.5 text-sm text-gray-600">{c.businessType || <span className="text-gray-400">—</span>}</td>
                   <td className="px-4 py-3.5 text-right">
-                    <ActionsMenu onEdit={() => openEdit(c)} onDelete={() => setDeleteTarget(c)} />
+                    {/* No delete — companies own bookings, invoices and payroll */}
+                    <ActionsMenu onEdit={() => openEdit(c)} />
                   </td>
                 </tr>
               ))}

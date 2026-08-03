@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import { NAV } from '../routes'
 import { useAuth } from '../lib/auth'
+import CompanySwitcher from '../components/CompanySwitcher'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -34,6 +35,11 @@ export default function AppShell({ children }: AppShellProps) {
           {/* Logo */}
           <div className="pl-6 pr-5">
             <img src="/logo.svg" alt="BlueStar" className="size-8" />
+          </div>
+
+          {/* Active company — the only persistent company signal in the app */}
+          <div className="flex justify-center px-4">
+            <CompanySwitcher />
           </div>
 
           {/* Nav items */}
