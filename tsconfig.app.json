@@ -24,5 +24,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // *.check.ts are node scripts, not app code — they import node: builtins,
+  // which the browser type space (types: ["vite/client"]) has no declarations
+  // for. Nothing imports them, so they never reach the bundle either.
+  "exclude": ["src/**/*.check.ts"]
 }
