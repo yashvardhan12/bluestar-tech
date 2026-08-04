@@ -54,30 +54,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true
 
-    // ponytail: getSession() waits on a Web Lock with no timeout — a stale tab
-    // holding it hangs the app on the loading screen forever. 5s then fall
-    // through to /login; onAuthStateChange still picks the session up if it
-    // eventually resolves.
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('getSession timed out')), 5000),
-    )
+    // ponytail: the loading gate is bounded by a timer, not by racing
+    // getSession(). Two separate facts force this:
+    //
+    //  - getSession() awaits initializePromise before it ever reaches the auth
+    //    lock (GoTrueClient.js:1265). The 5s lockAcquireTimeout bounds
+    //    *acquiring* the lock, not the token-refresh fetch that runs inside it,
+    //    and supabase-js issues that fetch with no timeout. A stalled refresh
+    //    pins the app on <Loading/> until the browser's own network timeout
+    //    (~5 min) fires. So something here must bound it.
+    //
+    //  - The previous Promise.race bounded it but discarded the result: when
+    //    the timer won, .then never ran, so a session resolving a moment later
+    //    was thrown away and a signed-in user rendered as logged out.
+    //
+    // A bare timer does both — releases the screen at 5s, and still applies the
+    // session whenever getSession() actually lands.
+    const unblock = setTimeout(() => { if (alive) setLoading(false) }, 5000)
 
-    Promise.race([supabase.auth.getSession(), timeout])
+    supabase.auth.getSession()
       .then(async ({ data }) => {
         if (!alive) return
         setSession(data.session)
         if (data.session) setProfile(await loadProfile(data.session.user.id))
       })
       .catch(err => console.error('[auth] session bootstrap failed:', err))
-      .finally(() => { if (alive) setLoading(false) })
+      .finally(() => { if (alive) { clearTimeout(unblock); setLoading(false) } })
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, next) => {
+    // ponytail: callback runs INSIDE the auth lock. Awaiting any supabase call
+    // here deadlocks the sign-in that emitted the event. Keep it sync; kick the
+    // profile query out to a task so it runs after the lock is released.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!alive) return
       setSession(next)
-      setProfile(next ? await loadProfile(next.user.id) : null)
+      setTimeout(async () => {
+        const p = next ? await loadProfile(next.user.id) : null
+        if (alive) setProfile(p)
+      }, 0)
     })
 
-    return () => { alive = false; sub.subscription.unsubscribe() }
+    return () => { alive = false; clearTimeout(unblock); sub.subscription.unsubscribe() }
   }, [])
 
   async function signOut() {

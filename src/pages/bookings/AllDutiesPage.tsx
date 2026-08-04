@@ -19,7 +19,8 @@ import ClearAllotmentModal from '../../components/ui/ClearAllotmentModal'
 import RestoreDutyModal from '../../components/ui/RestoreDutyModal'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
-import { syncDutyStatus, syncDutiesOnGoing, syncCompletedDuties, syncBookingStatus } from '../../lib/bookingStatus'
+import { useMenuFlip } from '../../lib/useMenuFlip'
+import { syncDutyStatus, syncBookingStatus } from '../../lib/bookingStatus'
 import type { DutyStatus } from '../../lib/bookingStatus'
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -78,6 +79,8 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
+
   function handleOpen(e: React.MouseEvent) {
     e.stopPropagation()
     if (!btnRef.current) return
@@ -101,7 +104,7 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
         <div
           ref={menuRef}
           style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[9999] w-[240px] bg-white rounded-lg border border-gray-200 shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08),0px_4px_6px_-2px_rgba(16,24,40,0.03)] py-1"
+          className="fixed z-[9999] w-[240px] bg-white rounded-lg border border-gray-200 shadow-lg py-1"
         >
           {items.map((item, i) =>
             item === 'divider'
@@ -232,23 +235,27 @@ export default function AllDutiesPage() {
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   function buildQuery(from: number) {
+    // Reads come from duties_status, which derives the time-dependent statuses
+    // in SQL (see 026_duty_status_view.sql). `status:effective_status` aliases
+    // it back to `status` so mapRow and the filters below are unchanged.
+    // Writes still go to the `duties` table.
     let q = supabase
-      .from('duties')
+      .from('duties_status')
       .select(`
-        id, status, start_date, end_date, duty_type, vehicle_group, reporting_time,
+        id, status:effective_status, start_date, end_date, duty_type, vehicle_group, reporting_time,
         booking_id,
         bookings ( booking_ref, customer_name, booking_passengers ( name, sort_order ) ),
         vehicles ( id, model_name, vehicle_number ),
         drivers  ( id, name, initials )
       `)
-      .neq('status', 'Cancelled')
+      .neq('effective_status', 'Cancelled')
       .order('start_date', { ascending: true })
       .range(from, from + BATCH_SIZE - 1)
 
     if (statusFilter === 'Upcoming') {
-      q = q.in('status', ['Booked', 'Confirmed', 'Allotted'])
+      q = q.in('effective_status', ['Booked', 'Confirmed', 'Allotted'])
     } else if (statusFilter !== 'All') {
-      q = q.eq('status', statusFilter)
+      q = q.eq('effective_status', statusFilter)
     }
 
     if (dateRange) {
@@ -297,24 +304,15 @@ export default function AllDutiesPage() {
     offsetRef.current = mapped.length
     setHasMore(mapped.length === BATCH_SIZE)
     setLoading(false)
-
-    // Run syncs once on initial load
-    const completedIds = await syncCompletedDuties()
-    if (completedIds.length > 0)
-      setRows(prev => prev.map(d => completedIds.includes(d.id) ? { ...d, status: 'Completed' } : d))
-
-    const eligible = (data ?? []).filter((r: any) => !['Completed', 'Cancelled'].includes(r.status)).map((r: any) => r.id)
-    const flipped = await syncDutiesOnGoing(eligible)
-    if (flipped.length > 0) {
-      setRows(prev => prev.map(d => flipped.includes(d.id) ? { ...d, status: 'On-Going' } : d))
-      const bookingIds = [...new Set((data ?? []).filter((r: any) => flipped.includes(r.id)).map((r: any) => r.booking_id as number))]
-      await Promise.all(bookingIds.map(id => syncBookingStatus(id)))
-    }
+    // No status sync here — duties_status already returns the derived status.
+    // This used to fire ~12 sequential round trips (and DB writes) per load.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, search, dateRange])
 
   const fetchMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return
+    // ponytail: the sentinel is in view while the table is empty, so without the
+    // `loading` gate this races fetchInitial and appends page 0 to itself.
+    if (loading || loadingMore || !hasMore) return
     setLoadingMore(true)
     const from = offsetRef.current
     const { data, error } = await buildQuery(from)
@@ -325,7 +323,7 @@ export default function AllDutiesPage() {
     setHasMore(mapped.length === BATCH_SIZE)
     setLoadingMore(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingMore, hasMore, statusFilter, search, dateRange])
+  }, [loading, loadingMore, hasMore, statusFilter, search, dateRange])
 
   // Debounce search input → committed search (triggers re-fetch)
   useEffect(() => {
@@ -436,7 +434,7 @@ export default function AllDutiesPage() {
         </div>
         <button
           onClick={() => navigate('/bookings/all')}
-          className="px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-50 transition-colors cursor-pointer"
+          className="px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer"
         >
           All Bookings
         </button>
@@ -467,7 +465,7 @@ export default function AllDutiesPage() {
             placeholder="Search by booking ref, customer, duty type or vehicle"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -484,7 +482,7 @@ export default function AllDutiesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden flex flex-col">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden flex flex-col">
         <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
         <table className="w-full border-collapse">
           <thead className="sticky top-0 z-10 bg-gray-50">

@@ -27,7 +27,11 @@ export default function CompanySwitcher() {
     setCompanies(data ?? [])
   }, [])
 
-  useEffect(() => { if (profile) void load() }, [profile, load])
+  // ponytail: depend on the ids, not the `profile` object. loadProfile() builds
+  // a fresh object every call, and auth.tsx re-runs it on every onAuthStateChange
+  // (token refresh, tab focus) — so keying on `profile` re-fired my_companies on
+  // every one of those. That is the 196 calls against a 2-row table in the logs.
+  useEffect(() => { if (profile) void load() }, [profile?.id, profile?.activeCompanyId, load])
 
   // Close on outside click / Escape, returning focus to the badge.
   useEffect(() => {

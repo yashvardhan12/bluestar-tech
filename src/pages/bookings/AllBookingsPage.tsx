@@ -17,7 +17,8 @@ import DateRangePicker from '../../components/ui/DateRangePicker'
 import type { DateRange } from '../../components/ui/DateRangePicker'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
-import { syncBookingStatus, syncOnGoingStatuses } from '../../lib/bookingStatus'
+import { useMenuFlip } from '../../lib/useMenuFlip'
+import { syncBookingStatus } from '../../lib/bookingStatus'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,8 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
     setOpen(v => !v)
   }
 
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
+
   return (
     <>
       <button
@@ -119,7 +122,7 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
         <div
           ref={menuRef}
           style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[9999] w-[220px] bg-white rounded-lg border border-gray-200 shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08),0px_4px_6px_-2px_rgba(16,24,40,0.03)] py-1"
+          className="fixed z-[9999] w-[220px] bg-white rounded-lg border border-gray-200 shadow-lg py-1"
         >
           {items.map((item, i) =>
             item === 'divider'
@@ -273,10 +276,13 @@ export default function AllBookingsPage() {
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
+    // Reads come from bookings_status (see 027_booking_status_view.sql), which
+    // derives status from the booking's duties in SQL. Writes still target the
+    // `bookings` table.
     const { data, error } = await supabase
-      .from('bookings')
+      .from('bookings_status')
       .select(`
-        id, booking_ref, status, customer_name, duty_type, vehicle_group,
+        id, booking_ref, status:effective_status, customer_name, duty_type, vehicle_group,
         start_date, end_date,
         booking_passengers ( name, sort_order )
       `)
@@ -304,17 +310,7 @@ export default function AllBookingsPage() {
     })
     setRows(mapped)
     setLoading(false)
-
-    // Batch On-Going transition for any active (non-protected) bookings
-    const transitionCandidates = mapped
-      .filter(b => b.status !== 'Billed' && b.status !== 'Cancelled' && b.status !== 'On-Going' && b.status !== 'Completed')
-      .map(b => b.id)
-    if (transitionCandidates.length > 0) {
-      const flipped = await syncOnGoingStatuses(transitionCandidates)
-      if (flipped.length > 0) {
-        setRows(prev => prev.map(r => flipped.includes(r.id) ? { ...r, status: 'On-Going' } : r))
-      }
-    }
+    // No On-Going sync here — bookings_status already returns the derived status.
   }, [])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
@@ -401,13 +397,13 @@ export default function AllBookingsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/bookings/duties')}
-            className="px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-50 transition-colors cursor-pointer"
+            className="px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer"
           >
             All Duties
           </button>
           <button
             onClick={openAddDrawer}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-violet-700 transition-colors cursor-pointer"
           >
             <Plus className="size-4" strokeWidth={2.5} />
             Add Booking
@@ -442,7 +438,7 @@ export default function AllBookingsPage() {
             placeholder="Search by name, number, duty type, city or booking id"
             value={search}
             onChange={e => handleSearch(e.target.value)}
-            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -459,7 +455,7 @@ export default function AllBookingsPage() {
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50">
@@ -586,7 +582,7 @@ export default function AllBookingsPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             <ChevronLeft className="size-5" strokeWidth={1.75} /> Previous
           </button>
@@ -609,7 +605,7 @@ export default function AllBookingsPage() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
