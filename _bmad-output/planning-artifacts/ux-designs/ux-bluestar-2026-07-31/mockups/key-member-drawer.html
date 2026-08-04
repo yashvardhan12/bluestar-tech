@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bluestar — Member drawer &amp; company access</title>
+<style>
+/*
+  GOVERNED BY:
+  EXPERIENCE.md § Component Patterns — "Member drawer"
+  EXPERIENCE.md § Member management rules 1-7  (the security boundary expressed as UI)
+  EXPERIENCE.md § Key Flows — Flow 3, step 4 (climax)
+  DESIGN.md § Components — company-access-checklist
+  DESIGN.md § Layout & Spacing — Settings is roomier than operational surfaces
+  Decision log — DEC-12, DEC-15, DEC-17, DEC-20, DEC-28
+  Left: Yash (Owner) editing Hassel. Right: the same drawer on your OWN row.
+  Spine wins on conflict.
+*/
+:root{
+  --violet-50:#f5f3ff;--violet-100:#ece9fe;--violet-600:#7839ee;--violet-700:#6927da;
+  --gray-25:#fcfcfd;--gray-50:#f9fafb;--gray-100:#f2f4f7;--gray-200:#eaecf0;
+  --gray-300:#d0d5dd;--gray-400:#98a2b3;--gray-500:#667085;--gray-600:#475467;
+  --gray-700:#344054;--gray-900:#101828;--r-lg:10px;--r-xl:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--gray-100);padding:32px;color:var(--gray-900)}
+.wrap{max-width:1060px;margin:0 auto}
+.lede{font-size:13px;color:var(--gray-600);margin-bottom:20px}
+.lede b{color:var(--gray-900)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.cap{font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px}
+.drawer{width:100%;background:#fff;border:1px solid var(--gray-200);border-radius:var(--r-xl);overflow:hidden;box-shadow:0 8px 24px rgba(16,24,40,.08)}
+.dh{padding:20px 24px 16px;border-bottom:1px solid var(--gray-200)}
+.dh h2{font-size:17px;font-weight:600}
+.dh p{font-size:13px;color:var(--gray-500);margin-top:3px}
+.db{padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+label{display:block;font-size:13px;font-weight:500;color:var(--gray-700);margin-bottom:6px}
+.inp{width:100%;height:40px;padding:0 13px;border:1px solid var(--gray-300);border-radius:var(--r-lg);font-size:13px;color:var(--gray-900);background:#fff;display:flex;align-items:center}
+.inp.dis{background:var(--gray-50);color:var(--gray-500)}
+.sel{position:relative}
+.sel svg{position:absolute;right:12px;top:13px;width:14px;height:14px;color:var(--gray-400)}
+.sect{border-top:1px solid var(--gray-200);padding-top:16px}
+.sect-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+.sect-h b{font-size:13px;font-weight:600;color:var(--gray-700)}
+.hint{font-size:12px;color:var(--gray-500);margin-bottom:11px;line-height:1.5}
+.chk{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--gray-200);border-radius:var(--r-lg);margin-bottom:7px}
+.box{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--gray-300);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#fff}
+.box.on{background:var(--violet-600);border-color:var(--violet-600)}
+.box.on svg{width:11px;height:11px;color:#fff}
+.box.ro{background:var(--gray-100);border-color:var(--gray-200)}
+.box.ro svg{width:11px;height:11px;color:var(--gray-400)}
+.ccode{width:26px;height:26px;border-radius:6px;background:var(--gray-100);color:var(--gray-600);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.cn{flex:1;font-size:13px;color:var(--gray-900)}
+.ro-note{display:flex;gap:9px;padding:11px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--r-lg);font-size:12px;color:var(--gray-600);line-height:1.55}
+.ro-note svg{width:15px;height:15px;color:var(--gray-400);flex-shrink:0;margin-top:1px}
+.df{padding:16px 24px;border-top:1px solid var(--gray-200);display:flex;gap:11px;background:var(--gray-25)}
+.btn{flex:1;height:40px;border-radius:var(--r-lg);font-size:13px;font-weight:600;border:none;background:var(--violet-600);color:#fff}
+.btn.sec{background:#fff;color:var(--gray-700);border:1px solid var(--gray-300)}
+.btn.dis{background:var(--gray-100);color:var(--gray-400)}
+.note{margin-top:22px;padding:14px 16px;background:#fff;border:1px solid var(--gray-200);border-left:3px solid var(--violet-600);border-radius:var(--r-lg);font-size:12px;color:var(--gray-600);line-height:1.65}
+.note b{color:var(--gray-900)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="lede"><b>Member drawer — where tenant access is granted.</b> Flow 3, step 4: Yash ticks one box and that is the whole operation. The rules around this checklist are a security boundary expressed as UI.</div>
+
+<div class="grid">
+
+  <div>
+    <div class="cap">Yash (Owner) editing Hassel</div>
+    <div class="drawer">
+      <div class="dh"><h2>Edit team member</h2><p>Update member details and company access.</p></div>
+      <div class="db">
+        <div><label>Name</label><div class="inp">Hassel Fernandes</div></div>
+        <div><label>Email</label><div class="inp">hassel@bluestar.co.in</div></div>
+        <div><label>Role</label><div class="sel"><div class="inp">Admin</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <div class="sect">
+          <div class="sect-h"><b>Company access</b></div>
+          <div class="hint">Hassel can see and work in the companies ticked here.</div>
+          <div class="chk"><span class="box on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg></span><span class="ccode">BN</span><span class="cn">Bluestar North</span></div>
+          <div class="chk"><span class="box on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg></span><span class="ccode">BE</span><span class="cn">Bluestar East</span></div>
+          <div class="chk"><span class="box on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg></span><span class="ccode">BS</span><span class="cn">Bluestar South</span></div>
+          <div class="chk" style="border-color:var(--violet-600);background:var(--violet-50)"><span class="box"></span><span class="ccode">BW</span><span class="cn">Bluestar West</span></div>
+        </div>
+      </div>
+      <div class="df"><button class="btn sec">Cancel</button><button class="btn">Save changes</button></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap">The same drawer on your own row</div>
+    <div class="drawer">
+      <div class="dh"><h2>Edit team member</h2><p>Update member details and company access.</p></div>
+      <div class="db">
+        <div><label>Name</label><div class="inp">Yash Vardhan</div></div>
+        <div><label>Email</label><div class="inp">yash@bluestar.co.in</div></div>
+        <div><label>Role</label><div class="sel"><div class="inp dis">Owner</div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <div class="sect">
+          <div class="sect-h"><b>Company access</b></div>
+          <div class="hint">Read-only — you can’t change your own company access.</div>
+          <div class="chk"><span class="box ro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg></span><span class="ccode">BN</span><span class="cn" style="color:var(--gray-500)">Bluestar North</span></div>
+          <div class="chk"><span class="box ro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg></span><span class="ccode">BE</span><span class="cn" style="color:var(--gray-500)">Bluestar East</span></div>
+          <div class="chk"><span class="box ro"></span><span class="ccode">BS</span><span class="cn" style="color:var(--gray-500)">Bluestar South</span></div>
+          <div class="ro-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <span>Nobody grants themselves access. Creating a company adds you to it automatically — that’s the only exception.</span>
+          </div>
+        </div>
+      </div>
+      <div class="df"><button class="btn sec">Cancel</button><button class="btn dis">Save changes</button></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note"><b>Three rules are visible here.</b> The checklist is read-only on your own row for every role including Owner (member rule 3) — closing the self-grant path. An Admin editing Hassel would see <b>only the companies the Admin belongs to</b> (rule 2), and saving applies a <b>delta</b> so memberships they can’t see are never silently revoked (rule 4). At least one company must remain ticked, validated against Hassel’s <b>total</b> memberships, not the editor’s visible subset (rule 6).</div>
+
+</div>
+</body>
+</html>

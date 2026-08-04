@@ -2,6 +2,9 @@ import { useRef, useState, useEffect } from 'react'
 import { UploadCloud, Trash2, Eye } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../lib/auth'
+
+const BUCKET = 'vehicle-documents'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -76,8 +79,18 @@ export default function FileUpload({
   onChange,
 }: FileUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const { profile } = useAuth()
   const [fileState, setFileState] = useState<FileState>(() => initialState(existingUrl))
   const [error, setError] = useState<string | null>(null)
+
+  // Opens a stored object. The bucket is private, so a short-lived signed URL
+  // is minted on demand rather than persisted.
+  async function openStored(path: string) {
+    const { data, error: signErr } = await supabase.storage
+      .from(BUCKET).createSignedUrl(path, 60)
+    if (signErr || !data) { setError(signErr?.message ?? 'Could not open file.'); return }
+    window.open(data.signedUrl, '_blank', 'noopener')
+  }
 
   // Sync when existingUrl changes (e.g. switching between table rows).
   // Never interrupt an in-progress upload.
@@ -112,22 +125,25 @@ export default function FileUpload({
     }, 120)
 
     try {
-      const filePath = `${storagePath}/${Date.now()}-${file.name}`
+      // Objects live under their company's id; storage policies grant access by
+      // membership of that leading folder. Without it the upload is rejected.
+      const companyId = profile?.activeCompanyId
+      if (!companyId) throw new Error('No active company — pick one before uploading.')
+
+      const filePath = `${companyId}/${storagePath}/${Date.now()}-${file.name}`
       const { data, error: uploadErr } = await supabase.storage
-        .from('vehicle-documents')
+        .from(BUCKET)
         .upload(filePath, file, { upsert: false })
 
       clearInterval(ticker)
 
       if (uploadErr) throw uploadErr
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('vehicle-documents')
-        .getPublicUrl(data.path)
-
+      // Store the object PATH, not a URL. The bucket is private, so any URL we
+      // could persist would be a signed one that expires; paths do not.
       URL.revokeObjectURL(objectUrl)
-      setFileState({ kind: 'done', url: publicUrl, name: file.name })
-      onChange?.(publicUrl)
+      setFileState({ kind: 'done', url: data.path, name: file.name })
+      onChange?.(data.path)
     } catch (err: any) {
       clearInterval(ticker)
       URL.revokeObjectURL(objectUrl)
@@ -145,10 +161,12 @@ export default function FileUpload({
   }
 
   function handleView() {
-    const url = fileState.kind === 'done' ? fileState.url
-      : fileState.kind === 'uploading' ? fileState.objectUrl
-      : null
-    if (url) window.open(url, '_blank')
+    // Mid-upload we still have the local blob; once stored we hold a private
+    // object path and must sign it.
+    if (fileState.kind === 'uploading') { window.open(fileState.objectUrl, '_blank', 'noopener'); return }
+    if (fileState.kind !== 'done') return
+    if (/^https?:\/\//.test(fileState.url)) { window.open(fileState.url, '_blank', 'noopener'); return }
+    void openStored(fileState.url)
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bluestar — Login &amp; first-run company chooser</title>
+<style>
+/*
+  GOVERNED BY:
+  EXPERIENCE.md § Information Architecture — Login, Company chooser
+  EXPERIENCE.md § Component Patterns — "Company chooser"
+  EXPERIENCE.md § State Patterns — invalid credentials
+  EXPERIENCE.md § Key Flows — Flow 2 (invite acceptance), Flow 4 (password reset)
+  DESIGN.md § Components — login-card, company-chooser
+  Decision log — DEC-13, DEC-16, DEC-19
+  The chooser reuses the switcher popover's row shape so the pattern is learned once.
+  Spine wins on conflict.
+*/
+:root{
+  --violet-50:#f5f3ff;--violet-100:#ece9fe;--violet-600:#7839ee;--violet-700:#6927da;
+  --gray-25:#fcfcfd;--gray-50:#f9fafb;--gray-100:#f2f4f7;--gray-200:#eaecf0;
+  --gray-300:#d0d5dd;--gray-400:#98a2b3;--gray-500:#667085;--gray-600:#475467;
+  --gray-700:#344054;--gray-900:#101828;
+  --error-50:#fef3f2;--error-500:#f04438;--error-700:#b42318;
+  --r-lg:10px;--r-xl:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--gray-100);padding:32px;color:var(--gray-900)}
+.wrap{max-width:1060px;margin:0 auto}
+.lede{font-size:13px;color:var(--gray-600);margin-bottom:20px}
+.lede b{color:var(--gray-900)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+.cap{font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px}
+.screen{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--r-xl);height:440px;display:flex;align-items:center;justify-content:center;padding:28px;overflow:hidden}
+.card{width:328px;background:#fff;border:1px solid var(--gray-200);border-radius:var(--r-xl);padding:28px;box-shadow:0 4px 14px rgba(16,24,40,.05)}
+.mark{display:flex;align-items:center;gap:9px;margin-bottom:22px}
+.mark .sq{width:30px;height:30px;border-radius:8px;background:var(--violet-600);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.mark b{font-size:16px;font-weight:600;letter-spacing:-.01em}
+label{display:block;font-size:13px;font-weight:500;color:var(--gray-700);margin-bottom:6px}
+.fld{margin-bottom:14px}
+.inp{width:100%;height:40px;padding:0 13px;border:1px solid var(--gray-300);border-radius:var(--r-lg);font-size:13px;color:var(--gray-900);background:#fff;display:flex;align-items:center}
+.inp.err{border-color:var(--error-500)}
+.inp.ph{color:var(--gray-400)}
+.alert{display:flex;gap:8px;padding:10px 12px;background:var(--error-50);border:1px solid #fecdca;border-radius:var(--r-lg);font-size:12.5px;color:var(--error-700);line-height:1.5;margin-bottom:16px}
+.alert svg{width:15px;height:15px;flex-shrink:0;margin-top:1px}
+.btn{width:100%;height:40px;border-radius:var(--r-lg);background:var(--violet-600);color:#fff;font-size:13.5px;font-weight:600;border:none;margin-top:4px}
+.link{display:block;text-align:center;margin-top:14px;font-size:13px;color:var(--violet-700);font-weight:500}
+/* chooser */
+.chooser{width:392px;text-align:center}
+.chooser h1{font-size:22px;font-weight:600;margin-bottom:5px}
+.chooser .sub{font-size:13.5px;color:var(--gray-500);margin-bottom:22px}
+.crow{display:flex;align-items:center;gap:12px;padding:13px 15px;background:#fff;border:1px solid var(--gray-200);border-radius:var(--r-lg);margin-bottom:9px;text-align:left}
+.crow:first-of-type{border-color:var(--violet-600);box-shadow:0 0 0 3px var(--violet-50)}
+.ccode{width:34px;height:34px;border-radius:8px;background:var(--gray-100);color:var(--gray-700);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;flex-shrink:0}
+.crow:first-of-type .ccode{background:var(--violet-600);color:#fff}
+.cmeta{flex:1}
+.cmeta b{display:block;font-size:13.5px;font-weight:600;color:var(--gray-900)}
+.cmeta span{font-size:12px;color:var(--gray-500)}
+.arw{width:15px;height:15px;color:var(--gray-400)}
+.foot{font-size:12.5px;color:var(--gray-500);margin-top:16px}
+.note{margin-top:22px;padding:14px 16px;background:#fff;border:1px solid var(--gray-200);border-left:3px solid var(--violet-600);border-radius:var(--r-lg);font-size:12px;color:var(--gray-600);line-height:1.65}
+.note b{color:var(--gray-900)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="lede"><b>The entry pair.</b> Login is a daily surface for Hassel — the first thing he sees each morning. The chooser is shown exactly once, ever.</div>
+
+<div class="grid">
+
+  <div>
+    <div class="cap">Login · invalid credentials</div>
+    <div class="screen">
+      <div class="card">
+        <div class="mark"><span class="sq">B</span><b>Bluestar</b></div>
+        <div class="alert">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 9v4M12 16h.01"/></svg>
+          <span>That email and password don’t match.</span>
+        </div>
+        <div class="fld"><label>Email</label><div class="inp">hassel@bluestar.co.in</div></div>
+        <div class="fld"><label>Password</label><div class="inp err ph">••••••••</div></div>
+        <button class="btn">Sign in</button>
+        <a class="link">Forgot password?</a>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap">First sign-in · company chooser</div>
+    <div class="screen">
+      <div class="chooser">
+        <h1>Welcome, Hassel</h1>
+        <div class="sub">Which company are you working in?</div>
+        <div class="crow"><span class="ccode">BN</span><span class="cmeta"><b>Bluestar North</b><span>12 duties today</span></span><svg class="arw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+        <div class="crow"><span class="ccode">BE</span><span class="cmeta"><b>Bluestar East</b><span>8 duties today</span></span><svg class="arw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+        <div class="crow"><span class="ccode">BS</span><span class="cmeta"><b>Bluestar South</b><span>15 duties today</span></span><svg class="arw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+        <div class="foot">You can switch any time.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note"><b>Why the chooser exists at all.</b> The badge in the 80px rail is the only signal that more than one company exists — a member dropped straight into a duties page might never find it. This screen is the one moment that teaches the switcher, and it earns its keep by using the <b>same row shape</b> (short code · name · duty count) the popover uses forever after. Break that symmetry and the pedagogy fails silently. Note also: the login error never reveals whether the email exists.</div>
+
+</div>
+</body>
+</html>

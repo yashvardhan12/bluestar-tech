@@ -2,6 +2,8 @@ import { clsx } from 'clsx'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import { NAV } from '../routes'
+import { useAuth } from '../lib/auth'
+import CompanySwitcher from '../components/CompanySwitcher'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -10,6 +12,14 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { profile, signOut } = useAuth()
+
+  // ponytail: initials from the profile, falling back to the email's first
+  // letter. Replaced by the company badge in Phase 3.
+  const initials = profile
+    ? ((profile.firstName[0] ?? '') + (profile.lastName[0] ?? '')).toUpperCase()
+      || profile.email.slice(0, 2).toUpperCase()
+    : '–'
 
   const activeSection = NAV.find(s => location.pathname.startsWith(s.basePath))
 
@@ -25,6 +35,11 @@ export default function AppShell({ children }: AppShellProps) {
           {/* Logo */}
           <div className="pl-6 pr-5">
             <img src="/logo.svg" alt="BlueStar" className="size-8" />
+          </div>
+
+          {/* Active company — the only persistent company signal in the app */}
+          <div className="flex justify-center px-4">
+            <CompanySwitcher />
           </div>
 
           {/* Nav items */}
@@ -65,11 +80,12 @@ export default function AppShell({ children }: AppShellProps) {
             <Settings className="size-6" strokeWidth={1.75} />
           </button>
           <button
-            title="Profile"
+            title={profile ? `Sign out ${profile.email}` : 'Sign out'}
+            onClick={() => { void signOut().then(() => navigate('/login', { replace: true })) }}
             className="mt-1 size-9 rounded-full overflow-hidden border-2 border-gray-200 hover:border-violet-300 transition-colors cursor-pointer"
           >
             <div className="size-full bg-violet-100 flex items-center justify-center">
-              <span className="text-xs font-semibold text-violet-700">BS</span>
+              <span className="text-xs font-semibold text-violet-700">{initials}</span>
             </div>
           </button>
         </div>
