@@ -163,7 +163,7 @@ function EmptyState() {
   return (
     <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
       <div className="absolute inset-0 opacity-50" style={{
-        backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(to right, var(--color-gray-200) 1px, transparent 1px), linear-gradient(to bottom, var(--color-gray-200) 1px, transparent 1px)',
         backgroundSize: '32px 32px',
         WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
         maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
@@ -369,7 +369,7 @@ export default function AveragePage() {
               placeholder="Search by car"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-[38px] pr-3.5 py-2.5 w-56 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+              className="pl-[38px] pr-3.5 py-2.5 w-56 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
             />
           </div>
           <DateRangePicker
@@ -381,7 +381,7 @@ export default function AveragePage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-gray-200">

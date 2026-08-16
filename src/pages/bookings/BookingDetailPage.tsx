@@ -17,8 +17,10 @@ import DutyDrawer from './DutyDrawer'
 import type { DutyDrawerMode } from './DutyDrawer'
 import AllotDrawer from './AllotDrawer'
 import type { AllotDutyInfo } from './AllotDrawer'
+import DutySlipDrawer from './DutySlipDrawer'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import { syncBookingStatus } from '../../lib/bookingStatus'
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -101,6 +103,8 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
     setOpen(v => !v)
   }
 
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
+
   return (
     <>
       <button
@@ -115,7 +119,7 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
         <div
           ref={menuRef}
           style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[9999] w-[240px] bg-white rounded-lg border border-gray-200 shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08),0px_4px_6px_-2px_rgba(16,24,40,0.03)] py-1"
+          className="fixed z-[9999] w-[240px] bg-white rounded-lg border border-gray-200 shadow-lg py-1"
         >
           {items.map((item, i) =>
             item === 'divider'
@@ -315,6 +319,7 @@ export default function BookingDetailPage() {
     setDutyDrawer(prev => ({ ...prev, open: false }))
   }
 
+  const [slipDuty, setSlipDuty]                 = useState<{ id: number; mode: 'view' | 'edit' } | null>(null)
   const [allotDuty, setAllotDuty]               = useState<Duty | null>(null)
   const [changeDriverDuty, setChangeDriverDuty] = useState<Duty | null>(null)
   const [clearAllotTarget, setClearAllotTarget] = useState<Duty | null>(null)
@@ -422,16 +427,16 @@ export default function BookingDetailPage() {
           <div className="flex items-center gap-2 shrink-0 pt-1">
             <button
               onClick={() => openDutyDrawer('add')}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-50 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer"
             >
               <Plus className="size-4" strokeWidth={2.5} />
               Add Duty
             </button>
-            <button className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-50 transition-colors cursor-pointer">
+            <button className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer">
               <Pencil className="size-4" strokeWidth={1.75} />
               Edit
             </button>
-            <button className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer">
+            <button className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer">
               <MoreHorizontal className="size-5" strokeWidth={1.75} />
             </button>
           </div>
@@ -465,7 +470,7 @@ export default function BookingDetailPage() {
             placeholder="Search by name, number, duty type, city or booking id"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
           />
         </div>
         <DateRangePicker value={dateRange} onChange={r => { setDateRange(r); setPage(1) }} />
@@ -480,7 +485,7 @@ export default function BookingDetailPage() {
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50">
@@ -607,8 +612,8 @@ export default function BookingDetailPage() {
                       onCloseDuty:      () => updateDutyStatus(row.id, 'Completed'),
                       onUnconfirm:      () => updateDutyStatus(row.id, 'Booked'),
                       onConfirm:        () => updateDutyStatus(row.id, 'Booked'),
-                      onPreviewSlip:    () => {},
-                      onEditSlip:       () => {},
+                      onPreviewSlip:    () => setSlipDuty({ id: row.id, mode: 'view' }),
+                      onEditSlip:       () => setSlipDuty({ id: row.id, mode: 'edit' }),
                       onPrintSlip:      () => {},
                       onRestore:        () => updateDutyStatus(row.id, 'Booked'),
                       onCancel:         () => updateDutyStatus(row.id, 'Cancelled'),
@@ -634,7 +639,7 @@ export default function BookingDetailPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             <ChevronLeft className="size-5" strokeWidth={1.75} /> Previous
           </button>
@@ -657,7 +662,7 @@ export default function BookingDetailPage() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
@@ -802,6 +807,15 @@ export default function BookingDetailPage() {
           showToast('Driver updated successfully')
         }}
       />
+
+      {slipDuty && (
+        <DutySlipDrawer
+          dutyId={slipDuty.id}
+          mode={slipDuty.mode}
+          onClose={() => setSlipDuty(null)}
+          onSaved={fetchDuties}
+        />
+      )}
     </div>
   )
 }

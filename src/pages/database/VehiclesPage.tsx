@@ -110,7 +110,7 @@ function StatusBadge({ status }: { status: Status }) {
 
 // ── Shared field sub-components ───────────────────────────────────────────────
 
-const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
+const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-xs text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
 function Field({
   label,
@@ -474,25 +474,25 @@ export default function VehiclesPage() {
             placeholder="Search by model name, number"
             value={search}
             onChange={e => handleSearch(e.target.value)}
-            className="w-full pl-[42px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+            className="w-full pl-[42px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
           />
         </div>
 
         <button
           onClick={openAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer hover:bg-[#6941c6] transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs cursor-pointer hover:bg-violet-700 transition-colors shrink-0"
         >
           <Plus className="size-5" strokeWidth={2} />
           Add vehicle
         </button>
 
-        <button className="p-2.5 rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors cursor-pointer shrink-0">
+        <button className="p-2.5 rounded-lg border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 shadow-xs transition-colors cursor-pointer shrink-0">
           <MoreHorizontal className="size-5" strokeWidth={1.75} />
         </button>
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50">
@@ -595,7 +595,7 @@ export default function VehiclesPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             <ChevronLeft className="size-5" strokeWidth={1.75} />
             Previous
@@ -623,7 +623,7 @@ export default function VehiclesPage() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
             Next
             <ChevronRight className="size-5" strokeWidth={1.75} />
@@ -655,7 +655,7 @@ export default function VehiclesPage() {
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="px-3.5 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg hover:bg-[#6941c6] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                className="px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
@@ -828,7 +828,7 @@ export default function VehiclesPage() {
                   )}
                 >
                   <span className={clsx(
-                    'inline-block size-4 rounded-full bg-white shadow-[0px_1px_3px_0px_rgba(16,24,40,0.1),0px_1px_2px_0px_rgba(16,24,40,0.06)] transition-transform',
+                    'inline-block size-4 rounded-full bg-white shadow-sm transition-transform',
                     form.hasLoan ? 'translate-x-4' : 'translate-x-0.5',
                   )} />
                 </button>

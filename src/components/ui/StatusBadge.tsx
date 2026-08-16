@@ -10,7 +10,12 @@ export type BookingStatus =
   | 'Billed'
   | 'Cancelled'
 
-const CONFIG: Record<BookingStatus, {
+/** Invoices reuse this badge; 'Cancelled' is shared with bookings. */
+export type InvoiceStatus = 'Generated' | 'Paid' | 'Cancelled'
+
+type Status = BookingStatus | InvoiceStatus
+
+const CONFIG: Record<Status, {
   badge: string
   dot: string
   label: string
@@ -55,10 +60,20 @@ const CONFIG: Record<BookingStatus, {
     dot:   'bg-red-400',
     label: 'Cancelled',
   },
+  'Generated': {
+    badge: 'bg-blue-50 border-blue-200 text-blue-700',
+    dot:   'bg-blue-500',
+    label: 'Generated',
+  },
+  'Paid': {
+    badge: 'bg-green-50 border-green-200 text-green-700',
+    dot:   'bg-green-500',
+    label: 'Paid',
+  },
 }
 
 interface StatusBadgeProps {
-  status: BookingStatus
+  status: Status
   className?: string
 }
 

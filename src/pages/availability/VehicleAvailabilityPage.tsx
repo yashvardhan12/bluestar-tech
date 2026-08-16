@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Search, Hash, X } from 'lucide-react'
+import { Search, Hash, X, ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
 import DateRangePicker, { type DateRange } from '../../components/ui/DateRangePicker'
@@ -12,6 +12,12 @@ interface Vehicle {
   id: number
   modelName: string
   vehicleNumber: string
+  groupId: number | null
+}
+
+interface VehicleGroup {
+  id: number
+  name: string
 }
 
 interface DutyEntry {
@@ -79,12 +85,14 @@ function fmtHeader(iso: string): string {
   return `${n}${sfx} ${d.toLocaleString('en-US', { month: 'short' })}`
 }
 
-// Color palette — cycles per booking index for a vehicle
+// Color palette — cycles per booking index for a vehicle. Decorative only: the
+// hue carries no status meaning, it just separates adjacent bookings.
+// Each row stays within one token scale so the tint and its icon match.
 const COLORS = [
-  { bg: '#f0f9ff', border: '#b9e6fe', text: '#344054', icon: '#36bffa' },
-  { bg: '#ecfdf3', border: '#abefc6', text: '#344054', icon: '#47cd89' },
-  { bg: '#fff4ed', border: '#ffd6ae', text: '#344054', icon: '#fd853a' },
-  { bg: '#fdf4ff', border: '#e9d7fe', text: '#344054', icon: '#b692f6' },
+  { bg: 'var(--color-blue-light-50)',  border: 'var(--color-blue-light-200)',  text: 'var(--color-gray-700)', icon: 'var(--color-blue-light-400)'  },
+  { bg: 'var(--color-success-50)',     border: 'var(--color-success-200)',     text: 'var(--color-gray-700)', icon: 'var(--color-success-400)'     },
+  { bg: 'var(--color-orange-dark-50)', border: 'var(--color-orange-dark-200)', text: 'var(--color-gray-700)', icon: 'var(--color-orange-dark-400)' },
+  { bg: 'var(--color-purple-50)',      border: 'var(--color-purple-200)',      text: 'var(--color-gray-700)', icon: 'var(--color-purple-400)'      },
 ]
 
 /**
@@ -117,6 +125,8 @@ export default function VehicleAvailabilityPage() {
 
   const [range,  setRange]  = useState<DateRange | null>(null)
   const [search, setSearch] = useState('')
+  const [groupFilter, setGroupFilter] = useState('')   // '' = all groups
+  const [groups, setGroups] = useState<VehicleGroup[]>([])
 
   const rangeStart = range ? toDateStr(range.start) : today
   const rangeEnd   = range ? toDateStr(range.end)   : addDays(today, 6)
@@ -145,7 +155,7 @@ export default function VehicleAvailabilityPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     const [{ data: vData }, { data: dData }] = await Promise.all([
-      supabase.from('vehicles').select('id, model_name, vehicle_number').order('model_name'),
+      supabase.from('vehicles').select('id, model_name, vehicle_number, vehicle_group_id').order('model_name'),
       supabase
         .from('duties')
         .select('id, vehicle_id, booking_id, start_date, end_date, status, bookings(booking_ref), drivers(name)')
@@ -157,6 +167,7 @@ export default function VehicleAvailabilityPage() {
 
     setVehicles((vData ?? []).map((v: any) => ({
       id: v.id, modelName: v.model_name, vehicleNumber: v.vehicle_number,
+      groupId: v.vehicle_group_id,
     })))
     setDuties((dData ?? []).map((d: any) => ({
       id: d.id, vehicleId: d.vehicle_id,
@@ -169,6 +180,12 @@ export default function VehicleAvailabilityPage() {
   }, [rangeStart, rangeEnd])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Groups don't change with the date range — fetch once
+  useEffect(() => {
+    supabase.from('vehicle_groups').select('id, name').order('name')
+      .then(({ data }) => setGroups(data ?? []))
+  }, [])
 
   // ── column width: fill equally, collapse to MIN_COL_W + scroll beyond that ──
 
@@ -191,6 +208,7 @@ export default function VehicleAvailabilityPage() {
   // ── derived ──────────────────────────────────────────────────────────────────
 
   const filtered = vehicles.filter(v => {
+    if (groupFilter && String(v.groupId) !== groupFilter) return false
     const q = search.toLowerCase()
     return !q || v.modelName.toLowerCase().includes(q) || v.vehicleNumber.toLowerCase().includes(q)
   })
@@ -214,15 +232,32 @@ export default function VehicleAvailabilityPage() {
       {/* Controls */}
       <div className="flex items-center justify-between gap-4">
 
-        <div className="relative w-[480px]">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" strokeWidth={1.75} />
-          <input
-            type="text"
-            placeholder="Search by vehicle name or plate number"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-[480px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" strokeWidth={1.75} />
+            <input
+              type="text"
+              placeholder="Search by vehicle name or plate number"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+            />
+          </div>
+
+          <div className="relative w-[200px] shrink-0">
+            <select
+              value={groupFilter}
+              onChange={e => setGroupFilter(e.target.value)}
+              className={clsx(
+                'w-full appearance-none pl-3.5 pr-9 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow cursor-pointer',
+                groupFilter ? 'text-gray-900' : 'text-gray-500',
+              )}
+            >
+              <option value="">All vehicle groups</option>
+              {groups.map(g => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 size-5 text-gray-400 pointer-events-none" strokeWidth={1.75} />
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -246,7 +281,7 @@ export default function VehicleAvailabilityPage() {
       {/* Table */}
       <div
         ref={tableRef}
-        className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]"
+        className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-xs"
       >
         <div className="overflow-x-auto">
           <div style={{ width: totalW }}>
@@ -293,7 +328,7 @@ export default function VehicleAvailabilityPage() {
             {/* ── Empty ── */}
             {!loading && filtered.length === 0 && (
               <div className="flex items-center justify-center h-40 text-sm text-gray-400">
-                {search ? 'No vehicles match your search.' : 'No vehicles found.'}
+                {search || groupFilter ? 'No vehicles match your filters.' : 'No vehicles found.'}
               </div>
             )}
 
@@ -434,7 +469,7 @@ export default function VehicleAvailabilityPage() {
         <div
           className="rounded-lg px-3 py-2 text-xs whitespace-nowrap"
           style={{
-            backgroundColor: '#0c111d',
+            backgroundColor: 'var(--color-gray-950)',
             boxShadow: '0px 12px 16px rgba(16,24,40,0.08), 0px 4px 6px rgba(16,24,40,0.03)',
           }}
         >
@@ -457,7 +492,7 @@ export default function VehicleAvailabilityPage() {
             height: 0,
             borderLeft:  '6px solid transparent',
             borderRight: '6px solid transparent',
-            borderTop:   '6px solid #0c111d',
+            borderTop:   '6px solid var(--color-gray-950)',
           }}
         />
       </div>,

@@ -106,6 +106,7 @@ export const NAV: NavSection[] = [
     label: 'Billing',
     icon: BillingIcon,
     basePath: '/billing',
+    horizontalNav: true,
     children: [
       { label: 'Invoices', path: '/billing/invoices' },
       { label: 'Receipts', path: '/billing/receipts' },

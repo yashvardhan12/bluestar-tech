@@ -268,7 +268,7 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
       {/* Panel */}
       <div className={clsx(
         'relative flex flex-col w-[660px] h-full bg-white border-l border-gray-200',
-        'shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)]',
+        'shadow-xl',
         'transition-transform duration-300',
         open ? 'translate-x-0' : 'translate-x-full',
       )}>
@@ -308,7 +308,7 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
                   in this booking.
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
                   {infoRows.map((row, i) => (
                     <InfoRow key={row.label} label={row.label} value={row.value} alt={i % 2 === 0} tall={row.tall} />
                   ))}
@@ -329,7 +329,7 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
                   </div>
                 </div>
 
-                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
                   {/* Table header */}
                   <div className="grid grid-cols-[1fr_200px_160px] bg-gray-50 border-b border-gray-200">
                     <div className="px-6 py-3 text-xs font-medium text-gray-500">Model name</div>
@@ -429,7 +429,7 @@ export default function AllotDrawer({ open, duty, onClose, onAllot, bulkMode = f
 
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto px-6 py-6">
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
                 {/* Table header */}
                 <div className="grid grid-cols-[1fr_1fr] bg-gray-50 border-b border-gray-200">
                   <div className="px-6 py-3 text-xs font-medium text-gray-500">Name</div>

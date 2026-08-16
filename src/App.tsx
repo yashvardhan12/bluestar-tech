@@ -1,10 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import AppShell from './layouts/AppShell'
 import { AuthProvider, useAuth } from './lib/auth'
+import { isDriverSession } from './lib/driver'
 import LoginPage from './pages/auth/LoginPage'
+import DriverLoginPage from './pages/driver/DriverLoginPage'
+import DriverApp from './pages/driver/DriverApp'
 import DatabaseLayout from './layouts/DatabaseLayout'
 import VehicleTrackerLayout from './layouts/VehicleTrackerLayout'
 import DriverAttendanceLayout from './layouts/DriverAttendanceLayout'
+import BillingLayout from './layouts/BillingLayout'
 import { ToastProvider } from './components/ui/Toast'
 
 import DutyTypesPage           from './pages/database/DutyTypesPage'
@@ -36,16 +40,34 @@ import AveragePage             from './pages/vehicle-expenses/EfficiencyPage'
 import VehicleAvailabilityPage from './pages/availability/VehicleAvailabilityPage'
 import SettingsPage             from './pages/settings/SettingsPage'
 
+function Loading() {
+  return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Loading…</div>
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth()
   const location = useLocation()
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Loading…</div>
-  }
+  if (loading) return <Loading />
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   }
+  // The operator shell must not render for a driver session. A driver does get
+  // a `profiles` row, but never a `company_members` one, so `current_company_id()`
+  // is null and every company-scoped policy returns zero rows — the operator
+  // pages would load empty and look broken rather than forbidden.
+  if (isDriverSession(session)) return <Navigate to="/driver" replace />
+  return <>{children}</>
+}
+
+/** …and the reverse: an operator who lands on /driver has no driver record,
+ *  so every list would be empty for reasons the screen cannot explain. */
+function RequireDriver({ children }: { children: React.ReactNode }) {
+  const { session, loading } = useAuth()
+
+  if (loading) return <Loading />
+  if (!session) return <DriverLoginPage />
+  if (!isDriverSession(session)) return <Navigate to="/" replace />
   return <>{children}</>
 }
 
@@ -74,10 +96,16 @@ function AuthedApp() {
           <Route path="/bookings/duties"      element={<AllDutiesPage />} />
           <Route path="/bookings/:bookingId"  element={<BookingDetailPage />} />
 
-          {/* Billing */}
-          <Route path="/billing/invoices" element={<InvoicesPage />} />
-          <Route path="/billing/invoices/create" element={<CreateInvoicePage />} />
-          <Route path="/billing/receipts" element={<ReceiptsPage />} />
+          {/* Billing — nested layout with horizontal tab bar. Create invoice
+              sits outside it: that page carries its own full-width header. */}
+          <Route path="/billing" element={<BillingLayout />}>
+            <Route index element={<Navigate to="invoices" replace />} />
+            <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="receipts" element={<ReceiptsPage />} />
+          </Route>
+          <Route path="/billing/invoices/create"           element={<CreateInvoicePage />} />
+          <Route path="/billing/invoices/:invoiceId"       element={<CreateInvoicePage />} />
+          <Route path="/billing/invoices/:invoiceId/edit"  element={<CreateInvoicePage />} />
 
           {/* Drivers Attendance and Payroll — nested layout with horizontal tab bar */}
           <Route path="/driver-attendance-payroll" element={<DriverAttendanceLayout />}>
@@ -112,6 +140,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* One route tree, one Supabase client, one deploy — not a second app.
+            The two shells never render together. */}
+        <Route path="/driver/*" element={<RequireDriver><DriverApp /></RequireDriver>} />
         <Route path="/*" element={<RequireAuth><AuthedApp /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
