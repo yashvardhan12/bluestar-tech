@@ -6,6 +6,7 @@ import Drawer from '../../components/ui/Drawer'
 import Field from '../../components/ui/Field'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -68,6 +69,8 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
     setPos({ top: rect.bottom + 4, left: rect.right - 160 })
     setOpen(v => !v)
   }
+
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
   return (
     <>
       <button ref={btnRef} type="button" onClick={handleOpen}
@@ -90,7 +93,7 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
 
 // ── drawer field helpers ──────────────────────────────────────────────────────
 
-const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
+const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
 // ── form state ────────────────────────────────────────────────────────────────
 
@@ -109,7 +112,7 @@ function EmptyState({ isFiltered, onAdd }: { isFiltered: boolean; onAdd: () => v
   return (
     <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
       <div className="absolute inset-0 opacity-50" style={{
-        backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(to right, var(--color-gray-200) 1px, transparent 1px), linear-gradient(to bottom, var(--color-gray-200) 1px, transparent 1px)',
         backgroundSize: '32px 32px',
         WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
         maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
@@ -320,28 +323,28 @@ export default function BankAccountsPage() {
               placeholder="Search by name or bank"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+              className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
             />
           </div>
           {selected.size > 0 ? (
             <button onClick={() => setBulkDeleteOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-red-700 transition-colors cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-red-700 transition-colors cursor-pointer">
               <Trash2 className="size-4" strokeWidth={2.5} />Delete {selected.size} selected
             </button>
           ) : (
             <button onClick={openAdd}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-violet-700 transition-colors cursor-pointer">
               <Plus className="size-4" strokeWidth={2.5} />Add bank account
             </button>
           )}
-          <button className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer">
+          <button className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer">
             <MoreHorizontal className="size-5" strokeWidth={1.75} />
           </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
@@ -398,7 +401,7 @@ export default function BankAccountsPage() {
         {totalPages > 1 && (
         <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
             <ChevronLeft className="size-5" strokeWidth={1.75} /> Previous
           </button>
           <div className="flex items-center gap-0.5">
@@ -412,7 +415,7 @@ export default function BankAccountsPage() {
             ))}
           </div>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>

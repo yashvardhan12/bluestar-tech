@@ -29,12 +29,12 @@ export default function RestoreDutyModal({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-8">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-[#0c111d]/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-gray-950/70 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal card */}
-      <div className="relative bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] w-full max-w-[400px] overflow-hidden">
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-[400px] overflow-hidden">
 
         {/* Decorative grid pattern top-left */}
         <div
@@ -71,7 +71,7 @@ export default function RestoreDutyModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer"
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -79,7 +79,7 @@ export default function RestoreDutyModal({
             type="button"
             onClick={onConfirm}
             disabled={restoring}
-            className="flex-1 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {restoring ? 'Restoring…' : 'Restore'}
           </button>

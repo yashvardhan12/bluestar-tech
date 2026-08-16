@@ -35,8 +35,8 @@ function FileIcon({ ext }: { ext: string }) {
     <div className="relative shrink-0 size-10">
       <svg viewBox="0 0 40 40" className="absolute inset-0 size-full" fill="none">
         <path d="M8 4h16l8 8v24a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"
-          fill="#f2f4f7" stroke="#e4e7ec" strokeWidth="1" />
-        <path d="M24 4v8h8" fill="#e4e7ec" />
+          fill="var(--color-gray-100)" stroke="var(--color-gray-200)" strokeWidth="1" />
+        <path d="M24 4v8h8" fill="var(--color-gray-200)" />
       </svg>
       <span className={clsx(
         'absolute bottom-1.5 left-1 px-[3px] py-px rounded-[2px] text-white font-bold leading-none text-[8px]',
@@ -197,7 +197,7 @@ export default function FileUpload({
           onClick={() => fileRef.current?.click()}
           className="bg-white border border-gray-200 rounded-xl py-4 px-6 flex flex-col items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors"
         >
-          <div className="size-10 border border-gray-200 rounded-lg flex items-center justify-center shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+          <div className="size-10 border border-gray-200 rounded-lg flex items-center justify-center shadow-xs">
             <UploadCloud className="size-5 text-gray-400" strokeWidth={1.75} />
           </div>
           <div className="flex flex-col items-center gap-1">

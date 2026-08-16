@@ -9,9 +9,11 @@ interface DrawerProps {
   description?: string
   children: React.ReactNode
   footer?: React.ReactNode
+  /** Tailwind width class for the panel. Defaults to the standard 480px. */
+  width?: string
 }
 
-export default function Drawer({ open, onClose, title, description, children, footer }: DrawerProps) {
+export default function Drawer({ open, onClose, title, description, children, footer, width = 'w-[480px]' }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -42,7 +44,8 @@ export default function Drawer({ open, onClose, title, description, children, fo
       <div
         ref={panelRef}
         className={clsx(
-          'relative flex flex-col w-[480px] h-full bg-white border-l border-gray-200 shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] transition-transform duration-300',
+          'relative flex flex-col h-full max-w-[95vw] bg-white border-l border-gray-200 shadow-xl transition-transform duration-300',
+          width,
           open ? 'translate-x-0' : 'translate-x-full',
         )}
       >

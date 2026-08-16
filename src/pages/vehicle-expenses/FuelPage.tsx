@@ -6,6 +6,8 @@ import Drawer from '../../components/ui/Drawer'
 import FileUpload from '../../components/ui/FileUpload'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { formatINR } from '../../lib/money'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
 
 // ── types ──────────────────────────────────────────────────────────────────────
@@ -57,10 +59,6 @@ function formatDate(dateStr: string): string {
   return `${m}/${day}/${y}`
 }
 
-function formatINR(n: number): string {
-  return '₹' + n.toLocaleString('en-IN')
-}
-
 function getPaginationPages(current: number, total: number): (number | '...')[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
   if (current <= 3) return [1, 2, 3, '...', total - 2, total - 1, total]
@@ -95,6 +93,8 @@ function RowMenu({ onEdit, onViewAll, onDelete }: { onEdit: () => void; onViewAl
     setOpen(v => !v)
   }
 
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
+
   function menuItem(label: string, Icon: React.ElementType, onClick: () => void, destructive?: boolean) {
     return (
       <div className="px-1.5 py-px">
@@ -128,7 +128,7 @@ function RowMenu({ onEdit, onViewAll, onDelete }: { onEdit: () => void; onViewAl
         <div
           ref={menuRef}
           style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[9999] w-60 bg-white rounded-lg border border-gray-200 shadow-[0px_12px_16px_-4px_rgba(16,24,40,0.08),0px_4px_6px_-2px_rgba(16,24,40,0.03)] py-1"
+          className="fixed z-[9999] w-60 bg-white rounded-lg border border-gray-200 shadow-lg py-1"
         >
           {menuItem('Edit Fuel Expense', Pencil, onEdit)}
           {menuItem('See all car related fuel expense', Eye, onViewAll)}
@@ -143,7 +143,7 @@ function RowMenu({ onEdit, onViewAll, onDelete }: { onEdit: () => void; onViewAl
 
 // ── form field ─────────────────────────────────────────────────────────────────
 
-const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
+const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
 function Field({ label, required, children, error }: {
   label: string; required?: boolean; children: React.ReactNode; error?: string
@@ -165,7 +165,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
       <div className="absolute inset-0 opacity-50" style={{
-        backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(to right, var(--color-gray-200) 1px, transparent 1px), linear-gradient(to bottom, var(--color-gray-200) 1px, transparent 1px)',
         backgroundSize: '32px 32px',
         WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
         maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
@@ -389,12 +389,12 @@ export default function FuelPage() {
               placeholder="Search by car"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="pl-[38px] pr-3.5 py-2.5 w-64 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+              className="pl-[38px] pr-3.5 py-2.5 w-64 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
             />
           </div>
           <button
             onClick={openAdd}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-violet-700 transition-colors cursor-pointer"
           >
             <Plus className="size-4" strokeWidth={2.5} />Add Fuel
           </button>
@@ -422,7 +422,7 @@ export default function FuelPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
@@ -490,7 +490,7 @@ export default function FuelPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs cursor-pointer"
           >
             ← Previous
           </button>
@@ -508,7 +508,7 @@ export default function FuelPage() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs cursor-pointer"
           >
             Next →
           </button>
@@ -525,14 +525,14 @@ export default function FuelPage() {
           <div className="flex justify-between gap-3">
             <button
               onClick={() => setDrawerOpen(false)}
-              className="px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors cursor-pointer"
+              className="px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 shadow-xs transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-60 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors cursor-pointer"
+              className="px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-60 shadow-xs transition-colors cursor-pointer"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
