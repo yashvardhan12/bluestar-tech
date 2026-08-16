@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { Search, ChevronDown, ChevronLeft, ChevronRight, IndianRupee, Clipboard, Clock, Check, Trash2, Plus, X, CheckCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import { formatINR } from '../../lib/money'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
 import Drawer from '../../components/ui/Drawer'
 
@@ -61,11 +63,6 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
-
-function formatINR(amount: number | null | undefined): string {
-  if (amount == null) return '—'
-  return '₹' + amount.toLocaleString('en-IN')
-}
 
 function computeTotal(baseSalary: number | null, p: PayrollRecord): number {
   return (baseSalary ?? 0)
@@ -171,12 +168,14 @@ function MonthPicker({ year, month, onChange }: {
     setOpen(v => !v)
   }
 
+  useMenuFlip(open, btnRef, menuRef, top => setCoords(c => ({ ...c, top })))
+
   return (
     <div className="relative">
       <button ref={btnRef} type="button" onClick={handleOpen}
         className={clsx(
           'flex items-center gap-2 h-10 px-3.5 rounded-lg border text-sm font-medium',
-          'border-gray-300 bg-white text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50',
+          'border-gray-300 bg-white text-gray-700 shadow-xs hover:bg-gray-50',
           open && 'ring-2 ring-violet-600 border-violet-600',
         )}>
         <span>{MONTH_NAMES[month]} {year}</span>
@@ -257,6 +256,8 @@ function RowMenu({ onEdit, onViewLogs, onAdvance, onConfirm }: {
     setOpen(v => !v)
   }
 
+  useMenuFlip(open, btnRef, menuRef, top => setCoords(c => ({ ...c, top })))
+
   const items = [
     { icon: IndianRupee, label: 'Add Driver Expense',     action: onEdit },
     { icon: Clipboard,   label: 'View expense logs',      action: onViewLogs },
@@ -300,7 +301,7 @@ function EmptyState({ isFiltered }: { isFiltered: boolean }) {
   return (
     <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
       <div className="absolute inset-0 opacity-50" style={{
-        backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(to right, var(--color-gray-200) 1px, transparent 1px), linear-gradient(to bottom, var(--color-gray-200) 1px, transparent 1px)',
         backgroundSize: '32px 32px',
         WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
         maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
@@ -324,7 +325,7 @@ function EmptyState({ isFiltered }: { isFiltered: boolean }) {
 
 // ── drawer helpers ────────────────────────────────────────────────────────────
 
-const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500'
+const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -676,7 +677,7 @@ export default function PayrollPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" />
           <input type="text" placeholder="Search by name or phone"
             value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow" />
+            className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow" />
         </div>
         <div className="ml-auto">
           <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setPage(1) }} />
@@ -685,7 +686,7 @@ export default function PayrollPage() {
 
       {/* Table area */}
       <div className="flex-1 overflow-hidden px-10 pb-8">
-        <div className="h-full flex flex-col rounded-xl border border-gray-200 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] bg-white overflow-hidden">
+        <div className="h-full flex flex-col rounded-xl border border-gray-200 shadow-xs bg-white overflow-hidden">
 
           {rows.length === 0 ? (
             <EmptyState isFiltered={search.length > 0} />
@@ -831,7 +832,7 @@ export default function PayrollPage() {
           {totalPages > 1 && (
           <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4 shrink-0">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
               <ChevronLeft className="size-5" strokeWidth={1.75} /> Previous
             </button>
             <div className="flex items-center gap-0.5">
@@ -848,7 +849,7 @@ export default function PayrollPage() {
               ))}
             </div>
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
               Next <ChevronRight className="size-5" strokeWidth={1.75} />
             </button>
           </div>
@@ -913,7 +914,7 @@ export default function PayrollPage() {
 
             {expenses.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-4">
-                <div className="size-12 rounded-lg border border-gray-200 bg-white flex items-center justify-center shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                <div className="size-12 rounded-lg border border-gray-200 bg-white flex items-center justify-center shadow-xs">
                   <IndianRupee className="size-5 text-gray-400" strokeWidth={1.75} />
                 </div>
                 <div className="text-center">
@@ -943,7 +944,7 @@ export default function PayrollPage() {
                       </div>
                       <button type="button"
                         onClick={() => setExpenses(prev => prev.filter((_, j) => j !== i))}
-                        className="size-10 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:text-red-600 hover:border-red-300 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] transition-colors shrink-0">
+                        className="size-10 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 hover:text-red-600 hover:border-red-300 shadow-xs transition-colors shrink-0">
                         <Trash2 className="size-4" strokeWidth={1.75} />
                       </button>
                     </div>
@@ -979,7 +980,7 @@ export default function PayrollPage() {
         footer={
           <div className="flex justify-end">
             <button type="button" onClick={() => setLogsOpen(false)}
-              className="px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors">
+              className="px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors">
               Close
             </button>
           </div>
@@ -993,7 +994,7 @@ export default function PayrollPage() {
             <>
               {!hasLogs ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <div className="size-12 rounded-lg border border-gray-200 bg-white flex items-center justify-center shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                  <div className="size-12 rounded-lg border border-gray-200 bg-white flex items-center justify-center shadow-xs">
                     <Clipboard className="size-5 text-gray-400" strokeWidth={1.75} />
                   </div>
                   <div className="text-center">
@@ -1009,7 +1010,7 @@ export default function PayrollPage() {
                     return (
                       <div key={dateStr} className="flex flex-col gap-4">
                         <p className="text-base font-semibold text-gray-700">{label}</p>
-                        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-xs">
                           {entries.map((entry, i) => {
                             const isPayment = entry.type === 'Payment Recorded'
                             const isAdvance = entry.type === 'Advance Payment'
@@ -1034,7 +1035,7 @@ export default function PayrollPage() {
               )}
 
               {balance > 0 && (
-                <div className="mt-6 rounded-xl border border-gray-200 overflow-hidden shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+                <div className="mt-6 rounded-xl border border-gray-200 overflow-hidden shadow-xs">
                   <div className="flex items-center justify-between h-11 px-6 bg-amber-50 border-b border-amber-100">
                     <span className="text-sm font-semibold text-amber-800">Balance carried over</span>
                     <span className="text-sm font-semibold text-amber-800">₹{balance.toLocaleString('en-IN')}</span>
@@ -1059,7 +1060,7 @@ export default function PayrollPage() {
         return (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-8">
             <div className="absolute inset-0 bg-gray-950/70 backdrop-blur-sm" onClick={() => setConfirmOpen(false)} />
-            <div className="relative w-full max-w-[400px] bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] overflow-hidden">
+            <div className="relative w-full max-w-[400px] bg-white rounded-xl shadow-xl overflow-hidden">
               <div className="absolute -top-[88px] -left-[88px] size-[256px] rounded-full border-[48px] border-gray-100 opacity-60 pointer-events-none" />
               <div className="absolute -top-[56px] -left-[56px] size-[192px] rounded-full border-[36px] border-gray-50 opacity-80 pointer-events-none" />
               <button type="button" onClick={() => setConfirmOpen(false)}
@@ -1129,7 +1130,7 @@ export default function PayrollPage() {
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-500">₹</span>
                   <input type="number" min={0} placeholder="Enter amount to pay"
                     value={confirmAmount} onChange={e => setConfirmAmount(e.target.value)}
-                    className="w-full pl-8 pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white" />
+                    className="w-full pl-8 pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white" />
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
                   If the driver is not paid fully, the remaining balance will be carried over to the next month.
@@ -1139,7 +1140,7 @@ export default function PayrollPage() {
               {/* Footer */}
               <div className="px-6 pt-6 pb-6 flex gap-3">
                 <button type="button" onClick={() => setConfirmOpen(false)}
-                  className="flex-1 h-11 rounded-lg border border-gray-300 bg-white text-base font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors">
+                  className="flex-1 h-11 rounded-lg border border-gray-300 bg-white text-base font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors">
                   Cancel
                 </button>
                 <button type="button" onClick={handleConfirmSave}
@@ -1160,7 +1161,7 @@ export default function PayrollPage() {
           <div className="absolute inset-0 bg-gray-950/70 backdrop-blur-sm" onClick={() => setAdvanceOpen(false)} />
 
           {/* Modal card */}
-          <div className="relative w-full max-w-[400px] bg-white rounded-xl shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] overflow-hidden">
+          <div className="relative w-full max-w-[400px] bg-white rounded-xl shadow-xl overflow-hidden">
 
             {/* Decorative circles */}
             <div className="absolute -top-[88px] -left-[88px] size-[256px] rounded-full border-[48px] border-gray-100 opacity-60 pointer-events-none" />
@@ -1194,7 +1195,7 @@ export default function PayrollPage() {
                   type="number" min={0} placeholder="Enter advance amount"
                   value={advanceAmount}
                   onChange={e => setAdvanceAmount(e.target.value)}
-                  className="w-full pl-8 pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white"
+                  className="w-full pl-8 pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white"
                 />
               </div>
             </div>
@@ -1202,7 +1203,7 @@ export default function PayrollPage() {
             {/* Footer */}
             <div className="px-6 pt-8 pb-6 flex gap-3">
               <button type="button" onClick={() => setAdvanceOpen(false)}
-                className="flex-1 h-11 rounded-lg border border-gray-300 bg-white text-base font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors">
+                className="flex-1 h-11 rounded-lg border border-gray-300 bg-white text-base font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
               <button type="button"

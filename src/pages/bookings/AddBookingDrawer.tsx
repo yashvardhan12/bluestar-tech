@@ -32,7 +32,7 @@ function InputField({
         placeholder={placeholder}
         className={clsx(
           'w-full px-3.5 py-2.5 border rounded-lg text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-shadow',
-          'shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]',
+          'shadow-xs',
           error  ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100' :
           'border-gray-300 focus:border-violet-400 focus:ring-4 focus:ring-violet-100',
           readOnly && 'bg-gray-50 text-gray-500 cursor-default',
@@ -60,7 +60,7 @@ function SelectField({
         onChange={e => onChange(e.target.value)}
         className={clsx(
           'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 outline-none transition-shadow appearance-none',
-          'shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]',
+          'shadow-xs',
           !readOnly && 'focus:border-violet-400 focus:ring-4 focus:ring-violet-100 bg-white',
           readOnly && 'bg-gray-50 text-gray-500 cursor-default',
           !value && 'text-gray-400',
@@ -91,7 +91,7 @@ function TextareaField({
         placeholder={placeholder}
         rows={3}
         className={clsx(
-          'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-shadow shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]',
+          'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-shadow shadow-xs',
           readOnly ? 'bg-gray-50 text-gray-500 cursor-default resize-none' : 'focus:border-violet-400 focus:ring-4 focus:ring-violet-100 resize-y',
         )}
       />
@@ -510,7 +510,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
 
       {/* Panel */}
       <div className={clsx(
-        'relative flex flex-col w-[620px] h-full bg-white border-l border-gray-200 shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)] transition-transform duration-300',
+        'relative flex flex-col w-[620px] h-full bg-white border-l border-gray-200 shadow-xl transition-transform duration-300',
         open ? 'translate-x-0' : 'translate-x-full',
       )}>
 
@@ -580,7 +580,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
                 <button
                   type="button"
                   onClick={addPassenger}
-                  className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer w-fit"
+                  className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer w-fit"
                 >
                   <Plus className="size-4" strokeWidth={2} />
                   Add more
@@ -773,7 +773,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
                 <button
                   type="button"
                   onClick={() => setActiveMode('edit')}
-                  className="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Edit
                 </button>
@@ -784,7 +784,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
                   type="button"
                   onClick={onClose}
                   disabled={saving}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -792,7 +792,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
                   type="button"
                   onClick={handleSubmit}
                   disabled={saving}
-                  className="flex-1 px-4 py-2.5 bg-[#7f56d9] text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-[#6941c6] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? 'Saving…' : activeMode === 'edit' ? 'Save Changes' : 'Create Booking'}
                 </button>

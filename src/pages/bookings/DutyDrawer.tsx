@@ -32,7 +32,7 @@ function InputField({
         placeholder={placeholder}
         className={clsx(
           'w-full px-3.5 py-2.5 border rounded-lg text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-shadow',
-          'border-gray-300 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]',
+          'border-gray-300 shadow-xs',
           !readOnly && 'focus:border-violet-400 focus:ring-4 focus:ring-violet-100',
           readOnly && 'bg-gray-50 text-gray-500 cursor-default',
         )}
@@ -57,7 +57,7 @@ function SelectField({
         onChange={e => onChange?.(e.target.value)}
         className={clsx(
           'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 outline-none transition-shadow appearance-none',
-          'shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] bg-white',
+          'shadow-xs bg-white',
           !readOnly && 'focus:border-violet-400 focus:ring-4 focus:ring-violet-100',
           readOnly && 'bg-gray-50 text-gray-500 cursor-default',
           !value && 'text-gray-400',
@@ -93,7 +93,7 @@ function TextareaField({
         rows={rows}
         className={clsx(
           'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-shadow resize-y',
-          'shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]',
+          'shadow-xs',
           !readOnly && 'focus:border-violet-400 focus:ring-4 focus:ring-violet-100',
           readOnly && 'bg-gray-50 text-gray-500 cursor-default',
         )}
@@ -252,7 +252,7 @@ export default function DutyDrawer({ open, mode, initial, dutyId, onClose, onSav
       <div
         className={clsx(
           'relative flex flex-col w-[660px] h-full bg-white border-l border-gray-200',
-          'shadow-[0px_20px_24px_-4px_rgba(16,24,40,0.08),0px_8px_8px_-4px_rgba(16,24,40,0.03)]',
+          'shadow-xl',
           'transition-transform duration-300',
           open ? 'translate-x-0' : 'translate-x-full',
         )}

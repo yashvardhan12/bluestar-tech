@@ -7,6 +7,8 @@ import Field from '../../components/ui/Field'
 import FileUpload from '../../components/ui/FileUpload'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { regenerateDriverCode } from '../../lib/driver'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ function Avatar({ initials, index }: { initials: string; index: number }) {
 
 // ── row menu ──────────────────────────────────────────────────────────────────
 
-function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void }) {
+function RowMenu({ onView, onEdit, onCode }: { onView: () => void; onEdit: () => void; onCode: () => void }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -136,6 +138,8 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
     setPos({ top: rect.bottom + 4, left: rect.right - 160 })
     setOpen(v => !v)
   }
+
+  useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
   return (
     <>
       <button ref={btnRef} type="button" onClick={handleOpen}
@@ -144,15 +148,91 @@ function RowMenu({ onView, onEdit }: { onView: () => void; onEdit: () => void })
       </button>
       {open && createPortal(
         <div ref={menuRef} style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[9999] w-40 bg-white rounded-lg border border-gray-200 shadow-[0px_8px_16px_-4px_rgba(16,24,40,0.08)] py-1">
+          className="fixed z-[9999] w-48 bg-white rounded-lg border border-gray-200 shadow-[0px_8px_16px_-4px_rgba(16,24,40,0.08)] py-1">
           <button type="button" onClick={() => { onView(); setOpen(false) }}
             className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 cursor-pointer">View</button>
           <button type="button" onClick={() => { onEdit(); setOpen(false) }}
             className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 cursor-pointer">Edit</button>
+          <button type="button" onClick={() => { onCode(); setOpen(false) }}
+            className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 cursor-pointer">Driver app code</button>
         </div>,
         document.body,
       )}
     </>
+  )
+}
+
+// ── driver app code ───────────────────────────────────────────────────────────
+
+/**
+ * FR-6. The operator generates the code and reads it out over the phone —
+ * there is no self-service signup and nothing is sent to the driver.
+ *
+ * The code is shown exactly once. It is stored hashed, so this dialog is the
+ * only moment it exists in plaintext anywhere.
+ */
+function DriverCodeModal({ driver, onClose }: { driver: Driver | null; onClose: () => void }) {
+  const [code, setCode] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  // Reset when a different driver's dialog opens, or the previous code lingers.
+  useEffect(() => { setCode(null); setError('') }, [driver?.id])
+
+  if (!driver) return null
+
+  async function generate() {
+    if (!driver) return
+    setBusy(true)
+    setError('')
+    const next = await regenerateDriverCode(driver.id)
+    setBusy(false)
+    if (!next) { setError('Could not generate a code. Try again.'); return }
+    setCode(next)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-gray-950/40 px-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-white rounded-xl p-6 shadow-lg" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-gray-900">Driver app code</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          {driver.name} · <span className="tabular-nums">{driver.driverId}</span>
+        </p>
+
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
+        {code ? (
+          <>
+            <div className="mt-5 rounded-lg bg-gray-50 border border-gray-200 py-5 text-center">
+              <span className="text-4xl font-semibold tracking-[0.3em] tabular-nums text-gray-900">{code}</span>
+            </div>
+            <p className="mt-3 text-sm text-gray-600">
+              Read this to {driver.name} now. It is not stored in plaintext and cannot be shown again.
+            </p>
+            <button onClick={onClose}
+              className="mt-5 w-full h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer">
+              Done
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-4 text-sm text-gray-600">
+              Generating a new code invalidates the driver's current one and signs them out of the app.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button onClick={onClose}
+                className="flex-1 h-10 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={() => void generate()} disabled={busy}
+                className="flex-1 h-10 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors disabled:opacity-50 cursor-pointer">
+                {busy ? 'Generating…' : 'Generate code'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -173,7 +253,7 @@ function ToolbarMenu() {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 transition-colors cursor-pointer"
+        className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer"
       >
         <MoreHorizontal className="size-5" strokeWidth={1.75} />
       </button>
@@ -203,7 +283,7 @@ function ToolbarMenu() {
 
 // ── drawer field helpers ──────────────────────────────────────────────────────
 
-const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
+const inputCls = 'w-full px-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default'
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -242,7 +322,7 @@ function EmptyState({ isFiltered, onAdd }: { isFiltered: boolean; onAdd: () => v
   return (
     <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden">
       <div className="absolute inset-0 opacity-50" style={{
-        backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(to right, var(--color-gray-200) 1px, transparent 1px), linear-gradient(to bottom, var(--color-gray-200) 1px, transparent 1px)',
         backgroundSize: '32px 32px',
         WebkitMaskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
         maskImage: 'radial-gradient(ellipse 60% 60% at 50% 50%, black 40%, transparent 100%)',
@@ -289,6 +369,7 @@ export default function DriversPage() {
   const [saving, setSaving] = useState(false)
 
   const [deleteTarget, setDeleteTarget] = useState<Driver | null>(null)
+  const [codeTarget, setCodeTarget] = useState<Driver | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -507,17 +588,17 @@ export default function DriversPage() {
               placeholder="Search by name or phone"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+              className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
             />
           </div>
           {selected.size > 0 ? (
             <button onClick={() => setBulkDeleteOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-red-700 transition-colors cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-red-700 transition-colors cursor-pointer">
               <Trash2 className="size-4" strokeWidth={2.5} />Delete {selected.size} selected
             </button>
           ) : (
             <button onClick={openAdd}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-violet-700 transition-colors cursor-pointer">
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg shadow-xs hover:bg-violet-700 transition-colors cursor-pointer">
               <Plus className="size-4" strokeWidth={2.5} />Add driver
             </button>
           )}
@@ -526,7 +607,7 @@ export default function DriversPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
@@ -567,7 +648,7 @@ export default function DriversPage() {
                       className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 transition-colors cursor-pointer">
                       <Trash2 className="size-5" strokeWidth={1.75} />
                     </button>
-                    <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} />
+                    <RowMenu onView={() => openView(row)} onEdit={() => openEdit(row)} onCode={() => setCodeTarget(row)} />
                   </div>
                 </td>
               </tr>
@@ -579,7 +660,7 @@ export default function DriversPage() {
         {totalPages > 1 && (
         <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
             <ChevronLeft className="size-5" strokeWidth={1.75} /> Previous
           </button>
           <div className="flex items-center gap-0.5">
@@ -593,7 +674,7 @@ export default function DriversPage() {
             ))}
           </div>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
             Next <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>
@@ -754,6 +835,7 @@ export default function DriversPage() {
         onConfirm={handleDelete}
         deleting={deleting}
       />
+      <DriverCodeModal driver={codeTarget} onClose={() => setCodeTarget(null)} />
       <ConfirmDeleteModal
         open={bulkDeleteOpen}
         title={`Delete ${selected.size} driver${selected.size > 1 ? 's' : ''}`}

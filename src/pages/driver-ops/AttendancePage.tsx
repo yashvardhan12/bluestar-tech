@@ -1,13 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, MoreHorizontal, X, UserCog, ClipboardList, Calendar } from 'lucide-react'
+import { Search, MoreHorizontal, X, UserCog, ClipboardList, CalendarCheck, Calendar } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import { useMenuFlip } from '../../lib/useMenuFlip'
 import DateRangePicker, { type DateRange } from '../../components/ui/DateRangePicker'
+import DutyLogsPanel from './DutyLogsPanel'
+import AttendanceLogPanel from './AttendanceLogPanel'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type Status = 'P' | 'A'
+export type Status = 'P' | 'A'
+
+export interface AttendanceEntry {
+  status: Status
+  note: string | null
+}
 
 interface DriverRow {
   id: number
@@ -17,7 +25,7 @@ interface DriverRow {
 }
 
 interface AttendanceMap {
-  [driverId: number]: { [dateStr: string]: Status }
+  [driverId: number]: { [dateStr: string]: AttendanceEntry }
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -87,19 +95,24 @@ function Avatar({ initials, index }: { initials: string; index: number }) {
 
 // ── attendance cell ───────────────────────────────────────────────────────────
 
-function AttendanceCell({ status, onClick }: { status: Status | undefined; onClick: () => void }) {
+function AttendanceCell({ entry, onClick }: { entry: AttendanceEntry | undefined; onClick: () => void }) {
+  const status = entry?.status
+  const hasNote = status === 'A' && !!entry?.note
   return (
     <td className="p-1.5" style={{ minWidth: 72 }}>
       <button
         onClick={onClick}
+        title={hasNote ? entry!.note! : undefined}
         className={clsx(
-          'w-full h-full min-h-[48px] flex items-center justify-center rounded-md text-sm font-semibold transition-colors cursor-pointer',
+          'relative w-full h-full min-h-[48px] flex items-center justify-center rounded-md text-sm font-semibold transition-colors cursor-pointer',
           !status && 'border-2 border-dashed border-gray-200 text-gray-300 hover:border-violet-300 hover:text-violet-400',
           status === 'P' && 'bg-green-100 text-green-700 hover:bg-green-200',
           status === 'A' && 'bg-red-100 text-red-600 hover:bg-red-200',
         )}
       >
         {status ?? '+'}
+        {/* Documented-absence indicator: a bare "A" means the reason is still missing */}
+        {hasNote && <span className="absolute top-1 right-1 size-1.5 rounded-full bg-red-500" />}
       </button>
     </td>
   )
@@ -107,8 +120,9 @@ function AttendanceCell({ status, onClick }: { status: Status | undefined; onCli
 
 // ── row menu ──────────────────────────────────────────────────────────────────
 
-function RowMenu({ onMarkAttendance, onViewDutyLogs }: {
+function RowMenu({ onMarkAttendance, onViewAttendanceLog, onViewDutyLogs }: {
   onMarkAttendance: () => void
+  onViewAttendanceLog: () => void
   onViewDutyLogs: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -134,6 +148,8 @@ function RowMenu({ onMarkAttendance, onViewDutyLogs }: {
     setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
     setOpen(v => !v)
   }
+
+  useMenuFlip(open, btnRef, menuRef, top => setCoords(c => ({ ...c, top })))
 
   return (
     <>
@@ -162,6 +178,17 @@ function RowMenu({ onMarkAttendance, onViewDutyLogs }: {
               Mark attendance
             </button>
           </div>
+          <div className="my-1 h-px bg-gray-100" />
+          <div className="px-1.5 py-px">
+            <button
+              type="button"
+              onClick={() => { onViewAttendanceLog(); setOpen(false) }}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <CalendarCheck className="size-4 text-gray-500 shrink-0" strokeWidth={1.75} />
+              View attendance log
+            </button>
+          </div>
           <div className="px-1.5 py-px">
             <button
               type="button"
@@ -181,15 +208,17 @@ function RowMenu({ onMarkAttendance, onViewDutyLogs }: {
 
 // ── mark attendance modal ─────────────────────────────────────────────────────
 
-function MarkAttendanceModal({ driver, onClose, onMark }: {
+function MarkAttendanceModal({ driver, existing, onClose, onMark }: {
   driver: DriverRow
+  existing: Record<string, AttendanceEntry>
   onClose: () => void
-  onMark: (driverId: number, dates: string[], status: Status) => Promise<void>
+  onMark: (driverId: number, dates: string[], status: Status, note: string | null) => Promise<void>
 }) {
   const today = toDateStr(new Date())
   const [tab, setTab] = useState<'today' | 'select'>('today')
   const [range, setRange] = useState<DateRange | null>(null)
   const [marking, setMarking] = useState(false)
+  const [note, setNote] = useState('')
 
   // Dates that will be updated on confirm
   const datesToMark: string[] = tab === 'today'
@@ -197,6 +226,14 @@ function MarkAttendanceModal({ driver, onClose, onMark }: {
     : range ? dateRange(toDateStr(range.start), toDateStr(range.end)) : []
 
   const canMark = datesToMark.length > 0
+
+  // Preload an existing note when a single already-marked date is targeted, so
+  // editing a day never silently wipes its audit reason.
+  const singleDate = datesToMark.length === 1 ? datesToMark[0] : null
+  useEffect(() => {
+    setNote(singleDate ? (existing[singleDate]?.note ?? '') : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [singleDate])
 
   function fmtDisplay(dateStr: string) {
     const d = new Date(dateStr + 'T00:00:00')
@@ -206,7 +243,7 @@ function MarkAttendanceModal({ driver, onClose, onMark }: {
   async function handle(status: Status) {
     if (!canMark) return
     setMarking(true)
-    await onMark(driver.id, datesToMark, status)
+    await onMark(driver.id, datesToMark, status, note.trim() || null)
     setMarking(false)
     onClose()
   }
@@ -273,7 +310,7 @@ function MarkAttendanceModal({ driver, onClose, onMark }: {
         {/* Date display / picker */}
         <div className="px-2">
           {tab === 'today' ? (
-            <div className="flex items-center gap-2 px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white shadow-xs">
               <Calendar className="size-5 text-gray-500 shrink-0" strokeWidth={1.75} />
               <span className="text-sm font-semibold text-gray-500">{fmtDisplay(today)}</span>
             </div>
@@ -292,6 +329,20 @@ function MarkAttendanceModal({ driver, onClose, onMark }: {
           )}
         </div>
 
+        {/* Reason / note — optional, kept for absence audit trail */}
+        <div className="px-2">
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            rows={2}
+            placeholder="Reason / note (optional)"
+            className="w-full resize-none px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+          />
+          {datesToMark.length > 1 && (
+            <p className="text-xs text-gray-500 px-1 mt-1">Applied to all {datesToMark.length} selected dates.</p>
+          )}
+        </div>
+
         {/* Divider */}
         <div className="h-px bg-gray-100" />
 
@@ -301,7 +352,7 @@ function MarkAttendanceModal({ driver, onClose, onMark }: {
             type="button"
             onClick={() => handle('A')}
             disabled={marking || !canMark}
-            className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] disabled:opacity-50 cursor-pointer transition-colors"
+            className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-xs disabled:opacity-50 cursor-pointer transition-colors"
           >
             Mark Absent
           </button>
@@ -309,7 +360,7 @@ function MarkAttendanceModal({ driver, onClose, onMark }: {
             type="button"
             onClick={() => handle('P')}
             disabled={marking || !canMark}
-            className="flex-1 py-2 bg-violet-600 rounded-lg text-sm font-semibold text-white hover:bg-violet-700 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] disabled:opacity-50 cursor-pointer transition-colors"
+            className="flex-1 py-2 bg-violet-600 rounded-lg text-sm font-semibold text-white hover:bg-violet-700 shadow-xs disabled:opacity-50 cursor-pointer transition-colors"
           >
             Mark Present
           </button>
@@ -328,6 +379,8 @@ export default function AttendancePage() {
   const [search, setSearch] = useState('')
   const [range, setRange] = useState<DateRange | null>(null)
   const [markDriver, setMarkDriver] = useState<DriverRow | null>(null)
+  const [dutyLogsDriver, setDutyLogsDriver] = useState<DriverRow | null>(null)
+  const [attendanceLogDriver, setAttendanceLogDriver] = useState<DriverRow | null>(null)
 
   const dates = range
     ? dateRange(toDateStr(range.start), toDateStr(range.end))
@@ -338,7 +391,7 @@ export default function AttendancePage() {
   async function fetchAll() {
     const [{ data: driverData }, { data: attendData }] = await Promise.all([
       supabase.from('drivers').select('id, name, initials, phone').order('created_at', { ascending: false }),
-      supabase.from('driver_attendance').select('driver_id, date, status'),
+      supabase.from('driver_attendance').select('driver_id, date, status, note'),
     ])
 
     if (driverData) {
@@ -349,40 +402,43 @@ export default function AttendancePage() {
       for (const r of attendData as any[]) {
         const id = Number(r.driver_id)
         if (!map[id]) map[id] = {}
-        map[id][r.date] = r.status as Status
+        map[id][r.date] = { status: r.status as Status, note: r.note ?? null }
       }
       setAttendance(map)
     }
   }
 
   async function toggleAttendance(driverId: number, dateStr: string) {
-    const current = attendance[driverId]?.[dateStr]
+    const current = attendance[driverId]?.[dateStr]?.status
     const next: Status = current === 'P' ? 'A' : 'P'
+    // Quick toggle carries no reason; the note lives on the modal path.
+    const entry: AttendanceEntry = { status: next, note: null }
 
     // Optimistic update
     setAttendance(prev => ({
       ...prev,
-      [driverId]: { ...(prev[driverId] ?? {}), [dateStr]: next },
+      [driverId]: { ...(prev[driverId] ?? {}), [dateStr]: entry },
     }))
 
     await supabase.from('driver_attendance').upsert(
-      { driver_id: driverId, date: dateStr, status: next },
+      { driver_id: driverId, date: dateStr, status: next, note: null },
       { onConflict: 'driver_id,date' },
     )
   }
 
-  async function setAttendanceForDate(driverId: number, dates: string[], status: Status) {
+  async function setAttendanceForDate(driverId: number, dates: string[], status: Status, note: string | null) {
+    const entry: AttendanceEntry = { status, note }
     // Optimistic update for all dates
     setAttendance(prev => ({
       ...prev,
       [driverId]: {
         ...(prev[driverId] ?? {}),
-        ...Object.fromEntries(dates.map(d => [d, status])),
+        ...Object.fromEntries(dates.map(d => [d, entry])),
       },
     }))
     // Bulk upsert
     await supabase.from('driver_attendance').upsert(
-      dates.map(date => ({ driver_id: driverId, date, status })),
+      dates.map(date => ({ driver_id: driverId, date, status, note })),
       { onConflict: 'driver_id,date' },
     )
   }
@@ -406,7 +462,7 @@ export default function AttendancePage() {
             placeholder="Search by name or phone"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+            className="pl-[38px] pr-3.5 py-2.5 w-72 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -429,7 +485,7 @@ export default function AttendancePage() {
 
       {/* Scrollable table area */}
       <div className="flex-1 overflow-hidden px-10 pb-8">
-        <div className="h-full overflow-auto rounded-xl border border-gray-200 shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)]">
+        <div className="h-full overflow-auto rounded-xl border border-gray-200 shadow-xs">
           <table
             className="w-full border-collapse bg-white"
             style={{ minWidth: 220 + 52 + dates.length * 72 }}
@@ -492,7 +548,7 @@ export default function AttendancePage() {
                     {dates.map(d => (
                       <AttendanceCell
                         key={d}
-                        status={attendance[driver.id]?.[d]}
+                        entry={attendance[driver.id]?.[d]}
                         onClick={() => toggleAttendance(driver.id, d)}
                       />
                     ))}
@@ -504,7 +560,8 @@ export default function AttendancePage() {
                     >
                       <RowMenu
                         onMarkAttendance={() => setMarkDriver(driver)}
-                        onViewDutyLogs={() => {}}
+                        onViewAttendanceLog={() => setAttendanceLogDriver(driver)}
+                        onViewDutyLogs={() => setDutyLogsDriver(driver)}
                       />
                     </td>
                   </tr>
@@ -519,8 +576,26 @@ export default function AttendancePage() {
       {markDriver && (
         <MarkAttendanceModal
           driver={markDriver}
+          existing={attendance[markDriver.id] ?? {}}
           onClose={() => setMarkDriver(null)}
           onMark={setAttendanceForDate}
+        />
+      )}
+
+      {/* Attendance log panel */}
+      {attendanceLogDriver && (
+        <AttendanceLogPanel
+          driver={attendanceLogDriver}
+          entries={attendance[attendanceLogDriver.id] ?? {}}
+          onClose={() => setAttendanceLogDriver(null)}
+        />
+      )}
+
+      {/* Duty logs panel */}
+      {dutyLogsDriver && (
+        <DutyLogsPanel
+          driver={dutyLogsDriver}
+          onClose={() => setDutyLogsDriver(null)}
         />
       )}
     </div>
