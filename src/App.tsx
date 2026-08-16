@@ -52,9 +52,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   }
-  // The operator shell must not render for a driver session. A driver has no
-  // `profiles` row and no `company_members` row, so every operator page would
-  // load empty and look broken rather than forbidden.
+  // The operator shell must not render for a driver session. A driver does get
+  // a `profiles` row, but never a `company_members` one, so `current_company_id()`
+  // is null and every company-scoped policy returns zero rows — the operator
+  // pages would load empty and look broken rather than forbidden.
   if (isDriverSession(session)) return <Navigate to="/driver" replace />
   return <>{children}</>
 }
