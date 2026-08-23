@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { X, Plus, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import { useLocations } from '../../lib/locations'
+import LocationSelect from '../../components/ui/LocationSelect'
+import Toggle from '../../components/ui/Toggle'
+import { localDate, toISODate } from '../../lib/dutyTime'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,26 +112,6 @@ function SectionCard({ title, children }: { title: string; children: React.React
   )
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      className={clsx(
-        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
-        checked ? 'bg-violet-600' : 'bg-gray-200',
-      )}
-    >
-      <span
-        className={clsx(
-          'inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-200',
-          checked ? 'translate-x-4' : 'translate-x-0',
-        )}
-      />
-    </button>
-  )
-}
-
 // ── props ─────────────────────────────────────────────────────────────────────
 
 export type BookingDrawerMode = 'add' | 'edit' | 'view'
@@ -191,6 +175,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
   const [altVehicles, setAltVehicles]   = useState(false)
 
   // ── reference data from DB ───────────────────────────────────────────────────
+  const { locations, addLocation } = useLocations()
   const [vehicleGroups, setVehicleGroups] = useState<string[]>([])
   const [customers, setCustomers]         = useState<string[]>([])
   const [dutyTypes, setDutyTypes]         = useState<string[]>([])
@@ -252,16 +237,16 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
     if (dutyCategory === 'Airport') {
       // Auto-set end date to start date; cap if already set beyond +1
       if (!endDate || endDate < v) { setEndDate(v); return }
-      const max = new Date(v); max.setDate(max.getDate() + 1)
-      const maxStr = max.toISOString().split('T')[0]
+      const max = localDate(v); max.setDate(max.getDate() + 1)
+      const maxStr = toISODate(max)
       if (endDate > maxStr) setEndDate(maxStr)
     }
   }
 
   function handleEndDateChange(v: string) {
     if (dutyCategory === 'Airport' && startDate) {
-      const max = new Date(startDate); max.setDate(max.getDate() + 1)
-      const maxStr = max.toISOString().split('T')[0]
+      const max = localDate(startDate); max.setDate(max.getDate() + 1)
+      const maxStr = toISODate(max)
       setEndDate(v > maxStr ? maxStr : v)
     } else {
       setEndDate(v)
@@ -298,10 +283,10 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
     } else {
       // Hourly / Monthly: one duty per day
       const rows = []
-      const cur = new Date(startDate)
-      const end = new Date(endDate)
+      const cur = localDate(startDate)
+      const end = localDate(endDate)
       while (cur <= end) {
-        const d = cur.toISOString().split('T')[0]
+        const d = toISODate(cur)
         rows.push({ ...base, start_date: d, end_date: d })
         cur.setDate(cur.getDate() + 1)
       }
@@ -407,8 +392,8 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
       return
     }
     if (dutyCategory === 'Airport' && startDate && endDate) {
-      const max = new Date(startDate); max.setDate(max.getDate() + 1)
-      if (endDate > max.toISOString().split('T')[0]) {
+      const max = localDate(startDate); max.setDate(max.getDate() + 1)
+      if (endDate > toISODate(max)) {
         setError('Airport bookings can only extend 1 day beyond the start date.')
         return
       }
@@ -617,16 +602,16 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
 
             {/* From / To */}
             <div className="grid grid-cols-2 gap-4">
-              <SelectField
-                label="From (Service Location)" required={!readOnly} placeholder="Location"
+              <LocationSelect
+                label="From (Service Location)" required={!readOnly}
                 value={fromLocation} onChange={setFromLocation}
-                options={['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad']}
+                options={locations} onAdd={addLocation}
                 readOnly={readOnly}
               />
-              <SelectField
-                label="To" placeholder="Location"
+              <LocationSelect
+                label="To"
                 value={toLocation} onChange={setToLocation}
-                options={['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad']}
+                options={locations} onAdd={addLocation}
                 readOnly={readOnly}
               />
             </div>
@@ -691,8 +676,8 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
                 <InputField label="End Date" required={!readOnly} placeholder="DD/MM/YYYY" type="date" value={endDate} onChange={handleEndDateChange} readOnly={readOnly}
                   error={(() => {
                     if (!readOnly && dutyCategory === 'Airport' && startDate && endDate) {
-                      const max = new Date(startDate); max.setDate(max.getDate() + 1)
-                      if (endDate > max.toISOString().split('T')[0])
+                      const max = localDate(startDate); max.setDate(max.getDate() + 1)
+                      if (endDate > toISODate(max))
                         return 'Airport bookings can only extend 1 day beyond the start date'
                     }
                   })()}

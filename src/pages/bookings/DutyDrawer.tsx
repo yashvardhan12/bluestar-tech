@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { X, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import { useLocations } from '../../lib/locations'
+import LocationSelect from '../../components/ui/LocationSelect'
 
 // ── shared field helpers ───────────────────────────────────────────────────────
 
@@ -225,6 +227,8 @@ export default function DutyDrawer({ open, mode, initial, dutyId, onClose, onSav
 
   const title = mode === 'add' ? 'Add Duty' : mode === 'edit' ? 'Edit Duty' : 'View Duty'
 
+  const { locations, addLocation } = useLocations()
+
   function field<K extends keyof DutyForm>(key: K) {
     return {
       value: form[key],
@@ -288,13 +292,15 @@ export default function DutyDrawer({ open, mode, initial, dutyId, onClose, onSav
 
           {/* From / To */}
           <div className="grid grid-cols-2 gap-4">
-            <SelectField label="From (Service Location)" required={!readOnly} placeholder="Location" readOnly={readOnly}
-              options={['Mumbai', 'Pune', 'Delhi', 'Bangalore', 'Chennai']}
-              {...field('fromLocation')}
+            <LocationSelect label="From (Service Location)" required={!readOnly} readOnly={readOnly}
+              options={locations} onAdd={addLocation}
+              value={form.fromLocation}
+              onChange={v => setForm(prev => ({ ...prev, fromLocation: v }))}
             />
-            <SelectField label="To" placeholder="Location" readOnly={readOnly}
-              options={['Mumbai', 'Pune', 'Delhi', 'Bangalore', 'Chennai']}
-              {...field('toLocation')}
+            <LocationSelect label="To" readOnly={readOnly}
+              options={locations} onAdd={addLocation}
+              value={form.toLocation}
+              onChange={v => setForm(prev => ({ ...prev, toLocation: v }))}
             />
           </div>
 
