@@ -4,7 +4,10 @@
 // the boundaries between "In 45m" and "In 1hr" are the part worth pinning.
 
 import assert from 'node:assert/strict'
-import { atTime, countdown, formatTime, departurePrompt, duration } from './dutyTime.ts'
+import {
+  atTime, countdown, formatTime, departurePrompt, duration,
+  localDate, toISODate, todayISO, formatDate,
+} from './dutyTime.ts'
 
 const now = new Date('2026-08-04T09:00:00')
 const plus = (mins: number) => new Date(now.getTime() + mins * 60000)
@@ -51,5 +54,47 @@ assert.equal(duration('2026-08-04T08:30:00Z', '2026-08-04T18:00:00Z'), '9 hr 30 
 assert.equal(duration('2026-08-04T08:30:00Z', '2026-08-04T08:45:00Z'), '15 min')
 // Clock skew must not render as a negative duration on a billing screen.
 assert.equal(duration('2026-08-04T09:00:00Z', '2026-08-04T08:00:00Z'), '0 min')
+
+// ── date boundaries ──────────────────────────────────────────────────────────
+// These are the assertions that fail under `new Date('2026-08-12')`, which the
+// spec parses as UTC midnight: west of UTC it lands on the 11th, and east of
+// UTC `toISOString()` pushes local midnight back to the previous day. Run this
+// file under TZ=America/New_York and TZ=Asia/Kolkata — it must pass in both.
+
+{
+  const d = localDate('2026-08-12')
+  assert.equal(d.getFullYear(), 2026)
+  assert.equal(d.getMonth(), 7, 'August is month 7')
+  assert.equal(d.getDate(), 12, 'the 12th stays the 12th in every timezone')
+  assert.equal(d.getHours(), 0, 'local midnight, not an offset from UTC')
+}
+
+assert.equal(toISODate(new Date(2026, 7, 12)), '2026-08-12')
+assert.equal(toISODate(new Date(2026, 0, 1)), '2026-01-01', 'month and day are padded')
+
+// Round-tripping is the property the duty-generation loop depends on: it walks
+// a Date day by day and writes each one back as a start_date.
+for (const iso of ['2026-01-01', '2026-08-12', '2026-12-31', '2026-02-28']) {
+  assert.equal(toISODate(localDate(iso)), iso, `${iso} survives the round trip`)
+}
+
+// Walking across a month end must not skip or repeat a day.
+{
+  const cur = localDate('2026-08-30')
+  const seen: string[] = []
+  for (let i = 0; i < 4; i++) { seen.push(toISODate(cur)); cur.setDate(cur.getDate() + 1) }
+  assert.deepEqual(seen, ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02'])
+}
+
+assert.equal(atTime('2026-08-12', '18:00').getDate(), 12, 'atTime stays on its own date')
+assert.equal(atTime('2026-08-12', '18:00').getHours(), 18)
+assert.equal(atTime('2026-08-12', '00:00').getDate(), 12, 'midnight does not roll back')
+
+assert.match(formatDate('2026-08-12'), /12 Aug 2026/)
+
+{
+  const now = new Date(2026, 7, 12, 2, 30)   // 02:30 local, still the 12th
+  assert.equal(todayISO(now), '2026-08-12', "UTC's date is not the operator's date")
+}
 
 console.log('dutyTime.check.ts — all assertions passed')

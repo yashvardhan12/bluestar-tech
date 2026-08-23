@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Search, ChevronRight } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
+import { localDate, toISODate } from '../../lib/dutyTime'
 import DateRangePicker, { type DateRange } from '../../components/ui/DateRangePicker'
 
 // ── types ──────────────────────────────────────────────────────────────────────
@@ -29,10 +30,6 @@ interface VehicleRow {
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────
-
-function toISO(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
 
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -64,9 +61,9 @@ function totalDaysInRange(rangeStart: string, rangeEnd: string): number {
 }
 
 function isConsecutive(endDate: string, nextStartDate: string): boolean {
-  const d = new Date(endDate)
+  const d = localDate(endDate)
   d.setDate(d.getDate() + 1)
-  return toISO(d) === nextStartDate
+  return toISODate(d) === nextStartDate
 }
 
 function formatDate(iso: string): string {
@@ -195,8 +192,8 @@ export default function AveragePage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
   const [loading,  setLoading]  = useState(true)
 
-  const rangeStart = toISO(range.start)
-  const rangeEnd   = toISO(range.end)
+  const rangeStart = toISODate(range.start)
+  const rangeEnd   = toISODate(range.end)
 
   useEffect(() => { fetchData() }, [rangeStart, rangeEnd])
 
@@ -212,7 +209,7 @@ export default function AveragePage() {
       .neq('status', 'Cancelled')
       .lte('start_date', rangeEnd)
       .gte('end_date', rangeStart)
-      .lte('end_date', toISO(new Date()))
+      .lte('end_date', toISODate(new Date()))
 
     if (!dutiesRaw || dutiesRaw.length === 0) { setRows([]); setLoading(false); return }
 
@@ -271,10 +268,10 @@ export default function AveragePage() {
       // Count active days (union of all duty date ranges within period)
       const activeDaySet = new Set<string>()
       for (const cd of clampedDuties) {
-        let cur = new Date(cd.startDate)
-        const end = new Date(cd.endDate)
+        let cur = localDate(cd.startDate)
+        const end = localDate(cd.endDate)
         while (cur <= end) {
-          activeDaySet.add(toISO(cur))
+          activeDaySet.add(toISODate(cur))
           cur.setDate(cur.getDate() + 1)
         }
       }

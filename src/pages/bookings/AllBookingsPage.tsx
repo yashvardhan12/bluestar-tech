@@ -17,6 +17,7 @@ import DateRangePicker from '../../components/ui/DateRangePicker'
 import type { DateRange } from '../../components/ui/DateRangePicker'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
+import { localDate } from '../../lib/dutyTime'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { syncBookingStatus } from '../../lib/bookingStatus'
 
@@ -299,7 +300,7 @@ export default function AllBookingsPage() {
         bookingRef:     r.booking_ref,
         startDate:      isoToDisplay(r.start_date),
         endDate:        isoToDisplay(r.end_date),
-        startDateRaw:   new Date(r.start_date),
+        startDateRaw:   localDate(r.start_date),
         customer:       r.customer_name,
         passenger:      firstPassenger,
         passengerExtra: extraCount,
