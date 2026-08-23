@@ -1,0 +1,922 @@
+<title>Duty Allowances</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #F8F7FB;
+    --surface:     #FFFFFF;
+    --surface-alt: #F2F0F8;
+    --ink:         #191627;
+    --ink-soft:    #5B5572;
+    --ink-faint:   #8B85A3;
+    --rule:        #E4E1EC;
+    --rule-strong: #CFCADD;
+    --bill:        #6927DA;
+    --bill-wash:   #F1ECFD;
+    --driver:      #0E6D63;
+    --driver-wash: #E4F2F0;
+    --flag:        #A2540A;
+    --flag-wash:   #FBF0E2;
+
+    --f-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    --f-body:    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --f-mono:    'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 4rem 1.75rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+  }
+
+  .prose { max-width: 40rem; }
+
+  /* ── masthead ─────────────────────────────────────────── */
+
+  .mast { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .mast h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.5rem, 6vw, 3.75rem);
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .mast .standfirst {
+    font-size: 1.1875rem;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 34rem;
+  }
+
+  .mast-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--ink);
+  }
+
+  .meta-item { display: flex; flex-direction: column; gap: 0.125rem; }
+  .meta-item dt {
+    font-family: var(--f-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .meta-item dd {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 500;
+  }
+
+  /* ── sections ─────────────────────────────────────────── */
+
+  .section { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .section > h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1.75rem;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0;
+    padding-bottom: 0.875rem;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .section h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.0625rem;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    margin: 0;
+  }
+
+  .section p { margin: 0; }
+  .section p + p { margin-top: 0.875rem; }
+
+  /* ── two-sided explainer ──────────────────────────────── */
+
+  .sides {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1.25rem;
+  }
+
+  .side {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--side-hue);
+    border-radius: 3px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+  .side-driver { --side-hue: var(--driver); }
+  .side-bill   { --side-hue: var(--bill); }
+
+  .side .tag {
+    font-family: var(--f-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--side-hue);
+  }
+  .side p { font-size: 0.9375rem; color: var(--ink-soft); }
+  .side strong { color: var(--ink); font-weight: 600; }
+
+  .keynote {
+    background: var(--surface-alt);
+    border-left: 3px solid var(--bill);
+    border-radius: 0 3px 3px 0;
+    padding: 1.25rem 1.5rem;
+    font-size: 1.0625rem;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  /* ── tables ───────────────────────────────────────────── */
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--surface);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
+    min-width: 40rem;
+  }
+
+  thead th {
+    font-family: var(--f-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: left;
+    padding: 0.875rem 1.25rem;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+
+  td.name {
+    color: var(--ink);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .unit {
+    display: inline-block;
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0.125rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  /* ── decision cards ───────────────────────────────────── */
+
+  .rules { display: flex; flex-direction: column; gap: 1rem; }
+
+  .rule-card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.625rem;
+  }
+
+  .rule-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .decided {
+    font-family: var(--f-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--flag);
+    background: var(--flag-wash);
+    border-radius: 2px;
+    padding: 0.1875rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  .rule-card p { font-size: 0.9375rem; color: var(--ink-soft); }
+  .rule-card .alt {
+    font-size: 0.875rem;
+    color: var(--ink-faint);
+    padding-top: 0.625rem;
+    border-top: 1px dashed var(--rule-strong);
+  }
+  .rule-card .alt b {
+    font-family: var(--f-mono);
+    font-weight: 500;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 0.1875rem;
+  }
+
+  /* ── worked example slips ─────────────────────────────── */
+
+  .slips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    gap: 1.5rem;
+  }
+
+  .slip {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 2px dashed var(--rule-strong);
+    border-radius: 0 0 3px 3px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .slip-head { display: flex; flex-direction: column; gap: 0.375rem; }
+  .slip-head .ref {
+    font-family: var(--f-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .slip-head .desc { font-size: 0.875rem; color: var(--ink-soft); }
+
+  .ledger {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.5rem 1rem;
+    font-family: var(--f-mono);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ledger .lh {
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-bottom: 0.375rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ledger .lh.r, .ledger .amt { text-align: right; }
+  .ledger .lbl { color: var(--ink-soft); }
+  .ledger .amt.d { color: var(--driver); }
+  .ledger .amt.b { color: var(--bill); }
+  .ledger .amt.nil { color: var(--ink-faint); }
+
+  .ledger .tot {
+    font-weight: 500;
+    color: var(--ink);
+    padding-top: 0.625rem;
+    border-top: 1px solid var(--rule-strong);
+  }
+  .ledger .tot.d { color: var(--driver); }
+  .ledger .tot.b { color: var(--bill); }
+
+  .slip-note {
+    font-family: var(--f-body);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--ink-faint);
+  }
+
+  /* ── safeguards ───────────────────────────────────────── */
+
+  .guards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.25rem;
+  }
+  .guard {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-top: 1rem;
+    border-top: 2px solid var(--rule-strong);
+  }
+  .guard p { font-size: 0.9375rem; color: var(--ink-soft); }
+
+  em.illus {
+    font-style: normal;
+    font-family: var(--f-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    color: var(--flag);
+    background: var(--flag-wash);
+    padding: 0.125rem 0.4375rem;
+    border-radius: 2px;
+  }
+
+  a { color: var(--bill); }
+  a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--bill);
+    outline-offset: 3px;
+  }
+
+  @page { margin: 16mm; }
+
+  @media print {
+    body { background: #FFFFFF; font-size: 10.5pt; line-height: 1.5; }
+    .page { max-width: none; padding: 0; gap: 2.25rem; }
+    .mast h1 { font-size: 26pt; }
+    .mast .standfirst { font-size: 12pt; }
+    .section > h2 { font-size: 15pt; }
+    .table-wrap { overflow-x: visible; }
+    table { min-width: 0; }
+    .rule-card, .slip, .guard, .side, .ledger { break-inside: avoid; }
+    h1, h2, h3 { break-after: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  @media (max-width: 34rem) {
+    .page { padding: 2.5rem 1.125rem 4rem; gap: 3rem; }
+    .ledger { font-size: 0.75rem; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="mast">
+    <p class="eyebrow">Blue Star &middot; Proposal for approval</p>
+    <h1>Duty allowances, calculated automatically</h1>
+    <p class="standfirst">
+      Nine allowances, worked out from what actually happened on each duty — paying the
+      driver, and billing the customer where you decide it should be billed.
+    </p>
+    <dl class="mast-meta">
+      <div class="meta-item"><dt>Prepared</dt><dd>19 August 2026</dd></div>
+      <div class="meta-item"><dt>Covers</dt><dd>Duty types, duty slips, invoices, payroll</dd></div>
+      <div class="meta-item"><dt>Needs from you</dt><dd>Rates, and six rule confirmations</dd></div>
+    </dl>
+  </header>
+
+  <section class="section">
+    <h2>Introducing allowances</h2>
+    <div class="prose">
+      <p>
+        An allowance is what a duty earns on top of the fare itself: the day worked, hours run
+        past the schedule, a night away from home, a run out to the airport.
+      </p>
+      <p>
+        This feature gives you nine of them. Each one is recognised and calculated by the system
+        from the duty record your drivers already produce &mdash; the booked dates and timings,
+        plus the actual start and close captured on the app. Nobody has to remember which duty
+        earned what.
+      </p>
+      <p>
+        Every allowance does two jobs. It adds to what the driver is paid that month, and where
+        you have chosen to price it, it adds to what the customer is billed. The rest of this
+        document sets out when each one applies, how it is worked out, and what we need from you
+        to put it in place.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>One calculation, two sides</h2>
+    <div class="prose">
+      <p>
+        For each allowance the system works out the quantity once — how many days, how many
+        hours, how many nights, how many duties. That single quantity is then priced twice.
+      </p>
+    </div>
+
+    <div class="sides">
+      <div class="side side-driver">
+        <p class="tag">What the driver gets</p>
+        <p>
+          <strong>One rate per allowance, set once for the whole company.</strong> It applies
+          automatically to every driver, on every duty where the conditions are met. You don't
+          configure it per duty type or per driver.
+        </p>
+      </div>
+      <div class="side side-bill">
+        <p class="tag">What the customer pays</p>
+        <p>
+          <strong>Set per duty type, and entirely optional.</strong> When you create or edit a
+          duty type, you pick which allowances it charges for and what each one costs. Anything
+          you don't add is simply never billed.
+        </p>
+      </div>
+    </div>
+
+    <p class="keynote">
+      Adding an allowance to a duty type is purely a billing decision. It never changes what the
+      driver is paid — the driver is paid the same whether or not you chose to pass the cost on.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>The nine allowances</h2>
+    <div class="prose">
+      <p>
+        Each one fires on its own trigger, drawn from the duty record. "Counted in" is the unit
+        the quantity is measured in, and therefore what the rate is a rate <em>of</em>.
+      </p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Allowance</th>
+            <th scope="col">When it applies</th>
+            <th scope="col">Counted in</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Daily</td>
+            <td>Every duty, for each day it runs.</td>
+            <td><span class="unit">per day</span></td>
+          </tr>
+          <tr>
+            <td class="name">Overtime</td>
+            <td>The driver closed the duty later than it was scheduled to end.</td>
+            <td><span class="unit">per hour</span></td>
+          </tr>
+          <tr>
+            <td class="name">Outstation</td>
+            <td>The duty type is categorised as an outstation type.</td>
+            <td><span class="unit">per day</span></td>
+          </tr>
+          <tr>
+            <td class="name">Outstation overnight</td>
+            <td>An outstation duty that keeps the driver away overnight.</td>
+            <td><span class="unit">per night</span></td>
+          </tr>
+          <tr>
+            <td class="name">Off day</td>
+            <td>The duty starts on the driver's weekly off.</td>
+            <td><span class="unit">per duty</span></td>
+          </tr>
+          <tr>
+            <td class="name">Early start</td>
+            <td>The driver started earlier than the duty was scheduled to begin.</td>
+            <td><span class="unit">per hour</span></td>
+          </tr>
+          <tr>
+            <td class="name">Night</td>
+            <td>The duty runs past midnight into another day.</td>
+            <td><span class="unit">per night</span></td>
+          </tr>
+          <tr>
+            <td class="name">Extra duty</td>
+            <td>The driver's second and any further duty on the same day.</td>
+            <td><span class="unit">per duty</span></td>
+          </tr>
+          <tr>
+            <td class="name">Airport</td>
+            <td>The duty type is categorised as an airport type, or the booking is marked as an airport booking.</td>
+            <td><span class="unit">per duty</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>How each quantity is counted</h2>
+    <div class="prose">
+      <p>
+        The rate you set is multiplied by a quantity, and that quantity is read off the duty
+        record. These are the counting rules in full.
+      </p>
+    </div>
+
+    <div class="rules">
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Days count both ends</h3>
+          <span class="unit">per day</span>
+        </div>
+        <p>
+          Every calendar day the duty spans, including the first and the last. A duty running
+          10 to 12 August is three days, not two. Daily and outstation allowances count this way.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Nights are midnights crossed</h3>
+          <span class="unit">per night</span>
+        </div>
+        <p>
+          That same 10 to 12 August duty is two nights &mdash; the driver is away on the night of
+          the 10th and the night of the 11th. Night and outstation overnight allowances count
+          this way, and on an outstation duty both are paid, as set out below.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Hours are the gap, rounded up</h3>
+          <span class="unit">per hour</span>
+        </div>
+        <p>
+          Overtime is the time between the scheduled close and the actual close. Early start is
+          the time between the actual start and the scheduled reporting time. Either is rounded
+          up to the next whole hour, so 10 minutes pays one hour and 61 minutes pays two.
+          Finishing on time or early produces no overtime at all, never a deduction.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Duties are one each &mdash; except extra duty</h3>
+          <span class="unit">per duty</span>
+        </div>
+        <p>
+          Off day and airport are flat amounts, paid once on a qualifying duty. Extra duty is the
+          exception worth spelling out: it counts one for every duty after the driver's first
+          that day. A driver running three duties on Tuesday earns two extra duty allowances,
+          not one.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>When an allowance doesn't apply</h2>
+    <div class="prose">
+      <p>
+        Four situations where the calculation deliberately produces nothing, so nobody is
+        surprised when a duty comes back lighter than expected.
+      </p>
+    </div>
+
+    <div class="guards">
+      <div class="guard">
+        <h3>No actual timings were recorded</h3>
+        <p>
+          Overtime and early start compare the schedule against what the driver actually did. If
+          a duty was never started or closed on the app, neither can be worked out and neither
+          appears. Day, night and per-duty allowances still apply, since those come from the
+          booked dates.
+        </p>
+      </div>
+      <div class="guard">
+        <h3>The duty was cancelled</h3>
+        <p>
+          A cancelled duty earns nothing on either side and is never billed, however far into
+          the schedule it was called off.
+        </p>
+      </div>
+      <div class="guard">
+        <h3>The allowance is switched off</h3>
+        <p>
+          Any of the nine can be turned off for your company outright. It then stops applying to
+          drivers and customers alike, without having to be unpriced on every duty type
+          one by one.
+        </p>
+      </div>
+      <div class="guard">
+        <h3>It was never priced for the customer</h3>
+        <p>
+          An allowance you didn't add to the duty type still pays the driver in full. It simply
+          never reaches the invoice &mdash; as with night and off day in the first example below.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Six rules we need you to confirm</h2>
+    <div class="prose">
+      <p>
+        These are the judgment calls — places where the definitions could reasonably go either
+        way, and money depends on which way they go. Each is written the way we intend to build
+        it, with the alternative noted underneath.
+      </p>
+    </div>
+
+    <div class="rules">
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>An overnight outstation duty pays both night and outstation overnight</h3>
+          <span class="decided">Stacks</span>
+        </div>
+        <p>
+          A duty that goes out of town and keeps the driver away overnight satisfies both
+          conditions, and pays both allowances. The reasoning: outstation overnight covers
+          lodging and being away from home, night covers the extended hours. They're paying for
+          different things.
+        </p>
+        <p class="alt">
+          <b>The alternative</b>
+          Treat them as mutually exclusive, so an overnight outstation duty pays outstation
+          overnight only, and night allowance fires solely on local duties that cross midnight.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Part hours round up to a full hour</h3>
+          <span class="decided">Rounds up</span>
+        </div>
+        <p>
+          Overtime and early start are hourly. Any part of an hour counts as a whole one — a
+          driver who closes 10 minutes late is paid a full hour of overtime, and the customer is
+          billed a full hour. There is no grace period.
+        </p>
+        <p class="alt">
+          <b>The alternative</b>
+          A grace window before the clock starts, or charging to the exact minute. Exact minutes
+          are fairer but put quantities like "2.35 hours" on a customer's invoice.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Daily allowance is paid on top of salary, always</h3>
+          <span class="decided">Always paid</span>
+        </div>
+        <p>
+          Every driver earns the daily allowance for each day of duty, whether they're on a
+          monthly salary or daily wages. One rule, no exceptions to track.
+        </p>
+        <p class="alt">
+          <b>The alternative</b>
+          Pay it only to drivers who aren't on a monthly salary, treating the salary as already
+          covering it.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Extra duty is billed only if you price it</h3>
+          <span class="decided">Your choice</span>
+        </div>
+        <p>
+          The driver is always paid for a second or third duty in a day. Whether the customer
+          sees it depends on whether you added extra duty to that duty type — which is the same
+          rule as every other allowance. Worth flagging because it's the one where a customer
+          could reasonably object: their trip didn't cause the driver's earlier one.
+        </p>
+        <p class="alt">
+          <b>The alternative</b>
+          Lock it to driver-side only, so it can never appear on an invoice by accident.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Off day is read from the driver's weekly off</h3>
+          <span class="decided">From the roster</span>
+        </div>
+        <p>
+          If a duty starts on the weekday recorded as that driver's off day, the allowance
+          applies. It's taken from the driver's record rather than the attendance sheet, because
+          attendance only marks present or absent — it has no way to say "this was their day
+          off and they worked anyway".
+        </p>
+        <p class="alt">
+          <b>The alternative</b>
+          Add an explicit off-day marker to the attendance sheet, so a one-off swapped rest day
+          is handled correctly. More accurate, more daily upkeep.
+        </p>
+      </article>
+
+      <article class="rule-card">
+        <div class="rule-head">
+          <h3>Overtime is measured against the duty's scheduled timings</h3>
+          <span class="decided">Needs your call</span>
+        </div>
+        <p>
+          Overtime and early start need a baseline to measure against. Our recommendation is the
+          duty's own scheduled reporting and drop times, because those are already recorded on
+          every booking and it works from day one.
+        </p>
+        <p class="alt">
+          <b>The alternative</b>
+          Measure against each driver's shift timings instead — truer to "designated hours", but
+          those shift start and end times are currently blank for every driver on the system and
+          would need filling in before the allowance would pay anything. The setting can be
+          switched later, so this isn't a one-way door.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Two worked examples</h2>
+    <div class="prose">
+      <p>
+        Rates below are <em class="illus">illustrative only</em> — placeholders to show the
+        shape of the calculation. The real figures are the ones you'll set.
+      </p>
+    </div>
+
+    <div class="slips">
+
+      <article class="slip">
+        <div class="slip-head">
+          <p class="ref">Example A &middot; Outstation</p>
+          <p class="desc">
+            Mumbai to Nashik, 10&ndash;12 August, three days and two nights. The 10th is the
+            driver's off day. Scheduled to close 18:00, actually closed 19:30.
+          </p>
+        </div>
+
+        <div class="ledger">
+          <div class="lh">Allowance</div>
+          <div class="lh r">Driver</div>
+          <div class="lh r">Customer</div>
+
+          <div class="lbl">Daily &times;3</div>
+          <div class="amt d">900</div>
+          <div class="amt b">1,200</div>
+
+          <div class="lbl">Outstation &times;3</div>
+          <div class="amt d">1,500</div>
+          <div class="amt b">2,100</div>
+
+          <div class="lbl">Overnight &times;2</div>
+          <div class="amt d">800</div>
+          <div class="amt b">1,000</div>
+
+          <div class="lbl">Night &times;2</div>
+          <div class="amt d">500</div>
+          <div class="amt nil">not priced</div>
+
+          <div class="lbl">Off day &times;1</div>
+          <div class="amt d">600</div>
+          <div class="amt nil">not priced</div>
+
+          <div class="lbl">Overtime &times;2 hrs</div>
+          <div class="amt d">300</div>
+          <div class="amt b">400</div>
+
+          <div class="tot">Total</div>
+          <div class="amt tot d">&#8377;4,600</div>
+          <div class="amt tot b">&#8377;4,700</div>
+        </div>
+
+        <p class="slip-note">
+          Ninety minutes late rounds up to two hours. Night and off day were never added to this
+          duty type, so the driver is paid for both and the customer sees neither.
+        </p>
+      </article>
+
+      <article class="slip">
+        <div class="slip-head">
+          <p class="ref">Example B &middot; Airport</p>
+          <p class="desc">
+            Airport drop on 5 August, the driver's second duty that day. Scheduled to report at
+            06:00, actually started 04:20.
+          </p>
+        </div>
+
+        <div class="ledger">
+          <div class="lh">Allowance</div>
+          <div class="lh r">Driver</div>
+          <div class="lh r">Customer</div>
+
+          <div class="lbl">Daily &times;1</div>
+          <div class="amt d">300</div>
+          <div class="amt b">400</div>
+
+          <div class="lbl">Airport &times;1</div>
+          <div class="amt d">200</div>
+          <div class="amt b">300</div>
+
+          <div class="lbl">Early start &times;2 hrs</div>
+          <div class="amt d">300</div>
+          <div class="amt b">400</div>
+
+          <div class="lbl">Extra duty &times;1</div>
+          <div class="amt d">400</div>
+          <div class="amt nil">not priced</div>
+
+          <div class="tot">Total</div>
+          <div class="amt tot d">&#8377;1,200</div>
+          <div class="amt tot b">&#8377;1,100</div>
+        </div>
+
+        <p class="slip-note">
+          One hour forty early rounds up to two hours. Here the driver earns more than the
+          customer is charged, because extra duty wasn't priced on this duty type.
+        </p>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Where you'll see it</h2>
+
+    <div class="sides">
+      <div class="side side-bill">
+        <p class="tag">On the invoice</p>
+        <p>
+          Allowances add into each booking's amount, so the totals and tax work exactly as they
+          do today. The printed invoice breaks them out underneath each booking, line by line
+          with quantity and rate, so the customer can see precisely what they're being charged
+          for. Tax applies the same way it does to car hire.
+        </p>
+      </div>
+      <div class="side side-driver">
+        <p class="tag">In payroll</p>
+        <p>
+          The allowances column becomes a real monthly total rather than a figure someone types
+          in, built from every duty that driver ran. Opening it shows the breakdown: which
+          allowance, from which duty, on which date.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Safeguards</h2>
+    <div class="guards">
+      <div class="guard">
+        <h3>Rates lock at calculation</h3>
+        <p>
+          The rate in force when a duty is calculated is stored with that duty. Raising your
+          rates next month can never quietly rewrite an invoice you've already sent.
+        </p>
+      </div>
+      <div class="guard">
+        <h3>Your team can override</h3>
+        <p>
+          Every calculated amount stays editable on the duty slip up until the duty is billed.
+          The system proposes; a person confirms.
+        </p>
+      </div>
+      <div class="guard">
+        <h3>Billed means frozen</h3>
+        <p>
+          Once a duty has been billed, its allowances stop recalculating altogether. Historical
+          invoices stay exactly as they were issued.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</div>

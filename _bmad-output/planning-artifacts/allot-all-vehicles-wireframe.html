@@ -1,0 +1,1363 @@
+<title>All Vehicles Escape Hatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap">
+
+<style>
+/* ═══ document chrome — themed ═══════════════════════════════════════ */
+:root {
+  --paper:        #edeef2;
+  --paper-raised: #f7f8fa;
+  --ink:          #14171f;
+  --ink-soft:     #565c6b;
+  --ink-faint:    #878e9e;
+  --rule:         #d2d6e0;
+  --rule-soft:    #e0e3ea;
+  --redline:      #b4341c;
+  --redline-wash: #faede9;
+  --redline-rule: #e8c4bb;
+  --hatch:        rgba(20,23,31,.045);
+
+  --f-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --f-body:    'Newsreader', Georgia, 'Times New Roman', serif;
+  --f-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --f-ui:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:        #14161c;
+    --paper-raised: #1b1e26;
+    --ink:          #e6e9f0;
+    --ink-soft:     #a2a9b8;
+    --ink-faint:    #767d8c;
+    --rule:         #2e333f;
+    --rule-soft:    #262b35;
+    --redline:      #e8785e;
+    --redline-wash: #2a1713;
+    --redline-rule: #563028;
+    --hatch:        rgba(230,233,240,.05);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:        #14161c;
+  --paper-raised: #1b1e26;
+  --ink:          #e6e9f0;
+  --ink-soft:     #a2a9b8;
+  --ink-faint:    #767d8c;
+  --rule:         #2e333f;
+  --rule-soft:    #262b35;
+  --redline:      #e8785e;
+  --redline-wash: #2a1713;
+  --redline-rule: #563028;
+  --hatch:        rgba(230,233,240,.05);
+}
+
+/* ═══ specimen palette — the real Blue Star tokens, deliberately NOT themed.
+       These mocks depict a light-only product; they are specimens, not UI. ══ */
+:root {
+  --u-white:    #ffffff;
+  --u-g25:      #fcfcfd;
+  --u-g50:      #f9fafb;
+  --u-g100:     #f2f4f7;
+  --u-g200:     #eaecf0;
+  --u-g300:     #d0d5dd;
+  --u-g400:     #98a2b3;
+  --u-g500:     #667085;
+  --u-g700:     #344054;
+  --u-g900:     #101828;
+  --u-violet50: #f5f3ff;
+  --u-violet100:#ece9fe;
+  --u-violet600:#7839ee;
+  --u-warn25:   #fffcf5;
+  --u-warn50:   #fffaeb;
+  --u-warn200:  #fedf89;
+  --u-warn500:  #f79009;
+  --u-warn700:  #b54708;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+}
+
+/* ── type roles ─────────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: .6875rem;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 6vw, 3.1rem);
+  line-height: 1.04;
+  letter-spacing: -.022em;
+  text-wrap: balance;
+  margin: 0;
+}
+h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -.014em;
+  text-wrap: balance;
+  margin: 0;
+}
+h3 {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -.008em;
+  margin: 0;
+}
+p { margin: 0; }
+.prose { max-width: 40rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.prose strong { font-weight: 600; }
+.lede { font-size: 1.2rem; line-height: 1.5; color: var(--ink-soft); max-width: 34rem; }
+code, .mono { font-family: var(--f-mono); font-size: .8125em; }
+code {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  padding: .08em .34em;
+}
+
+/* ── masthead ───────────────────────────────────────────── */
+.mast { display: flex; flex-direction: column; gap: 1.1rem; }
+.mast-meta {
+  display: flex; flex-wrap: wrap; gap: 0 2.25rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.1rem;
+  margin-top: .6rem;
+}
+.mast-meta div { display: flex; flex-direction: column; gap: .15rem; padding: .35rem 0; }
+.mast-meta dt {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+}
+.mast-meta dd { margin: 0; font-family: var(--f-mono); font-size: .8125rem; color: var(--ink-soft); }
+
+/* ── sections ───────────────────────────────────────────── */
+.sec { display: flex; flex-direction: column; gap: 1.5rem; }
+.sec-head { display: flex; flex-direction: column; gap: .45rem; }
+.sec-head .eyebrow + h2 { margin-top: -.1rem; }
+
+/* ── the two-filter note ────────────────────────────────── */
+.filters {
+  display: flex; flex-wrap: wrap; gap: .75rem; align-items: stretch;
+  font-family: var(--f-mono); font-size: .8125rem;
+}
+.filter {
+  flex: 1 1 16rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--redline);
+  border-radius: 2px;
+  padding: .85rem 1rem;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.filter b { font-weight: 700; color: var(--ink); letter-spacing: .02em; }
+.filter span { color: var(--ink-soft); line-height: 1.5; }
+
+/* ── specimen frame ─────────────────────────────────────── */
+.frame {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 7px, var(--hatch) 7px 8px);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow-x: auto;
+  padding: 2.75rem;
+}
+.frame-inner { width: 660px; margin: 0 auto; }
+.frame-cap {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 1rem; flex-wrap: wrap;
+  font-family: var(--f-mono); font-size: .6875rem; font-weight: 500;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint);
+  padding-bottom: .55rem;
+  border-bottom: 1px solid var(--rule);
+}
+.frame-cap b { color: var(--redline); font-weight: 700; letter-spacing: .13em; }
+
+/* ── redline callout pins ───────────────────────────────── */
+.pin {
+  position: absolute;
+  z-index: 5;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--redline);
+  color: #fff;
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700;
+  line-height: 20px; text-align: center;
+  box-shadow: 0 0 0 2.5px var(--paper);
+}
+.pin-tl { top: -10px; left: -10px; }
+.pin-tr { top: -10px; right: -10px; }
+.pin-bl { bottom: -10px; left: -10px; }
+
+/* ── redline legend ─────────────────────────────────────── */
+.legend { display: flex; flex-direction: column; gap: 0; }
+.legend li {
+  display: grid; grid-template-columns: 22px 1fr; gap: .85rem;
+  padding: .8rem 0;
+  border-bottom: 1px dashed var(--redline-rule);
+  align-items: start;
+}
+.legend li:first-child { border-top: 1px dashed var(--redline-rule); }
+.legend .num {
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--redline);
+  width: 20px; height: 20px; line-height: 20px; text-align: center;
+  border-radius: 50%; margin-top: .28rem;
+}
+.legend p { font-size: .9375rem; line-height: 1.55; color: var(--ink-soft); }
+.legend p b { color: var(--ink); font-weight: 600; }
+.legend ul { list-style: none; margin: 0; padding: 0; }
+
+/* ── anatomy table ──────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; min-width: 34rem; background: var(--paper-raised); }
+th, td { text-align: left; padding: .8rem 1.1rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+  background: var(--paper); border-bottom: 1px solid var(--rule);
+}
+td { font-size: .9375rem; color: var(--ink-soft); }
+td:first-child { color: var(--ink); font-family: var(--f-mono); font-size: .8125rem; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+
+/* ── state swatches ─────────────────────────────────────── */
+.states { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.state {
+  border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
+  background: var(--paper-raised);
+  display: flex; flex-direction: column;
+}
+.state-chip {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: .5rem .9rem; border-bottom: 1px solid var(--rule);
+  color: var(--ink-faint);
+}
+.state-body { padding: .9rem; background: var(--u-g100); }
+.state-note { padding: .75rem .9rem 1rem; font-size: .875rem; line-height: 1.5; color: var(--ink-soft); }
+
+/* ── numbered steps (a real sequence: one edit, three parts) ───── */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; counter-reset: s; }
+.steps li {
+  counter-increment: s;
+  display: grid; grid-template-columns: 2rem 1fr; gap: 1rem;
+  padding: 1rem 0; border-bottom: 1px solid var(--rule);
+  font-size: .9375rem; line-height: 1.55; color: var(--ink-soft);
+}
+.steps li:first-child { border-top: 1px solid var(--rule); }
+.steps li::before {
+  content: counter(s, decimal-leading-zero);
+  font-family: var(--f-mono); font-size: .75rem; font-weight: 700;
+  color: var(--redline); padding-top: .18rem;
+}
+.steps b { color: var(--ink); font-weight: 600; }
+
+/* ── decision cards ─────────────────────────────────────── */
+.decisions { display: flex; flex-direction: column; gap: 0; }
+.dec {
+  display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.25rem;
+  padding: 1.1rem 0; border-bottom: 1px solid var(--rule); align-items: start;
+}
+.dec:first-child { border-top: 1px solid var(--rule); }
+.dec-tag {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: .3rem .55rem; border-radius: 2px; text-align: center;
+  margin-top: .1rem; white-space: nowrap;
+}
+.dec-tag.settled { background: var(--ink); color: var(--paper); }
+.dec-tag.later { background: var(--redline-wash); color: var(--redline); border: 1px solid var(--redline-rule); }
+.dec-body { display: flex; flex-direction: column; gap: .3rem; }
+.dec-body h3 { font-size: 1rem; }
+.dec-body p { font-size: .9375rem; line-height: 1.55; color: var(--ink-soft); }
+
+/* ── escalation ladder ──────────────────────────────────── */
+.ladder { display: flex; flex-direction: column; gap: 0; counter-reset: l; }
+.ladder-row {
+  counter-increment: l;
+  display: grid; grid-template-columns: 2rem 1fr auto;
+  gap: 1rem; align-items: center;
+  padding: .85rem 0; border-bottom: 1px solid var(--rule);
+  font-family: var(--f-mono); font-size: .8125rem;
+}
+.ladder-row:first-child { border-top: 1px solid var(--rule); }
+.ladder-row::before {
+  content: counter(l); color: var(--redline); font-weight: 700; font-size: .75rem;
+}
+.ladder-row .what { color: var(--ink); letter-spacing: .01em; }
+.ladder-row .what em { font-style: normal; color: var(--ink-faint); }
+.ladder-row .n {
+  font-weight: 700; font-size: 1rem; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ladder-row:last-child .n { color: var(--redline); }
+
+/* ── open questions ─────────────────────────────────────── */
+.qs { display: flex; flex-direction: column; gap: 1rem; }
+.q {
+  background: var(--redline-wash);
+  border: 1px solid var(--redline-rule);
+  border-radius: 3px;
+  padding: 1.1rem 1.25rem;
+  display: flex; flex-direction: column; gap: .4rem;
+}
+.q h3 { color: var(--redline); font-size: .9375rem; }
+.q p { font-size: .9375rem; line-height: 1.55; color: var(--ink-soft); }
+:root[data-theme="dark"] .q p { color: var(--ink-soft); }
+
+.callout {
+  border-left: 3px solid var(--ink);
+  padding: .2rem 0 .2rem 1.15rem;
+  font-size: 1.0625rem; line-height: 1.55;
+  max-width: 38rem;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SPECIMEN — Blue Star UI. Fixed light palette, Inter, real proportions.
+   ════════════════════════════════════════════════════════════════════ */
+.ui {
+  font-family: var(--f-ui);
+  width: 660px;
+  background: var(--u-white);
+  border: 1px solid var(--u-g200);
+  border-radius: 4px;
+  box-shadow: 0 18px 44px -14px rgba(16,24,40,.34);
+  color: var(--u-g900);
+  display: flex; flex-direction: column;
+  position: relative;
+  line-height: normal;
+}
+.ui * { box-sizing: border-box; }
+
+.ui-head { padding: 24px 24px 0; position: relative; }
+.ui-h { font-size: 20px; font-weight: 600; line-height: 30px; color: var(--u-g900); margin: 0; font-family: var(--f-ui); letter-spacing: 0; }
+.ui-sub { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--u-g500); max-width: 480px; position: relative; }
+.ui-x { position: absolute; right: 16px; top: 12px; color: var(--u-g400); }
+
+.ui-body { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+.ui-card { border: 1px solid var(--u-g200); border-radius: 12px; overflow: hidden; }
+
+/* duty info table */
+.ui-info-row { display: flex; height: 40px; border-bottom: 1px solid var(--u-g200); align-items: center; }
+.ui-info-row.alt { background: var(--u-g50); }
+.ui-info-row:last-child { border-bottom: none; }
+.ui-info-row .k { width: 50%; padding: 0 24px; font-size: 14px; font-weight: 500; color: var(--u-g900); }
+.ui-info-row .v { flex: 1; padding: 0 24px; font-size: 14px; color: var(--u-g500); text-align: right; }
+.ui-info-more { text-align: center; font-size: 12px; color: var(--u-g400); letter-spacing: .18em; }
+
+/* section header + toggle */
+.ui-sec { display: flex; flex-direction: column; gap: 12px; }
+.ui-sec-head { display: flex; align-items: center; gap: 12px; }
+.ui-sec-icon {
+  width: 40px; height: 40px; flex: 0 0 40px;
+  border: 1px solid var(--u-g200); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; color: var(--u-g500);
+}
+.ui-sec-txt { flex: 1; min-width: 0; }
+.ui-sec-t { font-size: 16px; font-weight: 500; color: var(--u-g900); margin: 0; }
+.ui-sec-d { font-size: 13px; color: var(--u-g500); margin: 2px 0 0; line-height: 17px; }
+
+.ui-seg {
+  position: relative; flex: 0 0 auto;
+  display: flex; border: 1px solid var(--u-g300); border-radius: 8px; overflow: hidden;
+  background: var(--u-white);
+}
+.ui-seg button {
+  font-family: var(--f-ui); font-size: 12px; font-weight: 600;
+  padding: 7px 12px; border: none; background: var(--u-white); color: var(--u-g500);
+  display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: default;
+}
+.ui-seg button + button { border-left: 1px solid var(--u-g300); }
+.ui-seg button.on { background: var(--u-violet50); color: var(--u-violet600); }
+.ui-seg .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--u-violet600); }
+.ui-seg .ct { color: var(--u-g400); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ui-seg button.on .ct { color: var(--u-violet600); opacity: .75; }
+
+/* tertiary action + back nav */
+.ui-tert {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 10px; border-radius: 8px;
+  background: transparent; border: none;
+  font-family: var(--f-ui); font-size: 14px; font-weight: 600;
+  color: var(--u-violet600); white-space: nowrap;
+}
+.ui-back {
+  position: relative;
+  width: 36px; height: 36px; flex: 0 0 36px; margin-left: -8px;
+  border: none; background: transparent; border-radius: 8px;
+  color: var(--u-g500);
+  display: flex; align-items: center; justify-content: center;
+}
+.ui-head-row { display: flex; align-items: flex-start; gap: 4px; }
+.ui-crumb {
+  font-size: 12px; font-weight: 500; color: var(--u-g500);
+  display: flex; align-items: center; gap: 5px; margin-bottom: 3px;
+}
+
+/* control bar */
+.ui-ctrls { display: flex; align-items: center; gap: 12px; position: relative; }
+.ui-sel {
+  position: relative; flex: 0 0 186px; height: 40px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--u-g300); border-radius: 8px; background: var(--u-white);
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  font-size: 14px; color: var(--u-g900); white-space: nowrap;
+}
+.ui-sel .lbl { color: var(--u-g500); }
+.ui-sel .val { font-weight: 500; }
+.ui-sel .chev { margin-left: auto; color: var(--u-g500); display: flex; }
+.ui-switch {
+  position: relative; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--u-g700); white-space: nowrap;
+}
+.ui-sw {
+  width: 36px; height: 20px; border-radius: 999px; background: var(--u-g200);
+  padding: 2px; display: flex; flex: 0 0 36px;
+}
+.ui-sw.on { background: var(--u-violet600); justify-content: flex-end; }
+.ui-sw i { width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.2); }
+
+/* open dropdown specimen */
+.ui-menu {
+  width: 260px; background: var(--u-white); border: 1px solid var(--u-g200);
+  border-radius: 8px; box-shadow: 0 12px 28px -8px rgba(16,24,40,.28);
+  padding: 4px; display: flex; flex-direction: column;
+}
+.ui-menu .opt {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  padding: 10px 12px; border-radius: 6px; font-size: 14px; color: var(--u-g900);
+}
+.ui-menu .opt.on { background: var(--u-violet50); color: var(--u-violet600); font-weight: 500; }
+.ui-menu .opt .n { font-size: 13px; color: var(--u-g400); font-variant-numeric: tabular-nums; }
+.ui-menu .opt.on .n { color: var(--u-violet600); opacity: .7; }
+.ui-menu .opt.zero { color: var(--u-g400); }
+.ui-menu .rule { height: 1px; background: var(--u-g200); margin: 4px 0; }
+.ui-menu .opt.all { position: relative; }
+
+/* search */
+.ui-search {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 14px;
+  border: 1px solid var(--u-g300); border-radius: 8px;
+  font-size: 14px; color: var(--u-g400);
+}
+
+/* vehicle table */
+.ui-th, .ui-tr { display: grid; grid-template-columns: 1fr 200px 160px; }
+.ui-th { background: var(--u-g50); border-bottom: 1px solid var(--u-g200); }
+.ui-th div { padding: 12px 24px; font-size: 12px; font-weight: 500; color: var(--u-g500); }
+.ui-tr {
+  min-height: 72px; border-bottom: 1px solid var(--u-g200);
+  align-items: center; position: relative;
+}
+.ui-tr:last-child { border-bottom: none; }
+.ui-tr > div { padding: 12px 24px; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.ui-tr .who { flex-direction: row; align-items: center; gap: 12px; }
+.ui-model { font-size: 14px; font-weight: 500; color: var(--u-g900); }
+.ui-num, .ui-name { font-size: 14px; color: var(--u-g500); }
+.ui-dash { font-size: 14px; color: var(--u-g400); }
+.ui-subline { font-size: 12px; color: var(--u-g500); display: flex; align-items: center; gap: 5px; }
+
+.ui-tr.sel { background: var(--u-violet50); box-shadow: inset 2px 0 0 var(--u-violet600); }
+.ui-tr.busy .ui-model, .ui-tr.busy .ui-num, .ui-tr.busy .ui-name { color: var(--u-g400); }
+.ui-tr.busy .ui-subline.warn { color: var(--u-warn700); font-weight: 500; }
+.ui-tr.busy.sel { background: var(--u-warn25); box-shadow: inset 2px 0 0 var(--u-warn500); }
+.warn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--u-warn500); flex: 0 0 6px; }
+
+.ui-av {
+  width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%;
+  background: var(--u-violet100); color: var(--u-violet600);
+  font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* driver table */
+.ui-th2, .ui-tr2 { display: grid; grid-template-columns: 1fr 1fr; }
+.ui-th2 { background: var(--u-g50); border-bottom: 1px solid var(--u-g200); }
+.ui-th2 div { padding: 12px 24px; font-size: 12px; font-weight: 500; color: var(--u-g500); }
+.ui-tr2 { min-height: 72px; border-bottom: 1px solid var(--u-g200); align-items: center; position: relative; }
+.ui-tr2:last-child { border-bottom: none; }
+.ui-tr2 > div { padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+.ui-tr2 .stack { display: flex; flex-direction: column; gap: 3px; }
+.ui-nm { font-size: 14px; font-weight: 500; color: var(--u-g900); }
+.ui-tr2.sel { background: var(--u-violet50); box-shadow: inset 2px 0 0 var(--u-violet600); }
+.ui-tr2.flag .ui-nm, .ui-tr2.flag .ui-num { color: var(--u-g400); }
+.ui-tr2.flag.sel { background: var(--u-warn25); box-shadow: inset 2px 0 0 var(--u-warn500); }
+.ui-av-lg { width: 40px; height: 40px; flex: 0 0 40px; font-size: 13px; }
+
+/* footer */
+.ui-foot {
+  border-top: 1px solid var(--u-g200); padding: 16px 24px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+  position: relative;
+}
+.ui-warnbar {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--u-warn50); border-top: 1px solid var(--u-warn200);
+  padding: 12px 24px; font-size: 13px; line-height: 18px; color: var(--u-warn700);
+  position: relative;
+}
+.ui-warnbar b { font-weight: 600; }
+.ui-btn, .ui-btn-ghost {
+  font-family: var(--f-ui); height: 40px; padding: 0 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 600; border: none; cursor: default; white-space: nowrap;
+}
+.ui-btn { background: var(--u-violet600); color: #fff; position: relative; }
+.ui-btn.warn { background: var(--u-warn500); }
+.ui-btn-ghost { background: var(--u-white); color: var(--u-g700); border: 1px solid var(--u-g300); }
+
+/* empty state */
+.ui-empty { padding: 32px 24px; text-align: center; }
+.ui-empty p { margin: 0; font-size: 14px; }
+.ui-empty .t { font-weight: 500; color: var(--u-g700); }
+.ui-empty .d { margin-top: 4px; color: var(--u-g500); }
+.ui-empty .d em { font-style: normal; font-weight: 600; color: var(--u-violet600); }
+
+/* isolated row specimen used in the state swatches */
+.state .ui { width: 100%; box-shadow: none; border-radius: 6px; }
+
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="sheet">
+
+  <!-- ══ masthead ══════════════════════════════════════════════ -->
+  <header class="mast">
+    <p class="eyebrow">Blue Star · Wireframe · 23 Aug 2026</p>
+    <h1>All Vehicles Escape Hatch</h1>
+    <p class="lede">A second view behind each allotment step, for the times the right vehicle
+      — or the right driver — is the one the filters just hid.</p>
+    <dl class="mast-meta">
+      <div><dt>Surface</dt><dd>AllotDrawer.tsx — 4 views</dd></div>
+      <div><dt>Width</dt><dd>660px drawer</dd></div>
+      <div><dt>Callers</dt><dd>AllBookings · BookingDetail · AllDuties</dd></div>
+      <div><dt>Status</dt><dd>Awaiting sign-off</dd></div>
+    </dl>
+  </header>
+
+  <!-- ══ problem ═══════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">The problem</p>
+      <h2>Both steps filter twice, and neither announces it</h2>
+    </div>
+    <div class="prose">
+      <p>Step 1 narrows the vehicle list twice before the operator sees a single row. Step 2
+        does the same to drivers. Every one of these filters is correct most of the time. None
+        of them can be turned off.</p>
+      <p>The group filter keys off <code>duty.vehicle_group</code> — the value stored on the
+        duty and shown in its info table, derived from the duty type back at booking time.
+        This spec keeps it there rather than re-deriving from <code>duty_types</code>.</p>
+    </div>
+    <div class="filters">
+      <div class="filter">
+        <b>FILTER 1 — GROUP</b>
+        <span>vehicle_groups.name = duty.vehicleGroup</span>
+      </div>
+      <div class="filter">
+        <b>FILTER 2 — TIME</b>
+        <span>no overlapping non-cancelled duty in the window</span>
+      </div>
+      <div class="filter">
+        <b>FILTER 3 — DRIVER STATUS</b>
+        <span>status IN ('Active', 'Available')</span>
+      </div>
+      <div class="filter">
+        <b>FILTER 4 — TIME, AGAIN</b>
+        <span>same overlap rule, applied to drivers</span>
+      </div>
+    </div>
+    <div class="prose">
+      <p>So when the right answer is <em>“put the Innova on it even though this is a Sedan
+        booking”</em>, or <em>“that vehicle finishes at 14:00 and the duty starts at 18:00,
+        whatever the data says”</em>, there is no way through the screen.</p>
+      <p class="callout">Today the operator closes the drawer and edits the booking’s vehicle
+        group instead — corrupting a booking record to get around a UI limit. That workaround
+        is the real cost of the missing control.</p>
+    </div>
+  </section>
+
+  <!-- ══ decision ══════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">The decision</p>
+      <h2>The default view pays nothing</h2>
+    </div>
+    <div class="prose">
+      <p>The screen an operator sees ninety times out of a hundred should not carry the
+        controls for the other ten. Every filter, every switch, every count belongs behind a
+        door — and the door is a single tertiary button.</p>
+      <p>So there are two views, not one screen with modes:</p>
+      <p><strong>View 1 — Assign Vehicle.</strong> Byte for byte what ships today: free vehicles
+        in the duty’s own group, nothing else. One low-emphasis button in the corner.</p>
+      <p><strong>View 2 — All vehicles.</strong> A dedicated surface, reached deliberately, with
+        room to hold the controls properly: group, search, and an <em>Include on-duty</em>
+        switch.</p>
+      <p class="callout">Splitting the views is also what lets the two filters stay honest.
+        <strong>Group is a scope choice</strong> — which class of vehicle goes on this job,
+        made constantly, zero risk. <strong>Availability is a safety line</strong> — the one
+        action here that can write bad data. On a shared control row they blur together; on a
+        dedicated view they can be shaped differently and read differently.</p>
+    </div>
+
+    <div class="prose"><p><strong>What View 2 can reach</strong>, from a Sedan duty on a
+      41-vehicle fleet — the operator always knows which of the two things they relaxed:</p></div>
+    <div class="ladder">
+      <div class="ladder-row"><span class="what">Sedan <em>·</em> free only <em>(= View 1)</em></span><span class="n">6</span></div>
+      <div class="ladder-row"><span class="what">Sedan <em>·</em> include on-duty</span><span class="n">10</span></div>
+      <div class="ladder-row"><span class="what">All groups <em>·</em> free only</span><span class="n">24</span></div>
+      <div class="ladder-row"><span class="what">All groups <em>·</em> include on-duty</span><span class="n">41</span></div>
+    </div>
+    <div class="prose"><p>Row 1 is View 1, so the door opens onto familiar ground. Rows 2–4 are
+      the operator widening deliberately, one axis at a time. An earlier draft of this spec
+      jumped straight from 6 to 41 in a single toggle — landing on 41 rows in one move, nobody
+      can tell why any given row is in front of them.</p></div>
+  </section>
+
+  <!-- ══ wireframe A ═══════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">View 1</p>
+      <h2>Assign Vehicle — unchanged, plus one quiet button</h2>
+    </div>
+
+    <div class="frame">
+      <div class="frame-inner">
+        <p class="frame-cap"><span>View 1 · Sedan, free only</span><b>1 new element</b></p>
+        <div style="height:2.75rem"></div>
+        <div class="ui">
+          <div class="ui-head">
+            <h3 class="ui-h">Assign Vehicle</h3>
+            <p class="ui-sub">Showing Sedan vehicles that are free during this duty.</p>
+            <span class="ui-x">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </span>
+          </div>
+
+          <div class="ui-body">
+            <div class="ui-card">
+              <div class="ui-info-row alt"><span class="k">Duty ID</span><span class="v">1042</span></div>
+              <div class="ui-info-row"><span class="k">Start Date</span><span class="v">12 Aug 2026</span></div>
+              <div class="ui-info-row alt"><span class="k">Reporting Time</span><span class="v">09:30</span></div>
+              <div class="ui-info-row"><span class="k">Vehicle Group</span><span class="v">Sedan</span></div>
+              <div class="ui-info-row alt"><span class="k ui-info-more" style="width:100%;text-align:center">· · · 6 more · · ·</span></div>
+            </div>
+
+            <div class="ui-sec">
+              <div class="ui-sec-head">
+                <div class="ui-sec-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2v-4l-2-5H5L3 13v4h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M9 17h6"/></svg>
+                </div>
+                <div class="ui-sec-txt">
+                  <p class="ui-sec-t">Available vehicles</p>
+                  <p class="ui-sec-d">Tap a vehicle to select it. A vehicle’s own driver is shown beside it.</p>
+                </div>
+                <button class="ui-tert">
+                  <span class="pin pin-tr">1</span>
+                  All vehicles
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+
+              <div class="ui-card">
+                <div class="ui-th"><div>Model name</div><div>Assigned driver</div><div>Vehicle number</div></div>
+                <div class="ui-tr">
+                  <div><span class="ui-model">Dzire</span></div>
+                  <div class="who"><span class="ui-av">RK</span><span class="ui-name">Ramesh K.</span></div>
+                  <div><span class="ui-num">KA01 AB 1234</span></div>
+                </div>
+                <div class="ui-tr">
+                  <div><span class="ui-model">Etios</span></div>
+                  <div class="who"><span class="ui-dash">—</span></div>
+                  <div><span class="ui-num">KA01 CD 5678</span></div>
+                </div>
+                <div class="ui-tr">
+                  <div><span class="ui-model">Amaze</span></div>
+                  <div class="who"><span class="ui-av">SP</span><span class="ui-name">Suresh P.</span></div>
+                  <div><span class="ui-num">KA03 JK 7788</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ui-foot">
+            <button class="ui-btn-ghost">Cancel</button>
+            <button class="ui-btn">Next</button>
+          </div>
+        </div>
+        <div style="height:1.5rem"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <ul>
+        <li><span class="num">1</span>
+          <p><b>One tertiary button — the only change to this view.</b> Untitled UI tertiary:
+          violet label, no fill, no border, so it sits below the vehicle rows in the visual
+          hierarchy and never competes with the list or with <b>Next</b>. It reads as
+          navigation, not as a filter — the chevron says <em>this takes you somewhere</em>. It
+          lives on the section header row, so it costs no vertical space and is exactly where
+          the eye already is when the list disappoints.</p></li>
+      </ul>
+    </div>
+    <div class="prose">
+      <p>That is the whole of View 1. No control row, no counts, no switch. The operator who
+        never needs another vehicle never learns this feature exists, and pays nothing for
+        it.</p>
+    </div>
+  </section>
+
+  <!-- ══ wireframe B ═══════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">View 2</p>
+      <h2>All vehicles — a dedicated surface, reached deliberately</h2>
+    </div>
+
+    <div class="frame">
+      <div class="frame-inner">
+        <p class="frame-cap"><span>View 2 · all groups · on-duty shown · on-duty row selected</span><b>new view</b></p>
+        <div style="height:2.75rem"></div>
+        <div class="ui">
+          <div class="ui-head">
+            <div class="ui-head-row">
+              <button class="ui-back">
+                <span class="pin pin-tl">2</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div style="flex:1;min-width:0">
+                <p class="ui-crumb">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  Back to Sedan · duty 1042
+                </p>
+                <h3 class="ui-h">All vehicles</h3>
+                <p class="ui-sub">Every vehicle in the fleet. Pick one to assign to this duty.</p>
+              </div>
+            </div>
+            <span class="ui-x">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </span>
+          </div>
+
+          <div class="ui-body">
+            <div class="ui-sec">
+              <div class="ui-ctrls">
+                <span class="ui-sel" style="border-color:var(--u-violet600);box-shadow:0 0 0 3px var(--u-violet50)">
+                  <span class="pin pin-tl">3</span>
+                  <span class="lbl">Group</span><span class="val">All groups</span>
+                  <span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+                </span>
+                <div class="ui-search" style="flex:1;min-width:0">
+                  <span class="pin pin-bl" style="left:-10px;bottom:-10px">4</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  Search model or number
+                </div>
+                <span class="ui-switch">
+                  <span class="pin pin-tr">5</span>
+                  <span class="ui-sw on"><i></i></span>Include on-duty
+                </span>
+              </div>
+
+              <div class="ui-card">
+                <div class="ui-th"><div>Model name</div><div>Assigned driver</div><div>Vehicle number</div></div>
+
+                <div class="ui-tr">
+                  <div><span class="ui-model">Dzire</span></div>
+                  <div class="who"><span class="ui-av">RK</span><span class="ui-name">Ramesh K.</span></div>
+                  <div><span class="ui-num">KA01 AB 1234</span></div>
+                </div>
+
+                <div class="ui-tr">
+                  <div>
+                    <span class="pin pin-tl" style="top:14px;left:8px">6</span>
+                    <span class="ui-model">Innova Crysta</span>
+                    <span class="ui-subline">SUV</span>
+                  </div>
+                  <div class="who"><span class="ui-dash">—</span></div>
+                  <div><span class="ui-num">KA01 EF 9012</span></div>
+                </div>
+
+                <div class="ui-tr busy sel">
+                  <div>
+                    <span class="pin pin-tl" style="top:14px;left:8px">7</span>
+                    <span class="ui-model">Etios</span>
+                    <span class="ui-subline">Sedan</span>
+                  </div>
+                  <div class="who"><span class="ui-av" style="background:var(--u-g100);color:var(--u-g400)">SP</span><span class="ui-name">Suresh P.</span></div>
+                  <div>
+                    <span class="ui-num">KA01 CD 5678</span>
+                    <span class="ui-subline warn"><span class="warn-dot"></span>Busy till 18:30</span>
+                  </div>
+                </div>
+
+                <div class="ui-tr busy">
+                  <div>
+                    <span class="ui-model">Fortuner</span>
+                    <span class="ui-subline">SUV</span>
+                  </div>
+                  <div class="who"><span class="ui-dash">—</span></div>
+                  <div>
+                    <span class="ui-num">KA02 GH 3456</span>
+                    <span class="ui-subline warn"><span class="warn-dot"></span>Busy till 21:00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ui-warnbar">
+            <span class="pin pin-tl">8</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 18px;margin-top:1px"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            <span><b>Etios (KA01 CD 5678)</b> is on duty 1032 until 18:30. Assigning it double-books the vehicle.</span>
+          </div>
+          <div class="ui-foot">
+            <button class="ui-btn-ghost">Back</button>
+            <button class="ui-btn warn">Assign anyway</button>
+          </div>
+        </div>
+        <div style="height:1.5rem"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <ul>
+        <li><span class="num">2</span>
+          <p><b>Back, with the duty named in the crumb.</b> This is a view, so it gets a view’s
+          navigation. “Back to Sedan · duty 1042” keeps the original context visible the whole
+          time — the operator can always see what they widened away from, which is the thing
+          they need to remember while browsing.</p></li>
+        <li><span class="num">3</span>
+          <p><b>Group selector, defaulting to All groups.</b> The operator arrived here by
+          asking for more, so the view opens on more. Narrowing to one other group is then a
+          single choice. Reuses the existing <code>SelectField</code> pattern; a native
+          <code>&lt;select&gt;</code> brings keyboard and mobile behaviour for free.</p></li>
+        <li><span class="num">4</span>
+          <p><b>Search, always present.</b> No appear/disappear rule to explain and no layout
+          shift — an always-visible input is both less code and less to reason about than a
+          conditional one.</p></li>
+        <li><span class="num">5</span>
+          <p><b>Include on-duty — off on arrival, and visibly a switch.</b> Reaching this view
+          is <em>not</em> consent to double-book. Widening the group and crossing the safety
+          line stay two separate acts. Reuses <code>components/ui/Toggle.tsx</code>.</p></li>
+        <li><span class="num">6</span>
+          <p><b>Out-of-group is silent, and only shown when it is news.</b> Group name as a
+          subline — no warning, because putting an SUV on a Sedan booking is a normal upgrade,
+          and warning about it trains the operator to ignore warnings. The subline
+          <b>only renders under “All groups”</b>: once you have filtered to SUV, every row is
+          an SUV and the label is noise.</p></li>
+        <li><span class="num">7</span>
+          <p><b>On-duty is loud, and still selectable.</b> Model and number drop to
+          <span class="mono">gray-400</span>, an amber subline says until when, and the
+          selection tint goes <b>amber instead of violet</b> — the colour tells you what you are
+          about to do before you do it. Row height grows 72px → 88px only where a subline exists.</p></li>
+        <li><span class="num">8</span>
+          <p><b>Warning bar appears only on an on-duty selection</b>, names the conflicting
+          duty, and relabels the primary button to <b>Assign anyway</b>. The button states the
+          consequence; it does not ask a question.</p></li>
+      </ul>
+    </div>
+    <div class="prose">
+      <p><strong>The duty info table does not come along.</strong> View 1 already established
+        what this duty is; repeating ten rows of it here would push the vehicle list below the
+        fold on the one screen that exists to show vehicles. The crumb carries the context
+        instead.</p>
+      <p class="callout">Selecting here behaves exactly as it does in View 1 — vehicle with its
+        own driver assigns straight through, vehicle without one advances to Assign Driver.
+        View 2 is a different way to reach the same choice, not a different choice.</p>
+    </div>
+  </section>
+
+  <!-- ══ the group menu ════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">View 2 · the group menu</p>
+      <h2>Narrowing back down, once you are inside</h2>
+    </div>
+    <div class="prose">
+      <p>View 2 opens on <em>All groups</em>. This menu is how an operator narrows again — to
+        the SUVs, say, when they know the substitute is a class up rather than a specific
+        vehicle.</p>
+      <p>Counts sit in the options and <strong>respond to the on-duty switch</strong>. That is
+        what makes the two controls legible as a pair: with the switch off, a group reading
+        <span class="mono">0</span> tells the operator that narrowing the group will not help
+        and the switch is the thing they actually need.</p>
+    </div>
+    <div class="frame">
+      <div class="frame-inner" style="width:260px">
+        <div class="ui-menu">
+          <span class="opt on">All groups <span class="n">24 free</span></span>
+          <span class="rule"></span>
+          <span class="opt">Sedan <span class="n">6 free</span></span>
+          <span class="opt">SUV <span class="n">8 free</span></span>
+          <span class="opt">Tempo Traveller <span class="n">4 free</span></span>
+          <span class="opt zero">Luxury <span class="n">0 free</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="prose">
+      <p><strong>Ordering:</strong> <em>All groups</em> first as the arrival state, then a
+        rule, then the duty’s own group, then the rest alphabetically. The rule marks where
+        “everything” ends and a class of vehicle begins.</p>
+    </div>
+  </section>
+
+  <!-- ══ anatomy ═══════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Row anatomy</p>
+      <h2>No new columns</h2>
+    </div>
+    <div class="prose">
+      <p>Both views share one table. At 660px a five-column grid crushes the model name, so
+        the extra state View 2 needs rides as two sublines inside the columns that already
+        exist — the grid template <code>1fr 200px 160px</code> never changes, and View 1 renders
+        neither subline.</p>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Cell</th><th>Subline</th><th>Shown when</th></tr></thead>
+        <tbody>
+          <tr><td>Model name</td><td>Group name, 12px gray-500</td><td>View 2 on <em>All groups</em> — never in View 1, never when narrowed to one group</td></tr>
+          <tr><td>Vehicle number</td><td>Amber dot + “Busy till 18:30”, 12px warning-700</td><td>vehicle overlaps the duty window</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="states">
+      <div class="state">
+        <p class="state-chip">View 1 · and View 2 narrowed</p>
+        <div class="state-body"><div class="ui"><div class="ui-tr">
+          <div><span class="ui-model">Dzire</span></div>
+          <div class="who"><span class="ui-av">RK</span></div>
+          <div><span class="ui-num">KA01 AB 1234</span></div>
+        </div></div></div>
+        <p class="state-note">Identical to today. No sublines, no chips, no change. This is every row in View 1.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">View 2 · all groups</p>
+        <div class="state-body"><div class="ui"><div class="ui-tr">
+          <div><span class="ui-model">Innova Crysta</span><span class="ui-subline">SUV</span></div>
+          <div class="who"><span class="ui-dash">—</span></div>
+          <div><span class="ui-num">KA01 EF 9012</span></div>
+        </div></div></div>
+        <p class="state-note">One subline. No warning — this is a legitimate upgrade or downgrade.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">On-duty · unselected</p>
+        <div class="state-body"><div class="ui"><div class="ui-tr busy">
+          <div><span class="ui-model">Fortuner</span><span class="ui-subline">SUV</span></div>
+          <div class="who"><span class="ui-dash">—</span></div>
+          <div><span class="ui-num">KA02 GH 3456</span><span class="ui-subline warn"><span class="warn-dot"></span>Busy till 21:00</span></div>
+        </div></div></div>
+        <p class="state-note">Muted, but fully clickable. Reads as a caution, not a disabled row.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">On-duty · selected</p>
+        <div class="state-body"><div class="ui"><div class="ui-tr busy sel">
+          <div><span class="ui-model">Etios</span><span class="ui-subline">Sedan</span></div>
+          <div class="who"><span class="ui-av" style="background:var(--u-g100);color:var(--u-g400)">SP</span></div>
+          <div><span class="ui-num">KA01 CD 5678</span><span class="ui-subline warn"><span class="warn-dot"></span>Busy till 18:30</span></div>
+        </div></div></div>
+        <p class="state-note">Amber tint and amber rail, never violet. Violet means “safe pick”.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ order + empty ═════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Ordering &amp; empty states</p>
+      <h2>Free first, and a dead end that names its own exits</h2>
+    </div>
+    <div class="prose">
+      <p><strong>Order:</strong> free before busy; within each, the duty’s own group before
+        other groups; then model name. One comparator, sorted in memory after the fetch.</p>
+      <p><strong>The empty state is today’s dead end</strong>, and it becomes the best teaching
+        moment in the flow. This is the one place the tertiary button is not enough — an empty
+        table with a quiet link in the corner leaves the operator staring at nothing. So the
+        button repeats here, as a real secondary button, with the count that makes it worth
+        pressing:</p>
+    </div>
+    <div class="frame">
+      <div class="frame-inner" style="width:612px">
+        <div class="ui" style="width:612px">
+          <div class="ui-card" style="border:none">
+            <div class="ui-th"><div>Model name</div><div>Assigned driver</div><div>Vehicle number</div></div>
+            <div class="ui-empty">
+              <p class="t">No Sedan is free during this time</p>
+              <p class="d">24 vehicles in other groups are free, and 4 Sedans are out on duty.</p>
+              <button class="ui-btn-ghost" style="margin-top:16px;display:inline-flex;align-items:center;gap:6px">
+                All vehicles
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ why drivers differ ════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Drivers</p>
+      <h2>The same door, but not the same room behind it</h2>
+    </div>
+    <div class="prose">
+      <p>Assign Driver has the identical dead end, so it gets the identical door: View 1 stays
+        as it ships, one tertiary button opens View 2. But the axes underneath are not the
+        vehicle axes, and copying them literally would produce a wrong screen.</p>
+      <p>A vehicle’s group is a <em>scope</em> — harmless, routine. A driver’s status is
+        <code>'Active' | 'Inactive' | 'Available' | 'Assigned' | 'Unavailable'</code>, and
+        those five split three ways, not two:</p>
+    </div>
+    <div class="filters">
+      <div class="filter" style="border-left-color:var(--ink)">
+        <b>ROUTINE — ASSIGNED</b>
+        <span>a good driver, just spoken for by a vehicle. The real analogue of “other vehicle group”. Mark it, never warn.</span>
+      </div>
+      <div class="filter">
+        <b>FLAGGED — INACTIVE / UNAVAILABLE</b>
+        <span>should not be driving today. Not a time conflict — a second, different warning.</span>
+      </div>
+      <div class="filter">
+        <b>SAFETY LINE — ON DUTY</b>
+        <span>overlaps this duty window. Same rule as vehicles, same switch.</span>
+      </div>
+    </div>
+    <div class="prose">
+      <p class="callout">So a driver row can carry <strong>two unrelated warnings at once</strong>
+        where a vehicle row could only carry one. That is the whole difference, and it lives in
+        the row and the warning bar — <em>not</em> in a third control.</p>
+      <p>One thing the current filter misses entirely, worth knowing before you build:
+        <code>drivers.off_day</code> and the <code>driver_attendance</code> table are not
+        consulted at all. A driver on their weekly off, or marked absent today, shows up as
+        perfectly available. Out of scope here; flagged below.</p>
+    </div>
+  </section>
+
+  <!-- ══ view 3 ════════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">View 3</p>
+      <h2>Assign Driver — unchanged, plus the same quiet button</h2>
+    </div>
+    <div class="frame">
+      <div class="frame-inner">
+        <p class="frame-cap"><span>View 3 · active &amp; free only</span><b>1 new element</b></p>
+        <div style="height:2.75rem"></div>
+        <div class="ui">
+          <div class="ui-head">
+            <h3 class="ui-h">Assign Driver</h3>
+            <p class="ui-sub">Innova Crysta has no driver assigned — choose one for this duty.</p>
+            <span class="ui-x">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </span>
+          </div>
+          <div class="ui-body">
+            <div class="ui-sec">
+              <div class="ui-sec-head">
+                <div class="ui-sec-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <div class="ui-sec-txt">
+                  <p class="ui-sec-t">Available drivers</p>
+                  <p class="ui-sec-d">Active drivers with no duty during this window.</p>
+                </div>
+                <button class="ui-tert">
+                  <span class="pin pin-tr">9</span>
+                  All drivers
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <div class="ui-card">
+                <div class="ui-th2"><div>Name</div><div>Phone number</div></div>
+                <div class="ui-tr2">
+                  <div><span class="ui-av ui-av-lg">RK</span><span class="ui-nm">Ramesh Kumar</span></div>
+                  <div><span class="ui-num">+91 98450 12345</span></div>
+                </div>
+                <div class="ui-tr2">
+                  <div><span class="ui-av ui-av-lg">PS</span><span class="ui-nm">Priya Sharma</span></div>
+                  <div><span class="ui-num">+91 98860 77341</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ui-foot">
+            <button class="ui-btn-ghost">Cancel</button>
+            <button class="ui-btn">Save</button>
+          </div>
+        </div>
+        <div style="height:1.5rem"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <ul>
+        <li><span class="num">9</span>
+          <p><b>Same button, same place, same weight.</b> Whatever an operator learns on the
+          vehicle step transfers here for free. Reached from <code>driverOnlyMode</code>
+          (the Change Driver path) it behaves identically — Back just returns to whichever
+          view opened it.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ view 4 ════════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">View 4</p>
+      <h2>All drivers — two warnings, one row</h2>
+    </div>
+    <div class="frame">
+      <div class="frame-inner">
+        <p class="frame-cap"><span>View 4 · all statuses · on-duty shown · flagged row selected</span><b>new view</b></p>
+        <div style="height:2.75rem"></div>
+        <div class="ui">
+          <div class="ui-head">
+            <div class="ui-head-row">
+              <button class="ui-back">
+                <span class="pin pin-tl">10</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div style="flex:1;min-width:0">
+                <p class="ui-crumb">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  Back to available · Innova Crysta
+                </p>
+                <h3 class="ui-h">All drivers</h3>
+                <p class="ui-sub">Every driver on the roster. Pick one to assign to this duty.</p>
+              </div>
+            </div>
+            <span class="ui-x">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </span>
+          </div>
+          <div class="ui-body">
+            <div class="ui-sec">
+              <div class="ui-ctrls">
+                <span class="ui-sel" style="flex:0 0 210px;border-color:var(--u-violet600);box-shadow:0 0 0 3px var(--u-violet50)">
+                  <span class="pin pin-tl">11</span>
+                  <span class="lbl">Status</span><span class="val">All drivers</span>
+                  <span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+                </span>
+                <div class="ui-search" style="flex:1;min-width:0">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  Search name or phone
+                </div>
+                <span class="ui-switch">
+                  <span class="pin pin-tr">12</span>
+                  <span class="ui-sw on"><i></i></span>Include on-duty
+                </span>
+              </div>
+
+              <div class="ui-card">
+                <div class="ui-th2"><div>Name</div><div>Phone number</div></div>
+
+                <div class="ui-tr2">
+                  <div><span class="ui-av ui-av-lg">RK</span><span class="ui-nm">Ramesh Kumar</span></div>
+                  <div><span class="ui-num">+91 98450 12345</span></div>
+                </div>
+
+                <div class="ui-tr2">
+                  <div>
+                    <span class="pin pin-tl" style="top:14px;left:8px">13</span>
+                    <span class="ui-av ui-av-lg">MD</span>
+                    <span class="stack">
+                      <span class="ui-nm">Mohan Das</span>
+                      <span class="ui-subline">Assigned · Dzire KA01 AB 1234</span>
+                    </span>
+                  </div>
+                  <div><span class="ui-num">+91 99001 55420</span></div>
+                </div>
+
+                <div class="ui-tr2 flag sel">
+                  <div>
+                    <span class="pin pin-tl" style="top:14px;left:8px">14</span>
+                    <span class="ui-av ui-av-lg" style="background:var(--u-g100);color:var(--u-g400)">SP</span>
+                    <span class="stack">
+                      <span class="ui-nm">Suresh Patil</span>
+                      <span class="ui-subline warn" style="color:var(--u-warn700);font-weight:500"><span class="warn-dot"></span>Unavailable</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span class="stack">
+                      <span class="ui-num">+91 98801 20934</span>
+                      <span class="ui-subline warn" style="color:var(--u-warn700);font-weight:500"><span class="warn-dot"></span>On duty till 18:30</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ui-warnbar">
+            <span class="pin pin-tl">15</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 18px;margin-top:1px"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            <span><b>Suresh Patil</b> is on duty 1032 until 18:30, and is marked Unavailable. Assigning them double-books the driver.</span>
+          </div>
+          <div class="ui-foot">
+            <button class="ui-btn-ghost">Back</button>
+            <button class="ui-btn warn">Assign anyway</button>
+          </div>
+        </div>
+        <div style="height:1.5rem"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <ul>
+        <li><span class="num">10</span>
+          <p><b>Crumb names the vehicle, not the group.</b> On the driver step the context an
+          operator needs to hold is <em>which vehicle this driver is for</em>. Same component
+          as View 2, different content — the crumb always carries whatever View 1 established.</p></li>
+        <li><span class="num">11</span>
+          <p><b>Status, where the vehicle view has Group.</b> Options are
+          <em>All drivers</em> · rule · <em>Available &amp; Active</em> ·
+          <em>Assigned to a vehicle</em> · <em>Inactive or Unavailable</em>. Same control, same
+          position, same count behaviour — an operator who has used View 2 already knows this
+          one.</p></li>
+        <li><span class="num">12</span>
+          <p><b>Include on-duty is the same switch, doing the same job.</b> Time conflict is the
+          one axis that means exactly the same thing for a driver as for a vehicle, so it gets
+          the identical control rather than a status option — keeping the safety line in one
+          place on both views.</p></li>
+        <li><span class="num">13</span>
+          <p><b>Assigned is routine, so it is silent.</b> A gray subline naming the vehicle they
+          are attached to, and nothing else. Pulling a vehicle’s regular driver onto a different
+          car for one duty is an ordinary Tuesday; warning about it would train the operator to
+          click past warnings that matter.</p></li>
+        <li><span class="num">14</span>
+          <p><b>Two warnings, two places.</b> Status flags sit under the <em>name</em>; time
+          conflicts sit under the <em>phone</em> — so an operator can tell at a glance which
+          kind of problem a row has without reading. Same amber tint and amber rail as vehicles;
+          a row carrying either flag is amber-selected, never violet.</p></li>
+        <li><span class="num">15</span>
+          <p><b>The warning bar states every reason in one sentence.</b> Not a stack of
+          alerts — one line naming each thing that is wrong, then the consequence. If only one
+          flag applies, only that clause appears.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ data ══════════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">What the data layer needs</p>
+      <h2>Two queries relaxed, two new values in the step machine</h2>
+    </div>
+    <ol class="steps">
+      <li><span><b>Drop <code>.eq('vehicle_groups.name', …)</code></b> — keep the join to read
+        the group name. Today <code>vehicleGroup</code> is hardcoded from
+        <code>duty.vehicleGroup</code> because the filter guaranteed it; in All mode it has to
+        come from the row.</span></li>
+      <li><span><b>Stop discarding busy vehicles — annotate them.</b>
+        <code>busyByVehicle</code> already holds the intervals.
+        <code>isFree()</code> becomes a flag on the row instead of a <code>.filter()</code>.</span></li>
+      <li><span><b>Add <code>id</code> and <code>booking_id</code> to the busy-duty select</b>
+        so the warning bar can name the conflicting duty.</span></li>
+    </ol>
+    <div class="prose">
+      <p>The drawer already runs a step machine — <code>useState&lt;1 | 2&gt;</code>. The two
+        browse views are two more values, <code>'all-vehicles'</code> and
+        <code>'all-drivers'</code>, not new components: same list markup, same
+        <code>handleNext</code> / <code>handleSave</code>, different props. Back returns to the
+        view that opened it; picking falls through exactly as it does today.</p>
+      <p><strong>Drivers need the mirror of the same three edits:</strong> drop the
+        <code>.in('status', …)</code> in the browse view and keep <code>status</code> on the
+        row; stop discarding busy drivers and flag them instead; add <code>id</code> to the
+        busy-duty select so the warning can name the duty. One extra join —
+        <code>vehicles!assigned_driver</code> — supplies the “Assigned · Dzire KA01 AB 1234”
+        subline.</p>
+      <p class="callout">Every combination comes from <strong>one fetch of the whole fleet</strong>.
+        Filter in memory when either control changes — no refetch, no spinner, and all the
+        per-group counts in the menu are free.</p>
+      <p>One build note: <code>SelectField</code> is currently copy-pasted in
+        <code>VehiclesPage</code>, <code>DutyTypesPage</code> and <code>AddBookingDrawer</code>.
+        Lift one into <code>components/ui/</code> and use it here rather than writing a fourth —
+        the <code>Field</code> consolidation in <code>cc97427</code> is the cautionary tale.</p>
+    </div>
+  </section>
+
+  <!-- ══ decisions ═════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Signed off</p>
+      <h2>Decided, and deliberately deferred</h2>
+    </div>
+    <div class="decisions">
+      <div class="dec">
+        <span class="dec-tag settled">Settled</span>
+        <div class="dec-body">
+          <h3>Drivers get the same door</h3>
+          <p>Views 3 and 4 ship in this pass, alongside vehicles. The button, its placement and
+            its weight are identical; only the axes behind it differ.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag settled">Settled</span>
+        <div class="dec-body">
+          <h3>The browse views remember nothing</h3>
+          <p>Every duty opens on View 1, including the next duty in a bulk allotment. The
+            default <em>is</em> the safety, and one click is cheap. Revisit only if someone is
+            watched doing twenty substitutions in a row.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag later">Later</span>
+        <div class="dec-body">
+          <h3>A double-booking leaves no trace</h3>
+          <p>Two duties on one vehicle, or one driver, with nothing in the data marking that a
+            human overrode the check. Fine while allotment is a judgement call. It stops being
+            fine the moment duty slips, payroll or availability reporting start assuming one
+            vehicle, one duty — so this is the thing to come back to before any of those grow
+            teeth. Carry it into the code as a <code>ponytail:</code> comment at the override
+            site so it is findable, not just remembered.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag later">Later</span>
+        <div class="dec-body">
+          <h3>Driver availability ignores leave entirely</h3>
+          <p>Neither <code>drivers.off_day</code> nor <code>driver_attendance</code> is
+            consulted. A driver on their weekly off, or marked absent this morning, reads as
+            fully available in every view including View 3. Found while speccing View 4; not
+            part of this change, and worth its own pass.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>

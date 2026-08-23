@@ -1,0 +1,1380 @@
+<title>Close Duty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap">
+
+<style>
+/* ═══ document chrome — themed ═══════════════════════════════════════ */
+:root {
+  --paper:        #edeef2;
+  --paper-raised: #f7f8fa;
+  --ink:          #14171f;
+  --ink-soft:     #565c6b;
+  --ink-faint:    #878e9e;
+  --rule:         #d2d6e0;
+  --rule-soft:    #e0e3ea;
+  --redline:      #b4341c;
+  --redline-wash: #faede9;
+  --redline-rule: #e8c4bb;
+  --hatch:        rgba(20,23,31,.045);
+
+  --f-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --f-body:    'Newsreader', Georgia, 'Times New Roman', serif;
+  --f-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --f-ui:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:        #14161c;
+    --paper-raised: #1b1e26;
+    --ink:          #e6e9f0;
+    --ink-soft:     #a2a9b8;
+    --ink-faint:    #767d8c;
+    --rule:         #2e333f;
+    --rule-soft:    #262b35;
+    --redline:      #e8785e;
+    --redline-wash: #2a1713;
+    --redline-rule: #563028;
+    --hatch:        rgba(230,233,240,.05);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:        #14161c;
+  --paper-raised: #1b1e26;
+  --ink:          #e6e9f0;
+  --ink-soft:     #a2a9b8;
+  --ink-faint:    #767d8c;
+  --rule:         #2e333f;
+  --rule-soft:    #262b35;
+  --redline:      #e8785e;
+  --redline-wash: #2a1713;
+  --redline-rule: #563028;
+  --hatch:        rgba(230,233,240,.05);
+}
+
+/* ═══ specimen palette — the real Blue Star tokens, deliberately NOT themed.
+       These mocks depict a light-only product; they are specimens, not UI. ══ */
+:root {
+  --u-white:    #ffffff;
+  --u-g25:      #fcfcfd;
+  --u-g50:      #f9fafb;
+  --u-g100:     #f2f4f7;
+  --u-g200:     #eaecf0;
+  --u-g300:     #d0d5dd;
+  --u-g400:     #98a2b3;
+  --u-g500:     #667085;
+  --u-g700:     #344054;
+  --u-g900:     #101828;
+  --u-violet50: #f5f3ff;
+  --u-violet100:#ece9fe;
+  --u-violet600:#7839ee;
+  --u-warn25:   #fffcf5;
+  --u-warn50:   #fffaeb;
+  --u-warn200:  #fedf89;
+  --u-warn500:  #f79009;
+  --u-warn700:  #b54708;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+}
+
+/* ── type roles ─────────────────────────────────────────── */
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: .6875rem;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 6vw, 3.1rem);
+  line-height: 1.04;
+  letter-spacing: -.022em;
+  text-wrap: balance;
+  margin: 0;
+}
+h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -.014em;
+  text-wrap: balance;
+  margin: 0;
+}
+h3 {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -.008em;
+  margin: 0;
+}
+p { margin: 0; }
+.prose { max-width: 40rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.prose strong { font-weight: 600; }
+.lede { font-size: 1.2rem; line-height: 1.5; color: var(--ink-soft); max-width: 34rem; }
+code, .mono { font-family: var(--f-mono); font-size: .8125em; }
+code {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  padding: .08em .34em;
+}
+
+/* ── masthead ───────────────────────────────────────────── */
+.mast { display: flex; flex-direction: column; gap: 1.1rem; }
+.mast-meta {
+  display: flex; flex-wrap: wrap; gap: 0 2.25rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.1rem;
+  margin-top: .6rem;
+}
+.mast-meta div { display: flex; flex-direction: column; gap: .15rem; padding: .35rem 0; }
+.mast-meta dt {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+}
+.mast-meta dd { margin: 0; font-family: var(--f-mono); font-size: .8125rem; color: var(--ink-soft); }
+
+/* ── sections ───────────────────────────────────────────── */
+.sec { display: flex; flex-direction: column; gap: 1.5rem; }
+.sec-head { display: flex; flex-direction: column; gap: .45rem; }
+.sec-head .eyebrow + h2 { margin-top: -.1rem; }
+
+/* ── the two-filter note ────────────────────────────────── */
+.filters {
+  display: flex; flex-wrap: wrap; gap: .75rem; align-items: stretch;
+  font-family: var(--f-mono); font-size: .8125rem;
+}
+.filter {
+  flex: 1 1 16rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--redline);
+  border-radius: 2px;
+  padding: .85rem 1rem;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.filter b { font-weight: 700; color: var(--ink); letter-spacing: .02em; }
+.filter span { color: var(--ink-soft); line-height: 1.5; }
+
+/* ── specimen frame ─────────────────────────────────────── */
+.frame {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 7px, var(--hatch) 7px 8px);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow-x: auto;
+  padding: 2.75rem;
+}
+.frame-inner { width: 660px; margin: 0 auto; }
+.frame-cap {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 1rem; flex-wrap: wrap;
+  font-family: var(--f-mono); font-size: .6875rem; font-weight: 500;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint);
+  padding-bottom: .55rem;
+  border-bottom: 1px solid var(--rule);
+}
+.frame-cap b { color: var(--redline); font-weight: 700; letter-spacing: .13em; }
+
+/* ── redline callout pins ───────────────────────────────── */
+.pin {
+  position: absolute;
+  z-index: 5;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--redline);
+  color: #fff;
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700;
+  line-height: 20px; text-align: center;
+  box-shadow: 0 0 0 2.5px var(--paper);
+}
+.pin-tl { top: -10px; left: -10px; }
+.pin-tr { top: -10px; right: -10px; }
+.pin-bl { bottom: -10px; left: -10px; }
+
+/* ── redline legend ─────────────────────────────────────── */
+.legend { display: flex; flex-direction: column; gap: 0; }
+.legend li {
+  display: grid; grid-template-columns: 22px 1fr; gap: .85rem;
+  padding: .8rem 0;
+  border-bottom: 1px dashed var(--redline-rule);
+  align-items: start;
+}
+.legend li:first-child { border-top: 1px dashed var(--redline-rule); }
+.legend .num {
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--redline);
+  width: 20px; height: 20px; line-height: 20px; text-align: center;
+  border-radius: 50%; margin-top: .28rem;
+}
+.legend p { font-size: .9375rem; line-height: 1.55; color: var(--ink-soft); }
+.legend p b { color: var(--ink); font-weight: 600; }
+.legend ul { list-style: none; margin: 0; padding: 0; }
+
+/* ── anatomy table ──────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; min-width: 34rem; background: var(--paper-raised); }
+th, td { text-align: left; padding: .8rem 1.1rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+  background: var(--paper); border-bottom: 1px solid var(--rule);
+}
+td { font-size: .9375rem; color: var(--ink-soft); }
+td:first-child { color: var(--ink); font-family: var(--f-mono); font-size: .8125rem; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+
+/* ── state swatches ─────────────────────────────────────── */
+.states { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.state {
+  border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
+  background: var(--paper-raised);
+  display: flex; flex-direction: column;
+}
+.state-chip {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: .5rem .9rem; border-bottom: 1px solid var(--rule);
+  color: var(--ink-faint);
+}
+.state-body { padding: .9rem; background: var(--u-g100); }
+.state-note { padding: .75rem .9rem 1rem; font-size: .875rem; line-height: 1.5; color: var(--ink-soft); }
+
+/* ── numbered steps (a real sequence: one edit, three parts) ───── */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; counter-reset: s; }
+.steps li {
+  counter-increment: s;
+  display: grid; grid-template-columns: 2rem 1fr; gap: 1rem;
+  padding: 1rem 0; border-bottom: 1px solid var(--rule);
+  font-size: .9375rem; line-height: 1.55; color: var(--ink-soft);
+}
+.steps li:first-child { border-top: 1px solid var(--rule); }
+.steps li::before {
+  content: counter(s, decimal-leading-zero);
+  font-family: var(--f-mono); font-size: .75rem; font-weight: 700;
+  color: var(--redline); padding-top: .18rem;
+}
+.steps b { color: var(--ink); font-weight: 600; }
+
+/* ── decision cards ─────────────────────────────────────── */
+.decisions { display: flex; flex-direction: column; gap: 0; }
+.dec {
+  display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.25rem;
+  padding: 1.1rem 0; border-bottom: 1px solid var(--rule); align-items: start;
+}
+.dec:first-child { border-top: 1px solid var(--rule); }
+.dec-tag {
+  font-family: var(--f-mono); font-size: .625rem; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: .3rem .55rem; border-radius: 2px; text-align: center;
+  margin-top: .1rem; white-space: nowrap;
+}
+.dec-tag.settled { background: var(--ink); color: var(--paper); }
+.dec-tag.later { background: var(--redline-wash); color: var(--redline); border: 1px solid var(--redline-rule); }
+.dec-body { display: flex; flex-direction: column; gap: .3rem; }
+.dec-body h3 { font-size: 1rem; }
+.dec-body p { font-size: .9375rem; line-height: 1.55; color: var(--ink-soft); }
+
+/* ── escalation ladder ──────────────────────────────────── */
+.ladder { display: flex; flex-direction: column; gap: 0; counter-reset: l; }
+.ladder-row {
+  counter-increment: l;
+  display: grid; grid-template-columns: 2rem 1fr auto;
+  gap: 1rem; align-items: center;
+  padding: .85rem 0; border-bottom: 1px solid var(--rule);
+  font-family: var(--f-mono); font-size: .8125rem;
+}
+.ladder-row:first-child { border-top: 1px solid var(--rule); }
+.ladder-row::before {
+  content: counter(l); color: var(--redline); font-weight: 700; font-size: .75rem;
+}
+.ladder-row .what { color: var(--ink); letter-spacing: .01em; }
+.ladder-row .what em { font-style: normal; color: var(--ink-faint); }
+.ladder-row .n {
+  font-weight: 700; font-size: 1rem; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ladder-row:last-child .n { color: var(--redline); }
+
+/* ── open questions ─────────────────────────────────────── */
+.qs { display: flex; flex-direction: column; gap: 1rem; }
+.q {
+  background: var(--redline-wash);
+  border: 1px solid var(--redline-rule);
+  border-radius: 3px;
+  padding: 1.1rem 1.25rem;
+  display: flex; flex-direction: column; gap: .4rem;
+}
+.q h3 { color: var(--redline); font-size: .9375rem; }
+.q p { font-size: .9375rem; line-height: 1.55; color: var(--ink-soft); }
+:root[data-theme="dark"] .q p { color: var(--ink-soft); }
+
+.callout {
+  border-left: 3px solid var(--ink);
+  padding: .2rem 0 .2rem 1.15rem;
+  font-size: 1.0625rem; line-height: 1.55;
+  max-width: 38rem;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SPECIMEN — Blue Star UI. Fixed light palette, Inter, real proportions.
+   ════════════════════════════════════════════════════════════════════ */
+.ui {
+  font-family: var(--f-ui);
+  width: 660px;
+  background: var(--u-white);
+  border: 1px solid var(--u-g200);
+  border-radius: 4px;
+  box-shadow: 0 18px 44px -14px rgba(16,24,40,.34);
+  color: var(--u-g900);
+  display: flex; flex-direction: column;
+  position: relative;
+  line-height: normal;
+}
+.ui * { box-sizing: border-box; }
+
+.ui-head { padding: 24px 24px 0; position: relative; }
+.ui-h { font-size: 20px; font-weight: 600; line-height: 30px; color: var(--u-g900); margin: 0; font-family: var(--f-ui); letter-spacing: 0; }
+.ui-sub { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--u-g500); max-width: 480px; position: relative; }
+.ui-x { position: absolute; right: 16px; top: 12px; color: var(--u-g400); }
+
+.ui-body { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+.ui-card { border: 1px solid var(--u-g200); border-radius: 12px; overflow: hidden; }
+
+/* duty info table */
+.ui-info-row { display: flex; height: 40px; border-bottom: 1px solid var(--u-g200); align-items: center; }
+.ui-info-row.alt { background: var(--u-g50); }
+.ui-info-row:last-child { border-bottom: none; }
+.ui-info-row .k { width: 50%; padding: 0 24px; font-size: 14px; font-weight: 500; color: var(--u-g900); }
+.ui-info-row .v { flex: 1; padding: 0 24px; font-size: 14px; color: var(--u-g500); text-align: right; }
+.ui-info-more { text-align: center; font-size: 12px; color: var(--u-g400); letter-spacing: .18em; }
+
+/* section header + toggle */
+.ui-sec { display: flex; flex-direction: column; gap: 12px; }
+.ui-sec-head { display: flex; align-items: center; gap: 12px; }
+.ui-sec-icon {
+  width: 40px; height: 40px; flex: 0 0 40px;
+  border: 1px solid var(--u-g200); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; color: var(--u-g500);
+}
+.ui-sec-txt { flex: 1; min-width: 0; }
+.ui-sec-t { font-size: 16px; font-weight: 500; color: var(--u-g900); margin: 0; }
+.ui-sec-d { font-size: 13px; color: var(--u-g500); margin: 2px 0 0; line-height: 17px; }
+
+.ui-seg {
+  position: relative; flex: 0 0 auto;
+  display: flex; border: 1px solid var(--u-g300); border-radius: 8px; overflow: hidden;
+  background: var(--u-white);
+}
+.ui-seg button {
+  font-family: var(--f-ui); font-size: 12px; font-weight: 600;
+  padding: 7px 12px; border: none; background: var(--u-white); color: var(--u-g500);
+  display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: default;
+}
+.ui-seg button + button { border-left: 1px solid var(--u-g300); }
+.ui-seg button.on { background: var(--u-violet50); color: var(--u-violet600); }
+.ui-seg .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--u-violet600); }
+.ui-seg .ct { color: var(--u-g400); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ui-seg button.on .ct { color: var(--u-violet600); opacity: .75; }
+
+/* tertiary action + back nav */
+.ui-tert {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 10px; border-radius: 8px;
+  background: transparent; border: none;
+  font-family: var(--f-ui); font-size: 14px; font-weight: 600;
+  color: var(--u-violet600); white-space: nowrap;
+}
+.ui-back {
+  position: relative;
+  width: 36px; height: 36px; flex: 0 0 36px; margin-left: -8px;
+  border: none; background: transparent; border-radius: 8px;
+  color: var(--u-g500);
+  display: flex; align-items: center; justify-content: center;
+}
+.ui-head-row { display: flex; align-items: flex-start; gap: 4px; }
+.ui-crumb {
+  font-size: 12px; font-weight: 500; color: var(--u-g500);
+  display: flex; align-items: center; gap: 5px; margin-bottom: 3px;
+}
+
+/* control bar */
+.ui-ctrls { display: flex; align-items: center; gap: 12px; position: relative; }
+.ui-sel {
+  position: relative; flex: 0 0 186px; height: 40px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--u-g300); border-radius: 8px; background: var(--u-white);
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  font-size: 14px; color: var(--u-g900); white-space: nowrap;
+}
+.ui-sel .lbl { color: var(--u-g500); }
+.ui-sel .val { font-weight: 500; }
+.ui-sel .chev { margin-left: auto; color: var(--u-g500); display: flex; }
+.ui-switch {
+  position: relative; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--u-g700); white-space: nowrap;
+}
+.ui-sw {
+  width: 36px; height: 20px; border-radius: 999px; background: var(--u-g200);
+  padding: 2px; display: flex; flex: 0 0 36px;
+}
+.ui-sw.on { background: var(--u-violet600); justify-content: flex-end; }
+.ui-sw i { width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.2); }
+
+/* open dropdown specimen */
+.ui-menu {
+  width: 260px; background: var(--u-white); border: 1px solid var(--u-g200);
+  border-radius: 8px; box-shadow: 0 12px 28px -8px rgba(16,24,40,.28);
+  padding: 4px; display: flex; flex-direction: column;
+}
+.ui-menu .opt {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  padding: 10px 12px; border-radius: 6px; font-size: 14px; color: var(--u-g900);
+}
+.ui-menu .opt.on { background: var(--u-violet50); color: var(--u-violet600); font-weight: 500; }
+.ui-menu .opt .n { font-size: 13px; color: var(--u-g400); font-variant-numeric: tabular-nums; }
+.ui-menu .opt.on .n { color: var(--u-violet600); opacity: .7; }
+.ui-menu .opt.zero { color: var(--u-g400); }
+.ui-menu .rule { height: 1px; background: var(--u-g200); margin: 4px 0; }
+.ui-menu .opt.all { position: relative; }
+
+/* search */
+.ui-search {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 14px;
+  border: 1px solid var(--u-g300); border-radius: 8px;
+  font-size: 14px; color: var(--u-g400);
+}
+
+/* vehicle table */
+.ui-th, .ui-tr { display: grid; grid-template-columns: 1fr 200px 160px; }
+.ui-th { background: var(--u-g50); border-bottom: 1px solid var(--u-g200); }
+.ui-th div { padding: 12px 24px; font-size: 12px; font-weight: 500; color: var(--u-g500); }
+.ui-tr {
+  min-height: 72px; border-bottom: 1px solid var(--u-g200);
+  align-items: center; position: relative;
+}
+.ui-tr:last-child { border-bottom: none; }
+.ui-tr > div { padding: 12px 24px; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.ui-tr .who { flex-direction: row; align-items: center; gap: 12px; }
+.ui-model { font-size: 14px; font-weight: 500; color: var(--u-g900); }
+.ui-num, .ui-name { font-size: 14px; color: var(--u-g500); }
+.ui-dash { font-size: 14px; color: var(--u-g400); }
+.ui-subline { font-size: 12px; color: var(--u-g500); display: flex; align-items: center; gap: 5px; }
+
+.ui-tr.sel { background: var(--u-violet50); box-shadow: inset 2px 0 0 var(--u-violet600); }
+.ui-tr.busy .ui-model, .ui-tr.busy .ui-num, .ui-tr.busy .ui-name { color: var(--u-g400); }
+.ui-tr.busy .ui-subline.warn { color: var(--u-warn700); font-weight: 500; }
+.ui-tr.busy.sel { background: var(--u-warn25); box-shadow: inset 2px 0 0 var(--u-warn500); }
+.warn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--u-warn500); flex: 0 0 6px; }
+
+.ui-av {
+  width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%;
+  background: var(--u-violet100); color: var(--u-violet600);
+  font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* driver table */
+.ui-th2, .ui-tr2 { display: grid; grid-template-columns: 1fr 1fr; }
+.ui-th2 { background: var(--u-g50); border-bottom: 1px solid var(--u-g200); }
+.ui-th2 div { padding: 12px 24px; font-size: 12px; font-weight: 500; color: var(--u-g500); }
+.ui-tr2 { min-height: 72px; border-bottom: 1px solid var(--u-g200); align-items: center; position: relative; }
+.ui-tr2:last-child { border-bottom: none; }
+.ui-tr2 > div { padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+.ui-tr2 .stack { display: flex; flex-direction: column; gap: 3px; }
+.ui-nm { font-size: 14px; font-weight: 500; color: var(--u-g900); }
+.ui-tr2.sel { background: var(--u-violet50); box-shadow: inset 2px 0 0 var(--u-violet600); }
+.ui-tr2.flag .ui-nm, .ui-tr2.flag .ui-num { color: var(--u-g400); }
+.ui-tr2.flag.sel { background: var(--u-warn25); box-shadow: inset 2px 0 0 var(--u-warn500); }
+.ui-av-lg { width: 40px; height: 40px; flex: 0 0 40px; font-size: 13px; }
+
+/* footer */
+.ui-foot {
+  border-top: 1px solid var(--u-g200); padding: 16px 24px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+  position: relative;
+}
+.ui-warnbar {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--u-warn50); border-top: 1px solid var(--u-warn200);
+  padding: 12px 24px; font-size: 13px; line-height: 18px; color: var(--u-warn700);
+  position: relative;
+}
+.ui-warnbar b { font-weight: 600; }
+.ui-btn, .ui-btn-ghost {
+  font-family: var(--f-ui); height: 40px; padding: 0 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 600; border: none; cursor: default; white-space: nowrap;
+}
+.ui-btn { background: var(--u-violet600); color: #fff; position: relative; }
+.ui-btn.warn { background: var(--u-warn500); }
+.ui-btn-ghost { background: var(--u-white); color: var(--u-g700); border: 1px solid var(--u-g300); }
+
+/* empty state */
+.ui-empty { padding: 32px 24px; text-align: center; }
+.ui-empty p { margin: 0; font-size: 14px; }
+.ui-empty .t { font-weight: 500; color: var(--u-g700); }
+.ui-empty .d { margin-top: 4px; color: var(--u-g500); }
+.ui-empty .d em { font-style: normal; font-weight: 600; color: var(--u-violet600); }
+
+/* isolated row specimen used in the state swatches */
+.state .ui { width: 100%; box-shadow: none; border-radius: 6px; }
+
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--redline); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ═══ form primitives — added for Close Duty ══════════════════════════ */
+.ui-fs { display: flex; flex-direction: column; gap: 12px; }
+.ui-fs-lbl {
+  font-size: 11px; font-weight: 600; letter-spacing: .14em;
+  color: var(--u-g400); text-transform: uppercase;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.ui-row2 { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 12px; }
+.ui-lbl { font-size: 14px; color: var(--u-g700); }
+.ui-in {
+  height: 40px; padding: 0 12px; display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--u-g300); border-radius: 8px; background: var(--u-white);
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+  font-size: 14px; color: var(--u-g900); font-variant-numeric: tabular-nums;
+  position: relative;
+}
+.ui-in.ph { color: var(--u-g400); }
+.ui-in .unit { margin-left: auto; color: var(--u-g400); font-size: 13px; }
+.ui-in.bad { border-color: var(--u-warn500); box-shadow: 0 0 0 3px var(--u-warn50); }
+.ui-pair { display: flex; gap: 8px; align-items: center; }
+.ui-pair .ui-in.dt { flex: 0 0 140px; }
+.ui-pair .ui-in.tm { flex: 0 0 104px; }
+.ui-pair .ui-in.od { flex: 0 0 140px; }
+.ui-hint { font-size: 12px; color: var(--u-g400); }
+.ui-err { font-size: 12px; color: var(--u-warn700); font-weight: 500; }
+
+.ui-ck { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--u-g700); white-space: nowrap; }
+.ui-box { width: 16px; height: 16px; flex: 0 0 16px; border: 1px solid var(--u-g300); border-radius: 4px; background: var(--u-white); }
+.ui-box.on { background: var(--u-violet600); border-color: var(--u-violet600); display: flex; align-items: center; justify-content: center; color: #fff; }
+
+.ui-lock { background: var(--u-g25); border: 1px solid var(--u-g200); border-radius: 12px; overflow: hidden; }
+.ui-lock-h {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; background: var(--u-g50); border-bottom: 1px solid var(--u-g200);
+  font-size: 11px; font-weight: 600; letter-spacing: .14em; color: var(--u-g500); text-transform: uppercase;
+}
+.ui-lock-r { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--u-g200); }
+.ui-lock-r:last-child { border-bottom: none; }
+.ui-lock-r .k { flex: 0 0 92px; font-size: 13px; color: var(--u-g500); }
+.ui-lock-r .v { font-size: 14px; font-weight: 500; color: var(--u-g900); font-variant-numeric: tabular-nums; }
+.ui-lock-r .sp { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.ui-evi {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 24px; padding: 0 8px; border-radius: 6px;
+  background: var(--u-violet50); color: var(--u-violet600);
+  font-size: 12px; font-weight: 500;
+}
+.ui-corr { font-size: 13px; font-weight: 600; color: var(--u-violet600); }
+
+.ui-calc { border: 1px solid var(--u-g200); border-radius: 12px; overflow: hidden; }
+.ui-calc-h {
+  padding: 10px 16px; background: var(--u-g50); border-bottom: 1px solid var(--u-g200);
+  font-size: 11px; font-weight: 600; letter-spacing: .14em; color: var(--u-g500); text-transform: uppercase;
+}
+.ui-calc-r { display: grid; grid-template-columns: 92px 1fr auto; align-items: baseline; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--u-g100); }
+.ui-calc-r:last-child { border-bottom: none; }
+.ui-calc-r .k { font-size: 13px; color: var(--u-g500); }
+.ui-calc-r .v { font-size: 14px; font-weight: 500; color: var(--u-g900); font-variant-numeric: tabular-nums; }
+.ui-calc-r .v.none { color: var(--u-g400); font-weight: 400; }
+.ui-calc-r .x { font-size: 12px; color: var(--u-g400); text-align: right; font-variant-numeric: tabular-nums; }
+
+.ui-bnr {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--u-violet50); border: 1px solid var(--u-violet100); border-radius: 10px;
+  padding: 11px 14px; font-size: 13px; line-height: 18px; color: var(--u-g700);
+  position: relative;
+}
+.ui-bnr b { color: var(--u-violet600); font-weight: 600; }
+.ui-bnr.warn { background: var(--u-warn50); border-color: var(--u-warn200); color: var(--u-warn700); }
+.ui-bnr.warn b { color: var(--u-warn700); }
+
+.ui-exp { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--u-g100); font-size: 14px; }
+.ui-exp.last { border-bottom: none; }
+.ui-exp .t { color: var(--u-g900); }
+.ui-exp .a { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ui-add { font-size: 13px; font-weight: 600; color: var(--u-violet600); }
+
+.ui-prov { font-size: 12px; line-height: 17px; color: var(--u-g500); position: relative; }
+
+</style>
+
+<div class="sheet">
+
+  <!-- ══ masthead ══════════════════════════════════════════════ -->
+  <header class="mast">
+    <p class="eyebrow">Blue Star · Wireframe · 23 Aug 2026</p>
+    <h1>Close Duty</h1>
+    <p class="lede">The operator's path to finishing a duty the driver could not — because
+      twenty-seven of thirty-one drivers have no app, and a duty that never closes never
+      bills for the hours or the kilometres it actually ran.</p>
+    <dl class="mast-meta">
+      <div><dt>Surface</dt><dd>CloseDutyModal — new, 3 states</dd></div>
+      <div><dt>Width</dt><dd>640px centred modal</dd></div>
+      <div><dt>Callers</dt><dd>AllDuties · BookingDetail</dd></div>
+      <div><dt>Status</dt><dd>Awaiting sign-off</dd></div>
+    </dl>
+  </header>
+
+  <!-- ══ problem ═══════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">The problem</p>
+      <h2>Four columns, one writer, and most drivers can't reach it</h2>
+    </div>
+    <div class="prose">
+      <p>Everything that turns a duty from <em>scheduled</em> into <em>settled</em> is written
+        by exactly one function — <code>driver_close_duty</code>, gated on
+        <code>current_driver_id()</code>. There is no operator equivalent. Nothing else in the
+        product writes these:</p>
+    </div>
+    <div class="filters">
+      <div class="filter">
+        <b>CLOSED_AT</b>
+        <span>when the duty actually ended — drives every overtime calculation</span>
+      </div>
+      <div class="filter">
+        <b>END_ODO</b>
+        <span>closing reading — with start_odo, the entire extra-kilometre charge</span>
+      </div>
+      <div class="filter">
+        <b>END_ODO_PHOTO</b>
+        <span>evidence behind the reading</span>
+      </div>
+      <div class="filter">
+        <b>SIGNATURE_PATH</b>
+        <span>the passenger's authority, per FR-57</span>
+      </div>
+    </div>
+    <div class="prose">
+      <p class="callout"><b>27 of 31 drivers have no <code>auth_user_id</code>.</b> They cannot
+        sign in, so they cannot reach that function. For 87% of the fleet the driver-app close
+        is not a path that sometimes fails — it is a path that does not exist. Operator close
+        is the <em>primary</em> capture route, and it has never been built.</p>
+      <p>The cost is quiet, which is what makes it expensive. <code>computeAllowances</code>
+        returns zero overtime when <code>closed_at</code> is null. <code>kmTotals</code> and
+        <code>timeTotals</code> return null without their pairs, so the duty slip prints an
+        em-dash and the invoice goes out at base rate. Nobody sees an error; the operator sees
+        a duty marked <em>Completed</em> and moves on.</p>
+    </div>
+  </section>
+
+  <!-- ══ reframe ═══════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">The reframe</p>
+      <h2>This is transcription, not review</h2>
+    </div>
+    <div class="prose">
+      <p class="callout">“If the driver fails to add certain things while completing his duty,
+        or rather does not even start the duty, the fallback option is for the operator to get
+        all the details from him and add those himself and close the duty.”</p>
+      <p>That sentence is the whole specification. The operator is not auditing a completed
+        record — they are <strong>on the phone to a driver</strong>, or reading a paper slip,
+        writing down what they are told. Three consequences follow, and they shape everything
+        below:</p>
+      <p><strong>Field order follows the story, not the schema.</strong> A driver narrates a
+        trip as <em>left at seven, meter said forty-five thousand, dropped at seven in the
+        evening, forty-five two sixty-two, two hundred rupees of toll</em>. The form asks in
+        that order.</p>
+      <p><strong>The driver's phone number belongs on this screen.</strong> They are being
+        called right now, or are about to be. Making the operator leave the modal to find a
+        number is the single most likely reason this form gets abandoned half-filled.</p>
+      <p><strong>Photographs and signatures cannot be obtained over a phone call.</strong>
+        Their absence is the expected condition, not a failure state — and it is precisely
+        what marks the record as operator-sourced. No extra flag is needed:
+        <code>end_odo_photo IS NULL AND closed_by_profile IS NOT NULL</code> says it exactly.</p>
+    </div>
+  </section>
+
+  <!-- ══ capture states ════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Use cases</p>
+      <h2>What the operator finds when they open a duty</h2>
+    </div>
+    <div class="prose">
+      <p>The driver app writes its five fields at three separate moments, so the operator can
+        arrive at any point in a partially-written record. Every combination below is reachable
+        in production today. The form has to read the row and decide what to ask for — it can
+        never assume it is starting from nothing, and it can never assume it is finishing
+        someone else's work.</p>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>State</th><th>What exists</th><th>How it happens</th><th>What Close Duty asks for</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>S0 · Blank</td>
+            <td>Nothing. All five null.</td>
+            <td>Driver has no login — the default for 27 of 31. Or has one and never opened it.</td>
+            <td><b>Everything.</b> Start pair, close pair, expenses. The common case by volume.</td>
+          </tr>
+          <tr>
+            <td>S1 · Started</td>
+            <td><code>started_at</code>, <code>start_odo</code>, photo</td>
+            <td>Driver started, then stopped — battery, signal, or simply forgot. Two such duties live in production now.</td>
+            <td><b>The close half only.</b> The start block is the driver's and shows locked.</td>
+          </tr>
+          <tr>
+            <td>S2 · On board</td>
+            <td>S1 + <code>picked_up_at</code></td>
+            <td>Driver confirmed pickup, never closed.</td>
+            <td>Identical to S1. Pickup changes nothing about what is missing.</td>
+          </tr>
+          <tr class="dim">
+            <td>S3 · Closed</td>
+            <td>All five, plus signature</td>
+            <td>The driver app worked exactly as designed.</td>
+            <td><b>Nothing — the action is absent.</b> Changing a figure here is FR-56 correction, on the duty slip.</td>
+          </tr>
+          <tr class="dim">
+            <td>S4 · No-show</td>
+            <td><code>no_show_reason</code>, <code>closed_at</code></td>
+            <td>Driver marked a no-show, which closes the duty without an end reading.</td>
+            <td><b>Nothing — already closed.</b> The absent odometer is correct, not missing.</td>
+          </tr>
+          <tr>
+            <td>S5 · Back-dated</td>
+            <td>Nothing, and the dates are already past</td>
+            <td>Operator entered historical work, then allotted a vehicle to it.</td>
+            <td>Same as S0. Different intent — a paper slip from weeks ago, not a call tonight.</td>
+          </tr>
+          <tr>
+            <td>S6 · No driver</td>
+            <td>Vehicle allotted, <code>driver_id</code> null</td>
+            <td>Allotment permits a vehicle with no driver. Someone still drove it.</td>
+            <td>Same as S0, minus the person to call. Attribution names no driver.</td>
+          </tr>
+          <tr>
+            <td>S7 · Expenses only</td>
+            <td>Expense rows, no odometer</td>
+            <td>Driver logged tolls in the app but never closed the duty.</td>
+            <td>S0's questions, <b>with the logged expenses shown</b> so they are not entered twice.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <p class="callout"><b>S3 and S4 are the two states where Close Duty must not appear at
+        all.</b> Both are already closed. Offering the action there would invite an operator to
+        overwrite a signed record with a remembered one — and FR-57 makes the passenger
+        signature the authority, so that trade is never worth making.</p>
+    </div>
+  </section>
+
+  <!-- ══ wireframe A ═══════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">State 1 · S0, S5, S6</p>
+      <h2>Nothing was captured — the operator enters all of it</h2>
+    </div>
+    <div class="prose">
+      <p>The default case for twenty-seven drivers. The operator has the duty on screen and the
+        driver on the phone.</p>
+    </div>
+
+    <div class="frame">
+      <div class="frame-inner" style="width:640px">
+        <p class="frame-cap"><span>Close Duty · blank record</span><b>new surface</b></p>
+        <div style="height:2.75rem"></div>
+
+        <div class="ui" style="width:640px">
+          <div class="ui-head">
+            <h3 class="ui-h">Close duty</h3>
+            <p class="ui-sub">BK-00021-2 · Sharma Textiles · 23 Aug 2026</p>
+            <span class="ui-x">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </span>
+          </div>
+
+          <div class="ui-body">
+
+            <div class="ui-card" style="position:relative">
+              <span class="pin pin-tr">1</span>
+              <div class="ui-info-row alt">
+                <span class="k">Driver</span>
+                <span class="v" style="display:flex;align-items:center;justify-content:flex-end;gap:10px">
+                  Ramesh Kumar
+                  <span class="ui-evi">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/></svg>
+                    98765 43210
+                  </span>
+                </span>
+              </div>
+              <div class="ui-info-row"><span class="k">Vehicle</span><span class="v">Dzire · KA01 AB 1234</span></div>
+              <div class="ui-info-row alt"><span class="k">Planned window</span><span class="v">23 Aug 07:00 &nbsp;→&nbsp; 23 Aug 19:00</span></div>
+              <div class="ui-info-row"><span class="k">Duty type</span><span class="v">Local 12hr / 120km</span></div>
+            </div>
+
+            <div class="ui-bnr">
+              <span class="pin pin-tl">2</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="flex:0 0 16px;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <span>Nothing was recorded in the driver app. <b>Ramesh has no app login</b> — enter what he reports.</span>
+            </div>
+
+            <div class="ui-fs">
+              <p class="ui-fs-lbl">Start</p>
+              <div class="ui-row2">
+                <span class="ui-lbl">Left garage</span>
+                <div class="ui-pair" style="position:relative">
+                  <span class="pin pin-tr">3</span>
+                  <span class="ui-in dt">23/08/2026</span>
+                  <span class="ui-in tm">07:00</span>
+                  <span class="ui-hint">from the booking</span>
+                </div>
+              </div>
+              <div class="ui-row2">
+                <span class="ui-lbl">Odometer</span>
+                <div class="ui-pair">
+                  <span class="ui-in od ph">45120<span class="unit">km</span></span>
+                  <span class="ui-ck" style="position:relative">
+                    <span class="pin pin-tr">4</span>
+                    <span class="ui-box"></span> Not known
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ui-fs">
+              <p class="ui-fs-lbl">Close</p>
+              <div class="ui-row2">
+                <span class="ui-lbl">Dropped</span>
+                <div class="ui-pair">
+                  <span class="ui-in dt">23/08/2026</span>
+                  <span class="ui-in tm">19:00</span>
+                  <span class="ui-hint">from the booking</span>
+                </div>
+              </div>
+              <div class="ui-row2">
+                <span class="ui-lbl">Odometer</span>
+                <div class="ui-pair">
+                  <span class="ui-in od ph">45262<span class="unit">km</span></span>
+                  <span class="ui-ck"><span class="ui-box"></span> Not known</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ui-fs">
+              <p class="ui-fs-lbl">Expenses <span class="ui-add">+ Add</span></p>
+              <p class="ui-hint" style="font-size:13px">Nothing logged. Add the tolls and parking he reports paying.</p>
+            </div>
+
+            <div class="ui-calc" style="position:relative">
+              <span class="pin pin-tr">5</span>
+              <p class="ui-calc-h">This will bill as</p>
+              <div class="ui-calc-r"><span class="k">Distance</span><span class="v">142 km</span><span class="x">package 120 · <b>+22 extra</b></span></div>
+              <div class="ui-calc-r"><span class="k">Duration</span><span class="v">12:00</span><span class="x">package 12:00 · +0</span></div>
+              <div class="ui-calc-r"><span class="k">Allowances</span><span class="v none">none apply</span><span class="x">day duty, in shift</span></div>
+            </div>
+
+            <p class="ui-prov">
+              <span class="pin pin-bl">6</span>
+              Recorded by you from the driver's report — no odometer photograph, no passenger
+              signature. This duty will be distinguishable from one the driver verified.
+            </p>
+          </div>
+
+          <div class="ui-foot">
+            <button class="ui-btn-ghost">Cancel</button>
+            <button class="ui-btn">Close duty</button>
+          </div>
+        </div>
+
+        <div style="height:2.75rem"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <ul>
+        <li><span class="num">1</span>
+          <p><b>The driver's number is a tappable chip, not a lookup.</b> This screen exists
+          because a phone call is happening. Every second the operator spends leaving the modal
+          to find a number is a second the form sits half-filled — and a half-filled close is
+          worse than none, because the operator believes it is done. On S6 (no driver assigned)
+          this row reads <em>Not assigned</em> and the chip is absent.</p></li>
+        <li><span class="num">2</span>
+          <p><b>The banner names the state and its cause.</b> Not “no data found” — <em>Ramesh
+          has no app login</em>. The operator learns, once, why this duty needed them, and stops
+          wondering whether the driver is about to submit something. On S1 this banner changes
+          to name what the driver <em>did</em> record.</p></li>
+        <li><span class="num">3</span>
+          <p><b>Times default to the planned window, and say so.</b> Never <code>now()</code>.
+          There is a duty in production due to drop on 25 July that was closed on 17 August,
+          which computes to roughly five hundred and fifty hours of overtime. Defaulting to the
+          booking's own window makes overtime resolve to exactly zero — the neutral, defensible
+          answer. Overtime can only ever be created by an operator deliberately typing a later
+          time, which is exactly the deliberation it deserves. The
+          <em>from the booking</em> hint is what stops a default being mistaken for a reading.</p></li>
+        <li><span class="num">4</span>
+          <p><b>“Not known” is a checkbox, because an empty field is ambiguous.</b> FR-59
+          explicitly permits closing with no readings, and FR-65 makes such a duty invoice at
+          base rate. An empty input cannot distinguish <em>haven't typed it yet</em> from
+          <em>the driver does not have it</em> — the first is an unfinished form, the second is
+          a recorded fact. Ticking the box greys the input and switches the panel at 5 to the
+          base-rate statement.</p></li>
+        <li><span class="num">5</span>
+          <p><b>The consequence panel is a sanity check, not a dashboard.</b> It recomputes as
+          the operator types, so a mistyped digit is caught while the driver is still on the
+          line — “142 kilometres, does that sound right?” is a question worth asking before
+          saving, and impossible to ask afterwards. It shows what these numbers <em>do</em>,
+          never what they are worth in rupees; pricing belongs on the duty slip and the invoice,
+          and putting money here would turn a transcription screen into a negotiation.</p></li>
+        <li><span class="num">6</span>
+          <p><b>Provenance is stated in plain words, once.</b> No badge, no icon, no tooltip.
+          The operator is about to create a record with less evidence behind it than a driver
+          close, and should know that as they press the button. Structurally it is already
+          true — <code>closed_by_profile</code> set with <code>end_odo_photo</code> null is an
+          operator close and nothing else — so this sentence describes reality rather than
+          asking for a new column.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ wireframe B ═══════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">State 2 · S1, S2</p>
+      <h2>The driver started it — his half is his, and it locks</h2>
+    </div>
+    <div class="prose">
+      <p>Two duties sit in this state in production right now. The driver captured a reading and
+        photographed the odometer, then never closed. The operator is finishing a record that is
+        already half-written by someone else — and the half that exists has evidence behind it
+        that the operator's half will not.</p>
+    </div>
+
+    <div class="frame">
+      <div class="frame-inner" style="width:640px">
+        <p class="frame-cap"><span>Close Duty · driver started, never closed</span><b>2 changes from state 1</b></p>
+        <div style="height:2.75rem"></div>
+
+        <div class="ui" style="width:640px">
+          <div class="ui-head">
+            <h3 class="ui-h">Close duty</h3>
+            <p class="ui-sub">BK-00019-1 · Meridian Corp · 21 Aug 2026</p>
+            <span class="ui-x">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </span>
+          </div>
+
+          <div class="ui-body">
+
+            <div class="ui-bnr">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="flex:0 0 16px;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <span><b>Suresh started this duty at 07:04</b> and did not close it. Ask him for the
+                drop time and closing reading.</span>
+            </div>
+
+            <div class="ui-lock" style="position:relative">
+              <span class="pin pin-tr">7</span>
+              <div class="ui-lock-h">
+                <span>From the driver's app</span>
+                <span style="letter-spacing:0;text-transform:none;font-weight:500">21 Aug, 07:04</span>
+              </div>
+              <div class="ui-lock-r">
+                <span class="k">Left garage</span>
+                <span class="v">21 Aug 2026 · 07:04</span>
+                <span class="sp"><span class="ui-corr">Correct</span></span>
+              </div>
+              <div class="ui-lock-r">
+                <span class="k">Odometer</span>
+                <span class="v">45,120 km</span>
+                <span class="sp">
+                  <span class="ui-evi">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                    Photo
+                  </span>
+                  <span class="ui-corr">Correct</span>
+                </span>
+              </div>
+              <div class="ui-lock-r">
+                <span class="k">Pickup</span>
+                <span class="v">21 Aug 2026 · 07:31</span>
+              </div>
+            </div>
+
+            <div class="ui-fs">
+              <p class="ui-fs-lbl">Close <span style="letter-spacing:0;text-transform:none;font-weight:400;color:var(--u-g400)">— what you're entering</span></p>
+              <div class="ui-row2">
+                <span class="ui-lbl">Dropped</span>
+                <div class="ui-pair">
+                  <span class="ui-in dt">21/08/2026</span>
+                  <span class="ui-in tm">19:00</span>
+                  <span class="ui-hint">from the booking</span>
+                </div>
+              </div>
+              <div class="ui-row2" style="position:relative">
+                <span class="pin pin-tl">8</span>
+                <span class="ui-lbl">Odometer</span>
+                <div class="ui-pair">
+                  <span class="ui-in od bad">45,090<span class="unit">km</span></span>
+                  <span class="ui-ck"><span class="ui-box"></span> Not known</span>
+                </div>
+              </div>
+              <p class="ui-err" style="margin-left:104px">Must be more than the start reading of 45,120 km.</p>
+            </div>
+
+            <div class="ui-fs">
+              <p class="ui-fs-lbl">Expenses <span class="ui-add">+ Add</span></p>
+              <div class="ui-exp"><span class="t">Toll</span><span class="ui-evi">Receipt</span><span class="a">₹240</span></div>
+              <div class="ui-exp last"><span class="t">Parking</span><span class="ui-evi">Receipt</span><span class="a">₹60</span></div>
+            </div>
+
+            <div class="ui-calc">
+              <p class="ui-calc-h">This will bill as</p>
+              <div class="ui-calc-r"><span class="k">Distance</span><span class="v none">—</span><span class="x">needs a valid end reading</span></div>
+              <div class="ui-calc-r"><span class="k">Duration</span><span class="v">11:56</span><span class="x">package 12:00 · +0</span></div>
+              <div class="ui-calc-r"><span class="k">Allowances</span><span class="v none">none apply</span><span class="x">day duty, in shift</span></div>
+            </div>
+
+            <p class="ui-prov">
+              The start reading stays as Suresh recorded it. Your closing entry carries no
+              photograph or signature.
+            </p>
+          </div>
+
+          <div class="ui-foot">
+            <button class="ui-btn-ghost">Cancel</button>
+            <button class="ui-btn" style="opacity:.4">Close duty</button>
+          </div>
+        </div>
+
+        <div style="height:2.75rem"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <ul>
+        <li><span class="num">7</span>
+          <p><b>The driver's half is a different material entirely.</b> Grey ground, no input
+          borders, its own header naming the source and the time it was captured. It cannot be
+          typed into. Changing one of these figures is <b>FR-56 correction</b> — a separate,
+          attributed action that writes <code>corrected_by</code> and <code>corrected_at</code>,
+          reached through a deliberate <em>Correct</em> link rather than by clicking into a
+          field. If closing and overriding-the-driver were the same gesture, every operator
+          close would silently become a potential correction, and the signature would stop being
+          the authority FR-57 says it is. The evidence chip sits beside the figure it belongs
+          to, so a disputed reading is one click from the photograph that settles it. Note the
+          pickup row carries no <em>Correct</em> — it is an observed event with no billing
+          consequence, so there is nothing to correct it <em>to</em>.</p></li>
+        <li><span class="num">8</span>
+          <p><b>The backwards reading is caught here, not by Postgres.</b> The
+          <code>duties_odo_forward</code> constraint would reject this row anyway, but a
+          constraint violation arrives as an opaque failure after a round trip, with the driver
+          still on the phone and the operator unsure what to retype. Inline, against the start
+          reading that is <em>already on screen</em>, it is self-explanatory — and naming the
+          number it must exceed means the operator can ask the right follow-up question
+          immediately. The submit button disables while the field is bad; the consequence panel
+          shows an em-dash for distance rather than a negative number, because a wrong figure
+          must never render as a plausible one.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ wireframe C ═══════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">State 3 · the escape hatch</p>
+      <h2>He doesn't remember the readings</h2>
+    </div>
+    <div class="prose">
+      <p>FR-59 is explicit that this must be possible: <em>“close without them if they do not
+        [have the readings]. A duty closed with no readings invoices at base rate per FR-65.”</em>
+        It is not a degraded save to be discouraged — it is the correct outcome when the
+        information is genuinely gone, and it must be as easy to reach as any other close.
+        Discouraging it produces something far worse than a base-rate invoice: an invented
+        odometer reading.</p>
+    </div>
+
+    <div class="frame">
+      <div class="frame-inner" style="width:640px">
+        <p class="frame-cap"><span>Close Duty · both readings unknown — changed region only</span><b>2 changes</b></p>
+        <div style="height:2rem"></div>
+
+        <div class="ui" style="width:640px;box-shadow:none">
+          <div class="ui-body" style="gap:20px">
+            <div class="ui-fs">
+              <p class="ui-fs-lbl">Start</p>
+              <div class="ui-row2">
+                <span class="ui-lbl">Left garage</span>
+                <div class="ui-pair">
+                  <span class="ui-in dt">23/08/2026</span>
+                  <span class="ui-in tm">07:00</span>
+                  <span class="ui-hint">from the booking</span>
+                </div>
+              </div>
+              <div class="ui-row2" style="position:relative">
+                <span class="pin pin-tl">9</span>
+                <span class="ui-lbl">Odometer</span>
+                <div class="ui-pair">
+                  <span class="ui-in od" style="background:var(--u-g50);color:var(--u-g400);box-shadow:none">—<span class="unit">km</span></span>
+                  <span class="ui-ck" style="color:var(--u-violet600);font-weight:500">
+                    <span class="ui-box on">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg>
+                    </span> Not known
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="ui-calc" style="position:relative">
+              <span class="pin pin-tr">10</span>
+              <p class="ui-calc-h">This will bill as</p>
+              <div class="ui-calc-r"><span class="k">Distance</span><span class="v none">not recorded</span><span class="x">no extra-km charge</span></div>
+              <div class="ui-calc-r"><span class="k">Duration</span><span class="v">12:00</span><span class="x">package 12:00 · +0</span></div>
+              <div class="ui-calc-r"><span class="k">Allowances</span><span class="v none">none apply</span><span class="x">day duty, in shift</span></div>
+            </div>
+
+            <div class="ui-bnr warn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="flex:0 0 16px;margin-top:1px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+              <span><b>This duty will invoice at base rate.</b> With no odometer pair there is no
+                extra-kilometre charge to calculate. The duty slip will show a dash for distance.</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:2rem"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <ul>
+        <li><span class="num">9</span>
+          <p><b>Ticking the box empties and disables the field rather than hiding it.</b> The row
+          stays where it was so the operator can untick the moment the driver says “hang on, I
+          wrote it on the slip” — which happens constantly on a phone call. A field that
+          vanishes has to be found again; a field that greys is simply waiting.</p></li>
+        <li><span class="num">10</span>
+          <p><b>The consequence is stated at the moment of the decision, not discovered on the
+          invoice.</b> <em>Not recorded</em>, not zero — zero kilometres is a claim the data does
+          not support, and the same distinction the duty slip already makes by printing an
+          em-dash for an unknown package. The warning bar is amber rather than red because this
+          is a legitimate, specified outcome, not an error: the operator is doing the right
+          thing with poor information, and the interface should not scold them for it.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ══ defaults ══════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Field anatomy</p>
+      <h2>Where every default comes from</h2>
+    </div>
+    <div class="prose">
+      <p>A default that cannot be traced is a guess wearing a uniform. Each of these is derived
+        from something already on the duty, and each is labelled on screen so the operator knows
+        they are looking at an assumption rather than a reading.</p>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>Default</th><th>Why that, and not something else</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>started_at</td>
+            <td><code>start_date</code> + <code>reporting_time</code></td>
+            <td>The time the duty was booked to begin. Wrong by minutes at worst; <code>now()</code> is wrong by days.</td>
+          </tr>
+          <tr>
+            <td>closed_at</td>
+            <td><code>end_date</code> + <code>est_drop_time</code></td>
+            <td>Makes overtime resolve to exactly zero — the neutral result. Overtime becomes billable only when an operator types a later time on purpose.</td>
+          </tr>
+          <tr>
+            <td>start_odo</td>
+            <td>Empty</td>
+            <td>There is nothing on the duty to infer a reading from. A guessed odometer is worse than no odometer, because it looks authoritative.</td>
+          </tr>
+          <tr>
+            <td>end_odo</td>
+            <td>Empty</td>
+            <td>Same. Validated against <code>start_odo</code> the moment both are present.</td>
+          </tr>
+          <tr>
+            <td>status</td>
+            <td><code>'Completed'</code></td>
+            <td>Written on save unless already <code>Billed</code> or <code>Cancelled</code>, matching what <code>driver_close_duty</code> does.</td>
+          </tr>
+          <tr>
+            <td>closed_by_profile</td>
+            <td><code>auth.uid()</code></td>
+            <td>Column has existed unused since migration 025. With a null <code>end_odo_photo</code> it is what identifies an operator close.</td>
+          </tr>
+          <tr>
+            <td>corrected_at</td>
+            <td><code>now()</code></td>
+            <td>The one place <code>now()</code> is right: it records when the entry was made, not when the duty ran.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <p class="callout"><b>Two calls follow every successful save</b>, both of which already
+        exist: <code>syncBookingStatus(bookingId)</code> to roll the parent booking up, and
+        <code>syncDutyAllowances(dutyId)</code> to recompute allowance lines. The second is easy
+        to miss — those lines were computed while <code>closed_at</code> was null, so every
+        overtime quantity is sitting at zero until something re-syncs them.</p>
+    </div>
+  </section>
+
+  <!-- ══ guards ════════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Refusals &amp; edges</p>
+      <h2>When the action is absent, and when it argues back</h2>
+    </div>
+    <div class="states">
+      <div class="state">
+        <p class="state-chip">Action absent</p>
+          <p class="state-note"><b>Already closed (S3, S4).</b> <code>closed_at</code> is not
+            null. Close Duty does not appear in the menu at all. Correction lives on the duty
+            slip, where the evidence is.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Action absent</p>
+          <p class="state-note"><b>Billed or Cancelled.</b> A billed duty's figures are on an
+            invoice someone has been sent. Cancelled duties never ran.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Inline notice</p>
+          <p class="state-note"><b>The driver could still close this.</b> Duty's driver has a
+            login and now falls inside the duty window. A notice names them; the close is still
+            permitted. FR-59's gate was dropped deliberately — this is the mitigation.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Blocks save</p>
+          <p class="state-note"><b>End reading not above start.</b> Named inline against the
+            start figure. Mirrors <code>duties_odo_forward</code> so the database never has to
+            be the one to say no.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Blocks save</p>
+          <p class="state-note"><b>Dropped before it left.</b> <code>closed_at</code> earlier
+            than <code>started_at</code>. Common when a multi-day duty's end date is mistyped.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Warns, allows</p>
+          <p class="state-note"><b>Dates in the past.</b> Entirely legitimate — back-dated and
+            historical entry is a named use case (S5). No guard, no warning. This is the point.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Reload &amp; tell</p>
+          <p class="state-note"><b>The driver closed it first.</b> Server-side
+            <code>coalesce</code> means the driver's figures win, which is correct — they had the
+            odometer in front of them. The modal reloads and shows what was submitted rather than
+            reporting a failure.</p>
+      </div>
+      <div class="state">
+        <p class="state-chip">Adapts</p>
+          <p class="state-note"><b>No driver assigned (S6).</b> Driver row reads
+            <em>Not assigned</em>, no phone chip, no name in the banner. Everything else is
+            unchanged — the vehicle still ran.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ decisions ═════════════════════════════════════════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <p class="eyebrow">Decisions carried</p>
+      <h2>Settled here, and deferred</h2>
+    </div>
+    <div class="decisions">
+      <div class="dec">
+        <span class="dec-tag settled">Settled</span>
+        <div class="dec-body">
+          <h3>FR-59's time gate is dropped</h3>
+          <p>The PRD blocks operator close until a duty's scheduled end has passed, on the
+            principle that “an in-progress duty belongs to the driver”. That assumed drivers use
+            the app. For twenty-seven of thirty-one, the duty belongs to no driver in any
+            operational sense, and the gate would make the operator wait on duties nobody else
+            could ever close. Close Duty is available on any <code>On-Going</code> duty. The risk
+            it opens — closing under a driver mid-trip — is answered with the inline notice
+            above rather than a block.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag settled">Settled</span>
+        <div class="dec-body">
+          <h3>No new RPC, no migration</h3>
+          <p>Operator RLS on <code>duties</code> is a single <code>ALL</code> policy scoped
+            through the booking. The forward-odometer constraint is already in place. All three
+            audit columns have existed since migration 025. This is a plain
+            <code>.update()</code> from the client — the same call the page already makes to
+            change a driver or cancel a duty.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag later">Ships together</span>
+        <div class="dec-body">
+          <h3>FR-58 — the “Needs closing” list</h3>
+          <p>Not optional alongside this modal; it is the other half of it. The addendum is
+            explicit that FR-59 removes the only existing mechanism for closing a forgotten duty,
+            so without FR-58's list “duties will silently stop being invoiced”. One filter on the
+            duties view — <code>effective_status IN ('Completed','On-Going') AND closed_at IS
+            NULL</code> — catches a stuck duty and a back-dated allotment with the same rule.
+            Without it nobody finds these rows, because they already read as Completed.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag later">Unresolved</span>
+        <div class="dec-body">
+          <h3>FR-54 is violated in production</h3>
+          <p>FR-54 requires that a duty is “not auto-<code>Completed</code> because its end date
+            passed if the driver never closed it”. Migration 026's
+            <code>duties_status.effective_status</code>, written after the PRD, does exactly
+            that — which is why the duties most in need of closing are the ones that look
+            finished. Whether the view changes or FR-54 retires is an architecture decision, not
+            a UX one. Flagged, not answered.</p>
+        </div>
+      </div>
+      <div class="dec">
+        <span class="dec-tag later">Out of scope</span>
+        <div class="dec-body">
+          <h3>Bulk close, and FR-56 correction</h3>
+          <p>A day's duties closed from one grid is a real need at twenty-seven drivers, but
+            speculative until this modal has been used and found slow. Correcting an
+            already-closed duty is FR-56 and belongs on the duty slip beside the evidence, not
+            here. Both are deliberately absent.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
