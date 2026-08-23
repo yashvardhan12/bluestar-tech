@@ -16,6 +16,35 @@ assert.equal(bookingAmount(duties(1000, 2000, 500)), 3500)
 assert.equal(bookingAmount(duties(1000, null, 500)), 1500, 'null base_rate counts as zero')
 assert.equal(bookingAmount([]), 0)
 
+// ── allowances ride along with the base rate ────────────────────────────────
+assert.equal(
+  bookingAmount([{ baseRate: 1000, allowances: 250 }]), 1250,
+  'a duty bills its car hire plus what its allowances charged',
+)
+assert.equal(
+  bookingAmount([{ baseRate: 1000 }]), 1000,
+  'a duty with no allowance rows is unchanged',
+)
+assert.equal(
+  bookingAmount([{ baseRate: null, allowances: 400 }]), 400,
+  'allowances still bill when the base rate was never set',
+)
+assert.equal(
+  bookingAmount([{ baseRate: 1000, allowances: 250 }, { baseRate: 500, allowances: 100 }]), 1850,
+)
+// Allowances are taxed exactly like car hire, so they must land in carHire and
+// not be mistaken for a non-taxable custom row.
+{
+  const t = calculateInvoice({
+    bookings: [{ duties: [{ baseRate: 10000, allowances: 2000 }] }],
+    customRows: [], discounts: [], taxes: [{ rate: 12 }],
+  })
+  assert.equal(t.carHire, 12000)
+  assert.equal(t.taxableBase, 12000)
+  assert.equal(t.taxTotal, 1440)
+  assert.equal(t.total, 13440)
+}
+
 // ── plain invoice, single tax ───────────────────────────────────────────────
 {
   const t = calculateInvoice({

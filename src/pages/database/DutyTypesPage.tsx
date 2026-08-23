@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Plus, Trash2, MoreHorizontal, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import Drawer from '../../components/ui/Drawer'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
 import { supabase } from '../../lib/supabase'
+import { formatINR } from '../../lib/money'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
+import type { AllowanceUnit } from '../../lib/allowances'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -31,7 +33,19 @@ interface DutyType {
   isGTG: boolean
 }
 
+interface AllowanceMaster {
+  id: number
+  name: string
+  unit: AllowanceUnit
+  /** Shown beside the customer price so margin is visible where it is decided. */
+  driverRate: number | null
+}
+
 const CATEGORIES: Category[] = ['Airport', 'Hourly', 'Outstation', 'Monthly']
+
+const UNIT_LABEL: Record<AllowanceUnit, string> = {
+  day: 'per day', hour: 'per hour', duty: 'per duty', night: 'per night',
+}
 const PAGE_SIZE = 8
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -149,6 +163,11 @@ export default function DutyTypesPage() {
   const { showToast } = useToast()
   const [rows, setRows] = useState<DutyType[]>([])
   const [vehicleGroups, setVehicleGroups] = useState<{ id: number; name: string }[]>([])
+  const [allowanceList, setAllowanceList] = useState<AllowanceMaster[]>([])
+  // allowance id → customer rate. A key being *present* is what "billed on this
+  // duty type" means; an absent key pays the driver but never reaches an invoice.
+  const [prices, setPrices] = useState<Record<number, string>>({})
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [page, setPage] = useState(1)
@@ -168,13 +187,18 @@ export default function DutyTypesPage() {
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
-    const [dtRes, vgRes] = await Promise.all([
+    const [dtRes, vgRes, alRes] = await Promise.all([
       supabase.from('duty_types')
         .select('id, category, type_name, vehicle_group_id, fixed_charges, night_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, daily_outstation_charges, is_p2p, is_gtg, vehicle_groups(name)')
         .order('created_at', { ascending: false }),
       supabase.from('vehicle_groups').select('id, name').order('name'),
+      supabase.from('allowances').select('id, name, unit, driver_rate').eq('is_active', true).order('id'),
     ])
     if (vgRes.data) setVehicleGroups(vgRes.data)
+    if (alRes.data) setAllowanceList((alRes.data as any[]).map(a => ({
+      id: a.id, name: a.name, unit: a.unit,
+      driverRate: a.driver_rate != null ? Number(a.driver_rate) : null,
+    })))
     if (dtRes.data) {
       setRows(dtRes.data.map((d: any) => ({
         id: d.id,
@@ -239,9 +263,54 @@ export default function DutyTypesPage() {
     }
   }
 
-  function openAdd() { setForm(EMPTY_FORM); setActiveRow(null); setDrawerMode('add'); setErrors({}); setDrawerOpen(true) }
-  function openView(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setDrawerMode('view'); setErrors({}); setDrawerOpen(true) }
-  function openEdit(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setDrawerMode('edit'); setErrors({}); setDrawerOpen(true) }
+  function openAdd() { setForm(EMPTY_FORM); setActiveRow(null); setPrices({}); setDrawerMode('add'); setErrors({}); setPickerOpen(false); setDrawerOpen(true) }
+  function openView(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setPrices({}); void loadPrices(r.id); setDrawerMode('view'); setErrors({}); setPickerOpen(false); setDrawerOpen(true) }
+  function openEdit(r: DutyType) { setForm(rowToForm(r)); setActiveRow(r); setPrices({}); void loadPrices(r.id); setDrawerMode('edit'); setErrors({}); setPickerOpen(false); setDrawerOpen(true) }
+
+  async function loadPrices(dutyTypeId: number) {
+    const { data, error } = await supabase
+      .from('duty_type_allowances')
+      .select('allowance_id, customer_rate')
+      .eq('duty_type_id', dutyTypeId)
+    if (error) { console.error('[duty_types] load allowance prices', error.message); return }
+    setPrices(Object.fromEntries((data ?? []).map((r: any) => [r.allowance_id, String(r.customer_rate)])))
+  }
+
+  function addAllowance(id: number) {
+    setPrices(prev => ({ ...prev, [id]: '' }))
+    setPickerOpen(false)
+    setErrors(prev => ({ ...prev, allowances: '' }))
+  }
+
+  function removeAllowance(id: number) {
+    setPrices(prev => { const next = { ...prev }; delete next[id]; return next })
+    setErrors(prev => ({ ...prev, allowances: '' }))
+  }
+
+  function setPrice(id: number, value: string) {
+    setPrices(prev => ({ ...prev, [id]: value }))
+    setErrors(prev => ({ ...prev, allowances: '' }))
+  }
+
+  /** Replaced wholesale rather than diffed: nine rows at most, and duty_allowances
+   *  already copied whatever rate it billed, so nothing downstream depends on
+   *  these surviving. */
+  async function savePrices(dutyTypeId: number) {
+    const { error: delErr } = await supabase
+      .from('duty_type_allowances').delete().eq('duty_type_id', dutyTypeId)
+    if (delErr) { console.error('[duty_types] clear allowance prices', delErr.message); return delErr }
+
+    const rows = Object.entries(prices).map(([allowanceId, rate]) => ({
+      duty_type_id:  dutyTypeId,
+      allowance_id:  Number(allowanceId),
+      customer_rate: Number(rate),
+    }))
+    if (rows.length === 0) return null
+
+    const { error } = await supabase.from('duty_type_allowances').insert(rows)
+    if (error) console.error('[duty_types] save allowance prices', error.message)
+    return error
+  }
 
   function set<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -254,6 +323,11 @@ export default function DutyTypesPage() {
     const newErrors: Record<string, string> = {}
     if (!form.category) newErrors.category = 'Category is required'
     if (!form.typeName.trim()) newErrors.typeName = 'Type name is required'
+    // A ticked allowance with no price would insert customer_rate 0 and bill
+    // nothing, which reads as "priced" on every later screen.
+    if (Object.values(prices).some(v => v.trim() === '' || Number(v) <= 0)) {
+      newErrors.allowances = 'Give every ticked allowance a price above zero, or untick it.'
+    }
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return }
     setSaving(true)
 
@@ -274,11 +348,27 @@ export default function DutyTypesPage() {
     }
 
     if (drawerMode === 'add') {
-      const { error } = await supabase.from('duty_types').insert(payload)
-      if (!error) { await fetchData(); showToast('Duty type added successfully') }
+      const { data, error } = await supabase.from('duty_types').insert(payload).select('id').single()
+      if (error || !data) {
+        console.error('[duty_types] insert', error?.message)
+        showToast(error?.message ?? 'Could not add duty type')
+        setSaving(false)
+        return
+      }
+      await savePrices(data.id)
+      await fetchData()
+      showToast('Duty type added successfully')
     } else if (drawerMode === 'edit' && activeRow) {
       const { error } = await supabase.from('duty_types').update(payload).eq('id', activeRow.id)
-      if (!error) { await fetchData(); showToast('Duty type updated successfully') }
+      if (error) {
+        console.error('[duty_types] update', error.message)
+        showToast(error.message)
+        setSaving(false)
+        return
+      }
+      await savePrices(activeRow.id)
+      await fetchData()
+      showToast('Duty type updated successfully')
     }
 
     setSaving(false)
@@ -315,6 +405,9 @@ export default function DutyTypesPage() {
 
   const readOnly = drawerMode === 'view'
   const cat = form.category
+  // Master-list order, so rows never reshuffle as prices are typed.
+  const added     = allowanceList.filter(a => a.id in prices)
+  const remaining = allowanceList.filter(a => !(a.id in prices))
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -569,6 +662,112 @@ export default function DutyTypesPage() {
                   onChange={() => set('isGTG', !form.isGTG)}
                   disabled={readOnly}
                 />
+              </div>
+
+              {/* Allowances billed on this duty type */}
+              <div className="flex flex-col gap-2.5 pt-1">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Allowances billed to the customer</p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Add only what this duty type charges for. Everything else still pays
+                    the driver — it just never reaches the invoice.
+                  </p>
+                </div>
+
+                {added.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-center">
+                    <p className="text-sm text-gray-500">No allowances billed on this duty type.</p>
+                    <p className="mt-0.5 text-xs text-gray-400">Drivers are still paid for all of them.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {added.map(a => {
+                      const entered = prices[a.id].trim() === '' ? null : Number(prices[a.id])
+                      const margin  = entered != null && a.driverRate != null ? entered - a.driverRate : null
+                      return (
+                        <div key={a.id} className="rounded-lg border border-gray-200 px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <p className="flex-1 min-w-0 truncate text-sm font-medium text-gray-900">{a.name}</p>
+                            <div className="relative w-28 shrink-0">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
+                              <input
+                                type="number" min="0" step="0.01" placeholder="0.00"
+                                value={prices[a.id]} disabled={readOnly}
+                                onChange={e => setPrice(a.id, e.target.value)}
+                                aria-label={`${a.name} customer rate`}
+                                className="w-full pl-6 pr-2.5 py-1.5 border border-gray-300 rounded-md text-sm text-right text-violet-700 tabular-nums outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-gray-50 disabled:cursor-default"
+                              />
+                            </div>
+                            {!readOnly && (
+                              <button
+                                type="button" onClick={() => removeAllowance(a.id)}
+                                aria-label={`Stop billing ${a.name}`}
+                                className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
+                              >
+                                <X className="size-4" strokeWidth={1.75} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-xs">
+                            <span className="text-gray-400">
+                              {UNIT_LABEL[a.unit]}
+                              {a.driverRate != null && ` · driver gets ${formatINR(a.driverRate)}`}
+                            </span>
+                            {margin != null && (
+                              <span className={clsx('font-medium tabular-nums',
+                                margin >= 0 ? 'text-success-700' : 'text-error-700')}>
+                                {margin >= 0 ? '+' : '−'}{formatINR(Math.abs(margin))}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {!readOnly && remaining.length > 0 && (
+                  pickerOpen ? (
+                    <div className="rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="flex items-center justify-between bg-gray-50 border-b border-gray-200 px-3 py-2">
+                        <p className="text-xs font-medium text-gray-600">Add an allowance</p>
+                        <button type="button" onClick={() => setPickerOpen(false)}
+                          aria-label="Close allowance picker"
+                          className="p-0.5 rounded text-gray-400 hover:text-gray-600 cursor-pointer">
+                          <X className="size-3.5" strokeWidth={1.75} />
+                        </button>
+                      </div>
+                      <div className="divide-y divide-gray-200">
+                        {remaining.map(a => (
+                          <button
+                            key={a.id} type="button" onClick={() => addAllowance(a.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate text-sm text-gray-900">{a.name}</p>
+                              <p className="text-xs text-gray-400">
+                                {UNIT_LABEL[a.unit]}
+                                {a.driverRate != null && ` · driver gets ${formatINR(a.driverRate)}`}
+                              </p>
+                            </div>
+                            <Plus className="size-4 text-gray-400 shrink-0" strokeWidth={1.75} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button" onClick={() => setPickerOpen(true)}
+                      className="flex items-center justify-center gap-1.5 w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 transition-colors cursor-pointer"
+                    >
+                      <Plus className="size-4" strokeWidth={1.75} />
+                      Add allowance
+                      <span className="text-gray-400">({remaining.length} more)</span>
+                    </button>
+                  )
+                )}
+
+                {errors.allowances && <p className="text-xs text-red-600">{errors.allowances}</p>}
               </div>
             </>
           )}

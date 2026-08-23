@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react'
+import { Fragment, useState, useRef, useEffect, useCallback, useMemo, useId } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
@@ -10,7 +10,9 @@ import { supabase } from '../../lib/supabase'
 import { useToast } from '../../components/ui/Toast'
 import { useActiveCompany } from '../../lib/useActiveCompany'
 import { formatINR, amountInWords } from '../../lib/money'
+import { todayISO } from '../../lib/dutyTime'
 import { calculateInvoice, bookingAmount, type DiscountMode } from '../../lib/invoice'
+import { toAllowanceLines, allowanceTotal } from './invoiceTypes'
 import AddBookingsDrawer from './AddBookingsDrawer'
 import type { BookingBlock, DutyRow } from './invoiceTypes'
 
@@ -25,7 +27,7 @@ const num = (s: string) => {
 }
 
 function isoToday(): string {
-  return new Date().toISOString().slice(0, 10)
+  return todayISO()
 }
 
 /** ISO `2024-10-28` → `28/10/2024` for the printed document. */
@@ -263,17 +265,38 @@ function DutiesTable({ duties }: { duties: DutyRow[] }) {
         </thead>
         <tbody>
           {duties.map((duty, i) => (
-            <tr key={duty.id} className={clsx(i < duties.length - 1 && 'border-b border-gray-100')}>
-              <td className="px-6 py-4 text-sm font-medium text-gray-900">{duty.date}</td>
-              <td className="px-6 py-4">
-                <p className="text-sm text-gray-900">{duty.vehicle}</p>
-                <p className="text-sm text-gray-500">{duty.plate}</p>
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-600">{duty.dutyType}</td>
-              <td className="px-6 py-4 text-sm text-gray-700 text-right whitespace-nowrap">
-                {formatINR(duty.baseRate)}
-              </td>
-            </tr>
+            <Fragment key={duty.id}>
+              <tr className={clsx(duty.allowanceLines.length === 0 && i < duties.length - 1 && 'border-b border-gray-100')}>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">{duty.date}</td>
+                <td className="px-6 py-4">
+                  <p className="text-sm text-gray-900">{duty.vehicle}</p>
+                  <p className="text-sm text-gray-500">{duty.plate}</p>
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-600">{duty.dutyType}</td>
+                <td className="px-6 py-4 text-sm text-gray-700 text-right whitespace-nowrap">
+                  {formatINR(duty.baseRate)}
+                </td>
+              </tr>
+              {/* Itemised so the customer can see what each allowance charged
+                  and why, rather than one unexplained larger number. */}
+              {duty.allowanceLines.map((a, j) => (
+                <tr
+                  key={`${duty.id}-${a.name}`}
+                  className={clsx(
+                    j === duty.allowanceLines.length - 1 && i < duties.length - 1 && 'border-b border-gray-100',
+                  )}
+                >
+                  <td />
+                  <td className="px-6 pb-2 text-sm text-gray-500" colSpan={2}>
+                    {a.name}
+                    <span className="text-gray-400"> · {a.qty} × {formatINR(a.rate)}</span>
+                  </td>
+                  <td className="px-6 pb-2 text-sm text-gray-600 text-right whitespace-nowrap">
+                    {formatINR(a.amount)}
+                  </td>
+                </tr>
+              ))}
+            </Fragment>
           ))}
         </tbody>
       </table>
@@ -427,7 +450,9 @@ export default function CreateInvoicePage() {
                invoice_bookings(booking_id, custom_description, sort_order,
                  bookings(booking_ref, start_date, end_date,
                    duties(id, start_date, duty_type, base_rate,
-                     vehicles(model_name, vehicle_number))))`)
+                     vehicles(model_name, vehicle_number),
+                     duty_allowances(qty, customer_rate, customer_amount,
+                       allowances(name, unit)))))`)
       .eq('id', invoiceId)
       .maybeSingle()
 
@@ -470,6 +495,8 @@ export default function CreateInvoicePage() {
           plate: d.vehicles?.vehicle_number ?? '',
           dutyType: d.duty_type ?? '—',
           baseRate: d.base_rate == null ? null : Number(d.base_rate),
+          allowances: allowanceTotal(d.duty_allowances),
+          allowanceLines: toAllowanceLines(d.duty_allowances),
         })),
       })))
 
