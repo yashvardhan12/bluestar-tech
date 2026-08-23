@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, IndianRupee, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, IndianRupee, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
 import { hhmm, kmTotals, packageMins, timeTotals } from '../../lib/dutySlip'
+import {
+  syncDutyAllowances, loadDutyAllowances, overrideQty, resetQty,
+  type DutyAllowanceRow,
+} from '../../lib/dutyAllowances'
 import { EXPENSE_TYPES } from '../../lib/driver'
 import Drawer from '../../components/ui/Drawer'
 import Field from '../../components/ui/Field'
@@ -18,20 +22,6 @@ import { useToast } from '../../components/ui/Toast'
  * only here. Correcting a reading is FR-56 and needs the corrected_by /
  * corrected_at audit columns filled in, which is a separate job.
  */
-
-// ponytail: no allowances table exists yet — /database/allowances is still a
-// stub — so these print as "—". The rows are named here so the section reads
-// right on the slip; wire the amounts when the master data lands.
-const ALLOWANCE_ROWS = [
-  'Driver daily allowance',
-  'Early start allowance',
-  'Extra duty allowance',
-  'Night allowance',
-  'Outstation allowance',
-  'Outstation overnight allowance',
-  'Over time',
-  'Off-day allowance',
-] as const
 
 const NO_SHOW_REASON = 'Passenger did not show at reporting address'
 
@@ -56,7 +46,14 @@ interface Slip {
   driver: string
   driverId: number | null
   price: number | null
+  status: string
+  /** duties.duty_type is free text and much of it matches no duty_types row,
+   *  which silently means nothing can be billed. The slip has to say so. */
+  typeResolved: boolean
   startDate: string
+  endDate: string
+  reportingTime: string | null
+  estDropTime: string | null
   startOdo: number | null
   endOdo: number | null
   startedAt: string | null
@@ -81,6 +78,16 @@ function clock(iso: string | null) {
 }
 
 const num = (v: number | null) => (v == null ? '—' : String(v))
+
+/** "18:00:00" → "18:00". Postgres time columns arrive with seconds. */
+const hm = (t: string | null) => (t ? t.slice(0, 5) : '—')
+
+const UNIT_NOUN: Record<string, string> = { day: 'day', hour: 'hour', duty: 'duty', night: 'night' }
+
+function qtyLabel(qty: number, unit: string): string {
+  const noun = UNIT_NOUN[unit] ?? unit
+  return `${qty} ${noun}${qty === 1 ? '' : 's'}`
+}
 
 // ── row primitives ────────────────────────────────────────────────────────────
 
@@ -144,6 +151,9 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
   const [original, setOriginal] = useState<ExpenseRow[]>([])
   const [noShow, setNoShow]     = useState(false)
+  const [allowances, setAllowances] = useState<DutyAllowanceRow[]>([])
+  const [qtyEdits, setQtyEdits]     = useState<Record<number, string>>({})
+  const [allowanceBusy, setAllowanceBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -158,7 +168,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
       const { data: d } = await (supabase as any)
         .from('duties')
         .select(`
-          id, booking_id, start_date, end_date, reporting_time, est_drop_time,
+          id, booking_id, status, start_date, end_date, reporting_time, est_drop_time,
           duty_type, vehicle_group, base_rate, start_odo, end_odo,
           started_at, closed_at, no_show_reason, driver_id,
           bookings ( booking_ref, customer_name, booked_by_name,
@@ -200,7 +210,12 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
         driver:         d.drivers?.name ?? '—',
         driverId:       d.driver_id,
         price:          d.base_rate == null ? null : Number(d.base_rate),
+        status:         d.status,
+        typeResolved:   dutyType != null,
         startDate:      d.start_date,
+        endDate:        d.end_date,
+        reportingTime:  d.reporting_time,
+        estDropTime:    d.est_drop_time,
         startOdo:       d.start_odo == null ? null : Number(d.start_odo),
         endOdo:         d.end_odo == null ? null : Number(d.end_odo),
         startedAt:      d.started_at,
@@ -216,6 +231,12 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
       setOriginal(rows)
       setNoShow(d.no_show_reason != null)
       setLoading(false)
+
+      // Lazily, on the operator's side. A billed duty is skipped inside sync,
+      // so opening an invoiced slip never moves its numbers.
+      await syncDutyAllowances(dutyId)
+      if (cancelled) return
+      setAllowances(await loadDutyAllowances(dutyId))
     }
 
     load()
@@ -224,6 +245,30 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
 
   const km   = slip ? kmTotals(slip.startOdo, slip.endOdo, slip.thresholdKm) : { total: null, extra: null }
   const time = slip ? timeTotals(slip.startedAt, slip.closedAt, slip.pkgMins) : { total: null, extra: null }
+
+  async function refreshAllowances() {
+    setAllowances(await loadDutyAllowances(dutyId))
+  }
+
+  async function commitQty(row: DutyAllowanceRow) {
+    const raw = qtyEdits[row.id]
+    if (raw === undefined) return
+    const qty = Number(raw)
+    setQtyEdits(prev => { const n = { ...prev }; delete n[row.id]; return n })
+    if (raw.trim() === '' || Number.isNaN(qty) || qty < 0 || qty === row.qty) return
+
+    setAllowanceBusy(true)
+    if (await overrideQty(row, qty)) { await refreshAllowances(); showToast(`${row.name} adjusted`) }
+    else showToast(`Could not adjust ${row.name}`)
+    setAllowanceBusy(false)
+  }
+
+  async function undoOverride(row: DutyAllowanceRow) {
+    setAllowanceBusy(true)
+    if (await resetQty(row)) { await refreshAllowances(); showToast(`${row.name} reset`) }
+    else showToast(`Could not reset ${row.name}`)
+    setAllowanceBusy(false)
+  }
 
   function setRow(i: number, patch: Partial<ExpenseRow>) {
     setExpenses(prev => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)))
@@ -392,28 +437,133 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
             </span>
           </div>
 
-          {/* Chargeable driver allowances */}
+          {/* Allowances */}
           <div className="flex flex-col gap-1.5">
-            <SectionLabel>Chargeable driver allowances</SectionLabel>
+            <SectionLabel>Allowances</SectionLabel>
+
+            {!slip.typeResolved && (
+              <div className="rounded-lg border border-warning-200 bg-warning-25 px-3 py-2">
+                <p className="text-xs text-warning-700">
+                  <span className="font-medium">"{slip.dutyType}" matches no duty type.</span>{' '}
+                  The driver is still paid, but nothing can be billed to the customer
+                  until a duty type of that exact name exists with its allowances priced.
+                </p>
+              </div>
+            )}
+
+            {slip.status === 'Billed' && (
+              <p className="text-xs text-gray-500">
+                This duty has been billed — its allowances are frozen as invoiced.
+              </p>
+            )}
+
             <div className={CARD}>
-              <div className="grid grid-cols-2 border-b border-gray-200 bg-gray-50">
-                {['Charges', 'Amount'].map(h => (
-                  <div key={h} className="flex h-11 items-center px-6">
-                    <p className="text-xs font-medium text-gray-600">{h}</p>
+              <div className="grid grid-cols-[1fr_92px_104px_112px] border-b border-gray-200 bg-gray-50">
+                {['Allowance', 'Qty', 'Driver', 'Customer'].map((h, i) => (
+                  <div key={h} className={clsx('flex h-11 items-center px-4', i === 0 && 'pl-6')}>
+                    <p className={clsx('text-xs font-medium text-gray-600', i > 0 && 'w-full text-right')}>{h}</p>
                   </div>
                 ))}
               </div>
-              {ALLOWANCE_ROWS.map(row => (
-                <div key={row} className="grid grid-cols-2 border-b border-gray-200 last:border-b-0">
-                  <div className="flex h-[72px] items-center px-6">
-                    <p className="text-sm font-medium text-gray-900">{row}</p>
-                  </div>
-                  <div className="flex h-[72px] items-center px-6">
-                    <p className="text-sm text-gray-400">—</p>
-                  </div>
+
+              {allowances.length === 0 ? (
+                <div className="px-6 py-5">
+                  <p className="text-sm text-gray-500">No allowances on this duty.</p>
+                  <p className="mt-0.5 text-xs text-gray-400">
+                    Nothing was triggered by its dates, timings or duty type.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                <>
+                  {allowances.map(row => {
+                    const edited = row.source === 'manual'
+                    const observed =
+                      row.code === 'overtime'    ? `closed ${clock(slip.closedAt)} · due ${hm(slip.estDropTime)}`
+                    : row.code === 'early_start' ? `started ${clock(slip.startedAt)} · due ${hm(slip.reportingTime)}`
+                    : null
+                    const rateLine = row.driverRate != null ? `${formatINR(row.driverRate)} × ${row.qty}` : null
+                    const detail = [observed, rateLine].filter(Boolean).join(' · ')
+
+                    return (
+                      <div key={row.id} className="grid grid-cols-[1fr_92px_104px_112px] items-start border-b border-gray-200 py-3 last:border-b-0">
+                        <div className="min-w-0 pl-6 pr-3">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium text-gray-900">{row.name}</p>
+                            {edited && (
+                              <span className="shrink-0 rounded-full border border-warning-200 bg-warning-25 px-1.5 py-0.5 text-[10px] font-medium text-warning-700">
+                                Edited
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
+                            {detail && <p className="text-xs text-gray-400">{detail}</p>}
+                            {edited && row.autoQty != null && (
+                              <p className="text-xs text-gray-400">was {qtyLabel(row.autoQty, row.unit)}</p>
+                            )}
+                            {edited && !readOnly && slip.status !== 'Billed' && (
+                              <button
+                                type="button" onClick={() => undoOverride(row)} disabled={allowanceBusy}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-violet-700 hover:text-violet-800 cursor-pointer disabled:opacity-50"
+                              >
+                                <RotateCcw className="size-3" strokeWidth={2} />Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="px-2">
+                          {readOnly || slip.status === 'Billed' ? (
+                            <p className="text-sm text-gray-600 text-right tabular-nums">{row.qty}</p>
+                          ) : (
+                            <input
+                              type="number" min="0" step="1"
+                              value={qtyEdits[row.id] ?? String(row.qty)}
+                              disabled={allowanceBusy}
+                              onChange={e => setQtyEdits(prev => ({ ...prev, [row.id]: e.target.value }))}
+                              onBlur={() => commitQty(row)}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              aria-label={`${row.name} quantity`}
+                              className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm text-right text-gray-900 tabular-nums outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 disabled:bg-gray-50"
+                            />
+                          )}
+                          <p className="mt-0.5 text-[10px] text-gray-400 text-right">{UNIT_NOUN[row.unit] ?? row.unit}s</p>
+                        </div>
+
+                        <div className="px-4">
+                          <p className="text-sm text-gray-900 text-right tabular-nums">{formatINR(row.driverAmount)}</p>
+                        </div>
+
+                        <div className="px-4 pr-6">
+                          {row.customerRate == null ? (
+                            <p className="text-sm text-gray-400 text-right">not billed</p>
+                          ) : (
+                            <p className="text-sm text-gray-900 text-right tabular-nums">{formatINR(row.customerAmount)}</p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  <div className="grid grid-cols-[1fr_92px_104px_112px] items-center bg-gray-50 py-3">
+                    <p className="pl-6 text-sm font-medium text-gray-900">Total</p>
+                    <span />
+                    <p className="px-4 text-sm font-semibold text-gray-900 text-right tabular-nums">
+                      {formatINR(allowances.reduce((t, r) => t + r.driverAmount, 0))}
+                    </p>
+                    <p className="px-4 pr-6 text-sm font-semibold text-gray-900 text-right tabular-nums">
+                      {formatINR(allowances.reduce((t, r) => t + r.customerAmount, 0))}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
+
+            {!readOnly && slip.status !== 'Billed' && allowances.length > 0 && (
+              <p className="text-xs text-gray-400">
+                Adjust a quantity to correct what was counted. Rates come from the rate
+                card and are not editable here.
+              </p>
+            )}
           </div>
 
           {/* Additional expenses */}

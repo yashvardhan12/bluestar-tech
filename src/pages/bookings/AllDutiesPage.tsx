@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, ChevronDown, MoreHorizontal,
-  Eye, Pencil, Car, ArrowLeftRight, Printer, FileX2, XCircle, RotateCcw,
+  Eye, Pencil, Car, ArrowLeftRight, Printer, FileX2, XCircle, RotateCcw, CheckCircle2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -17,15 +17,18 @@ import DateRangePicker from '../../components/ui/DateRangePicker'
 import type { DateRange } from '../../components/ui/DateRangePicker'
 import ClearAllotmentModal from '../../components/ui/ClearAllotmentModal'
 import RestoreDutyModal from '../../components/ui/RestoreDutyModal'
+import CloseDutyModal from '../../components/ui/CloseDutyModal'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
+import { localDate, toISODate } from '../../lib/dutyTime'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { syncDutyStatus, syncBookingStatus } from '../../lib/bookingStatus'
 import type { DutyStatus } from '../../lib/bookingStatus'
+import { isCloseable } from '../../lib/dutyClose'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type DutyFilter = 'All' | 'Upcoming' | DutyStatus
+type DutyFilter = 'All' | 'Upcoming' | 'Needs closing' | DutyStatus
 
 interface DutyRow {
   id: number
@@ -45,6 +48,9 @@ interface DutyRow {
   driver?: { id: number; initials: string; name: string }
   repTime: string
   status: DutyStatus
+  /** FR-59 gate. A back-dated duty reads Completed with an empty slip, so the
+   *  action is offered on this column and never on the status. */
+  closedAt: string | null
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -55,7 +61,10 @@ function isoToDisplay(iso: string): string {
   return `${dd}/${mm}/${yyyy}`
 }
 
-const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Completed']
+// FR-58. Ships with Close Duty, not after it: FR-59 removes the only existing
+// mechanism for finishing a forgotten duty, and without this tab nobody can find
+// one — a duty past its end date already reads Completed through duties_status.
+const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Needs closing', 'Completed']
 const BATCH_SIZE = 20
 
 // ── actions menu ──────────────────────────────────────────────────────────────
@@ -88,6 +97,10 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
     setPos({ top: rect.bottom + 4, left: rect.right - 240 })
     setOpen(v => !v)
   }
+
+  // A status with no branch in the actions builder used to render a button
+  // that opened an empty 240px box. A dead affordance is worse than none.
+  if (items.length === 0) return null
 
   return (
     <>
@@ -144,11 +157,18 @@ function getDutyActions(
     onChangeDriver: () => void
     onPrintSlip: () => void
     onClearAllotment: () => void
+    onCloseDuty: () => void
     onRestore: () => void
     onCancel: () => void
   },
 ): (MenuItem | 'divider')[] {
   const s = duty.status
+
+  // FR-59. Built once and spread, so the menu can never offer a close the modal
+  // would refuse — both sides read `isCloseable`.
+  const close: (MenuItem | 'divider')[] = isCloseable(duty.status, duty.closedAt)
+    ? [{ label: 'Close duty', icon: <CheckCircle2 className="size-4" strokeWidth={1.75} />, onClick: handlers.onCloseDuty, variant: 'confirm' }, 'divider']
+    : []
 
   if (s === 'Booked' || s === 'Confirmed') return [
     { label: 'View duty',                icon: <Eye     className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
@@ -175,6 +195,7 @@ function getDutyActions(
   ]
 
   if (s === 'On-Going') return [
+    ...close,
     { label: 'View duty',       icon: <Eye     className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Edit duty',       icon: <Pencil  className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
     'divider',
@@ -185,6 +206,7 @@ function getDutyActions(
   ]
 
   if (s === 'Completed') return [
+    ...close,
     { label: 'View duty',    icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     'divider',
     { label: 'View booking', icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewBooking },
@@ -229,6 +251,7 @@ export default function AllDutiesPage() {
   const [changeDriverDuty, setChangeDriverDuty] = useState<DutyRow | null>(null)
   const [clearAllotTarget, setClearAllotTarget] = useState<DutyRow | null>(null)
   const [restoreTarget, setRestoreTarget]       = useState<DutyRow | null>(null)
+  const [closeTarget, setCloseTarget]           = useState<DutyRow | null>(null)
   const [viewBookingId, setViewBookingId]       = useState<number | null>(null)
 
   const offsetRef   = useRef(0)
@@ -242,7 +265,7 @@ export default function AllDutiesPage() {
     let q = supabase
       .from('duties_status')
       .select(`
-        id, status:effective_status, start_date, end_date, duty_type, vehicle_group, reporting_time,
+        id, status:effective_status, start_date, end_date, duty_type, vehicle_group, reporting_time, closed_at,
         booking_id,
         bookings ( booking_ref, customer_name, booking_passengers ( name, sort_order ) ),
         vehicles ( id, model_name, vehicle_number ),
@@ -254,14 +277,25 @@ export default function AllDutiesPage() {
 
     if (statusFilter === 'Upcoming') {
       q = q.in('effective_status', ['Booked', 'Confirmed', 'Allotted'])
+    } else if (statusFilter === 'Needs closing') {
+      // FR-58. `effective_status = 'Completed'` with no `closed_at` is exactly
+      // "allotted, scheduled end has passed, nothing closed it" — the view only
+      // derives Completed when `vehicle_id IS NOT NULL AND end_date < today`,
+      // and a genuinely closed duty always carries the timestamp.
+      //
+      // One rule catches both doors: a duty the driver started and abandoned,
+      // and a back-dated allotment that never went through the app. A duty still
+      // running today reads On-Going and is deliberately not here — it is not
+      // overdue, it is in progress.
+      q = q.eq('effective_status', 'Completed').is('closed_at', null)
     } else if (statusFilter !== 'All') {
       q = q.eq('effective_status', statusFilter)
     }
 
     if (dateRange) {
       q = q
-        .gte('start_date', dateRange.start.toISOString().split('T')[0])
-        .lte('start_date', dateRange.end.toISOString().split('T')[0])
+        .gte('start_date', toISODate(dateRange.start))
+        .lte('start_date', toISODate(dateRange.end))
     }
 
     if (search.trim()) {
@@ -279,7 +313,7 @@ export default function AllDutiesPage() {
       bookingRef:     r.bookings?.booking_ref ?? '—',
       startDate:      isoToDisplay(r.start_date),
       endDate:        isoToDisplay(r.end_date),
-      startDateRaw:   new Date(r.start_date),
+      startDateRaw:   localDate(r.start_date),
       customer:       r.bookings?.customer_name ?? '—',
       passenger:      passengers[0]?.name ?? '—',
       passengerExtra: passengers.length > 1 ? passengers.length - 1 : undefined,
@@ -291,6 +325,7 @@ export default function AllDutiesPage() {
       driver:         r.drivers ? { id: r.drivers.id, initials: r.drivers.initials, name: r.drivers.name } : undefined,
       repTime:        r.reporting_time ?? '—',
       status:         r.status as DutyStatus,
+      closedAt:       r.closed_at,
     }
   }
 
@@ -586,6 +621,7 @@ export default function AllDutiesPage() {
                       onChangeDriver:   () => setChangeDriverDuty(row),
                       onPrintSlip:      () => {},
                       onClearAllotment: () => setClearAllotTarget(row),
+                      onCloseDuty:      () => setCloseTarget(row),
                       onRestore:        () => setRestoreTarget(row),
                       onCancel:         () => handleCancel(row),
                     }
@@ -724,6 +760,19 @@ export default function AllDutiesPage() {
           setRestoreTarget(null)
         }}
       />
+
+      {closeTarget && (
+        <CloseDutyModal
+          dutyId={closeTarget.id}
+          onClose={() => setCloseTarget(null)}
+          onSaved={() => {
+            showToast('Duty closed')
+            // The row's derived status and closed_at both move, so refetch
+            // rather than patch — a closed duty may also leave the active filter.
+            void fetchInitial()
+          }}
+        />
+      )}
 
       {/* View booking slide-in */}
       <AddBookingDrawer

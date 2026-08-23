@@ -5,7 +5,8 @@ import Drawer from '../../components/ui/Drawer'
 import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
 import { bookingAmount } from '../../lib/invoice'
-import type { BookingBlock } from './invoiceTypes'
+import { toAllowanceLines, allowanceTotal, type BookingBlock } from './invoiceTypes'
+import { syncDutyAllowances } from '../../lib/dutyAllowances'
 
 // Picks the bookings an invoice covers. Only shows bookings belonging to the
 // selected customer that are not already on this or any other invoice —
@@ -31,6 +32,7 @@ export default function AddBookingsDrawer({
 }: Props) {
   const [candidates, setCandidates] = useState<BookingBlock[]>([])
   const [loading, setLoading] = useState(false)
+  const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<number>>(new Set())
 
@@ -60,7 +62,7 @@ export default function AddBookingsDrawer({
 
     const { data, error: err } = await supabase
       .from('bookings')
-      .select('id, booking_ref, start_date, end_date, status, duties(id, start_date, duty_type, base_rate, vehicles(model_name, vehicle_number))')
+      .select('id, booking_ref, start_date, end_date, status, duties(id, start_date, duty_type, base_rate, vehicles(model_name, vehicle_number), duty_allowances(qty, customer_rate, customer_amount, allowances(name, unit)))')
       .eq('customer_name', customerName)
       .neq('status', 'Cancelled')
       .order('start_date', { ascending: false })
@@ -85,6 +87,8 @@ export default function AddBookingsDrawer({
           plate: d.vehicles?.vehicle_number ?? '',
           dutyType: d.duty_type ?? '—',
           baseRate: d.base_rate == null ? null : Number(d.base_rate),
+          allowances: allowanceTotal(d.duty_allowances),
+          allowanceLines: toAllowanceLines(d.duty_allowances),
         })),
       })))
     setLoading(false)
@@ -105,8 +109,38 @@ export default function AddBookingsDrawer({
     })
   }
 
-  function handleAdd() {
-    onAdd(candidates.filter(c => picked.has(c.bookingId)))
+  async function handleAdd() {
+    const chosen = candidates.filter(c => picked.has(c.bookingId))
+    const dutyIds = chosen.flatMap(b => b.duties.map(d => d.id))
+
+    // Allowances are computed lazily on the operator's side, and an invoice can
+    // easily be the first thing that ever looks at a duty. Sync before the
+    // amounts are copied onto the invoice, or a booking gets billed car hire
+    // only and nobody notices until the customer queries it.
+    setAdding(true)
+    for (const id of dutyIds) await syncDutyAllowances(id)
+
+    // Re-read the snapshots the sync just wrote; `chosen` was mapped before it.
+    const { data, error } = await supabase
+      .from('duty_allowances')
+      .select('duty_id, qty, customer_rate, customer_amount, allowances(name, unit)')
+      .in('duty_id', dutyIds.length > 0 ? dutyIds : [-1])
+    if (error) console.error('[invoice] reload allowances', error.message)
+
+    const byDuty = new Map<number, any[]>()
+    for (const r of (data ?? []) as any[]) {
+      byDuty.set(r.duty_id, [...(byDuty.get(r.duty_id) ?? []), r])
+    }
+
+    setAdding(false)
+    onAdd(chosen.map(b => ({
+      ...b,
+      duties: b.duties.map(d => ({
+        ...d,
+        allowances:     allowanceTotal(byDuty.get(d.id) ?? []),
+        allowanceLines: toAllowanceLines(byDuty.get(d.id) ?? []),
+      })),
+    })))
     onClose()
   }
 
@@ -122,9 +156,11 @@ export default function AddBookingsDrawer({
             className="px-3.5 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
             Cancel
           </button>
-          <button type="button" onClick={handleAdd} disabled={picked.size === 0}
+          <button type="button" onClick={handleAdd} disabled={picked.size === 0 || adding}
             className="px-3.5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
-            {picked.size === 0
+            {adding
+              ? 'Adding…'
+              : picked.size === 0
               ? 'Add bookings'
               : `Add ${picked.size} booking${picked.size === 1 ? '' : 's'}`}
           </button>

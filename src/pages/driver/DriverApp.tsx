@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { CalendarClock, CheckCircle2, ChevronRight, CircleUser, Navigation, Phone, LogOut } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '../../lib/auth'
+import { todayISO } from '../../lib/dutyTime'
 import {
   loadDuties, loadMe, dutyStart, dutyStage, STAGE_LABEL,
   countdown, formatDate, formatTime,
@@ -84,7 +85,7 @@ function DutiesProvider({ children }: { children: React.ReactNode }) {
 // ── categorisation ───────────────────────────────────────────────────────────
 
 const isDone = (d: DriverDuty) => d.closedAt != null || d.status === 'Completed' || d.status === 'Billed'
-const isToday = (d: DriverDuty) => d.startDate <= new Date().toISOString().slice(0, 10)
+const isToday = (d: DriverDuty) => d.startDate <= todayISO()
 
 /** FR-9 — the duty in progress, or today's next one if none has started. */
 export function pickCurrent(duties: DriverDuty[]): DriverDuty | null {

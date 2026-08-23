@@ -10,22 +10,21 @@
  *
  * Protected statuses that are never touched by automation:
  *  Billed, Cancelled
+ *
+ * Nothing here auto-completes a duty. `syncCompletedDuties` used to flip any
+ * On-Going duty whose end_date had passed straight to Completed — on the date
+ * alone, with no closed_at, no odometer pair and no signature — which is how
+ * duty 3 ended up Completed having never been started. FR-54 forbids it and
+ * FR-59 replaces it with an operator action; both it and the two On-Going batch
+ * helpers were dead once duties_status/bookings_status derived those statuses in
+ * SQL, and are gone.
  */
 
 import { supabase } from './supabase'
+import { atTime } from './dutyTime'
 import type { BookingStatus } from '../components/ui/StatusBadge'
 
 const PROTECTED: BookingStatus[] = ['Billed', 'Cancelled']
-
-/** Parse an ISO date + HH:MM time string into a Date, safely. */
-function toDatetime(isoDate: string, time: string | null): Date {
-  const t = time ?? '00:00'
-  // reporting_time from Postgres comes as "HH:MM:SS" or "HH:MM"
-  const [hh, mm] = t.split(':')
-  const d = new Date(isoDate)
-  d.setHours(Number(hh), Number(mm), 0, 0)
-  return d
-}
 
 /**
  * Recomputes and persists the correct status for one booking.
@@ -63,8 +62,8 @@ export async function syncBookingStatus(bookingId: number): Promise<BookingStatu
 
   // ── Priority 2: On-Going ───────────────────────────────────────────────────
   const firstStart = active.reduce<Date>(
-    (min, d) => { const dt = toDatetime(d.start_date, d.reporting_time); return dt < min ? dt : min },
-    toDatetime(active[0].start_date, active[0].reporting_time),
+    (min, d) => { const dt = atTime(d.start_date, d.reporting_time); return dt < min ? dt : min },
+    atTime(active[0].start_date, active[0].reporting_time),
   )
   const lastEnd = active.reduce<Date>(
     (max, d) => { const dt = new Date(d.end_date + 'T23:59:59'); return dt > max ? dt : max },
@@ -100,56 +99,6 @@ async function apply(
   return newStatus
 }
 
-/**
- * Batch On-Going check for multiple bookings that are already in
- * Allotted or Partially Allotted state.
- *
- * Fires one duties query (not N), evaluates client-side, then bulk-updates.
- * Returns the IDs of bookings that were flipped to On-Going.
- */
-export async function syncOnGoingStatuses(bookingIds: number[]): Promise<number[]> {
-  if (bookingIds.length === 0) return []
-
-  const { data: duties } = await supabase
-    .from('duties')
-    .select('booking_id, vehicle_id, start_date, end_date, reporting_time, status')
-    .in('booking_id', bookingIds)
-    .neq('status', 'Cancelled')
-
-  if (!duties || duties.length === 0) return []
-
-  // Group by booking
-  const grouped = new Map<number, typeof duties>()
-  for (const d of duties) {
-    const list = grouped.get(d.booking_id) ?? []
-    list.push(d)
-    grouped.set(d.booking_id, list)
-  }
-
-  const now = new Date()
-  const toFlip: number[] = []
-
-  for (const [id, rows] of grouped) {
-    const firstStart = rows.reduce<Date>(
-      (min, d) => { const dt = toDatetime(d.start_date, d.reporting_time); return dt < min ? dt : min },
-      toDatetime(rows[0].start_date, rows[0].reporting_time),
-    )
-    const lastEnd = rows.reduce<Date>(
-      (max, d) => { const dt = new Date(d.end_date + 'T23:59:59'); return dt > max ? dt : max },
-      new Date(rows[0].end_date + 'T23:59:59'),
-    )
-
-    const hasAllotted = rows.some(d => d.vehicle_id != null)
-    if (hasAllotted && now >= firstStart && now <= lastEnd) toFlip.push(id)
-  }
-
-  if (toFlip.length > 0) {
-    await supabase.from('bookings').update({ status: 'On-Going' }).in('id', toFlip)
-  }
-
-  return toFlip
-}
-
 // ── Duty status automation ────────────────────────────────────────────────────
 
 export type DutyStatus = 'Booked' | 'Confirmed' | 'Allotted' | 'On-Going' | 'Completed' | 'Cancelled'
@@ -170,7 +119,7 @@ export function computeDutyStatus(
   reportingTime: string | null,
 ): DutyStatus {
   const now   = new Date()
-  const start = toDatetime(startDate, reportingTime)
+  const start = atTime(startDate, reportingTime)
   const end   = new Date(endDate + 'T23:59:59')
   if (vehicleId != null && now >= start && now <= end) return 'On-Going'
   return vehicleId != null ? 'Allotted' : 'Booked'
@@ -197,59 +146,3 @@ export async function syncDutyStatus(dutyId: number): Promise<DutyStatus | null>
   return newStatus
 }
 
-/**
- * Batch On-Going check for multiple duties.
- * Fires one query, evaluates client-side, then bulk-updates.
- * Returns the IDs of duties that were flipped to On-Going.
- */
-export async function syncDutiesOnGoing(dutyIds: number[]): Promise<number[]> {
-  if (dutyIds.length === 0) return []
-
-  const { data: duties } = await supabase
-    .from('duties')
-    .select('id, vehicle_id, start_date, end_date, reporting_time, status')
-    .in('id', dutyIds)
-
-  if (!duties || duties.length === 0) return []
-
-  const now = new Date()
-  const toFlip: number[] = []
-
-  for (const d of duties) {
-    if (DUTY_PROTECTED.includes(d.status as DutyStatus)) continue
-    const start = toDatetime(d.start_date, d.reporting_time)
-    const end   = new Date(d.end_date + 'T23:59:59')
-    if (d.vehicle_id != null && now >= start && now <= end && d.status !== 'On-Going') toFlip.push(d.id)
-  }
-
-  if (toFlip.length > 0) {
-    await supabase.from('duties').update({ status: 'On-Going' }).in('id', toFlip)
-  }
-
-  return toFlip
-}
-
-/**
- * Auto-complete: find all On-Going duties whose end_date has passed and
- * mark them Completed, then sync their booking statuses.
- * Returns the IDs of duties that were flipped.
- */
-export async function syncCompletedDuties(): Promise<number[]> {
-  const today = new Date().toISOString().split('T')[0]
-
-  const { data: duties } = await supabase
-    .from('duties')
-    .select('id, booking_id')
-    .eq('status', 'On-Going')
-    .lt('end_date', today)
-
-  if (!duties || duties.length === 0) return []
-
-  const ids = duties.map((d: any) => d.id)
-  await supabase.from('duties').update({ status: 'Completed' }).in('id', ids)
-
-  const bookingIds = [...new Set(duties.map((d: any) => d.booking_id as number))]
-  await Promise.all(bookingIds.map(id => syncBookingStatus(id)))
-
-  return ids
-}

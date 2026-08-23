@@ -6,10 +6,41 @@
  * pages that use it.
  */
 
-/** "HH:MM[:SS]" on an ISO date → a local Date. Mirrors toDatetime in bookingStatus.ts. */
+/**
+ * "YYYY-MM-DD" → that day at local midnight.
+ *
+ * `new Date('2026-08-12')` is deliberately not used: the spec parses a
+ * date-only string as *UTC* midnight, so anywhere west of UTC it lands on the
+ * 11th and every later getDate/setHours/toLocaleDateString reports the wrong
+ * day. Building from parts is defined as local — which is what every date
+ * column here means. A duty on the 12th is on the 12th wherever it is read.
+ */
+export function localDate(isoDate: string): Date {
+  const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+/**
+ * A local Date → "YYYY-MM-DD".
+ *
+ * `toISOString().slice(0, 10)` is the trap this replaces: it converts to UTC
+ * first, so local midnight in IST becomes 18:30 the *previous* day and the
+ * date comes back one short.
+ */
+export function toISODate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Today's date in the operator's own timezone, not UTC's. */
+export function todayISO(now: Date = new Date()): string {
+  return toISODate(now)
+}
+
+/** "HH:MM[:SS]" on an ISO date → a local Date. */
 export function atTime(isoDate: string, time: string | null): Date {
   const [hh, mm] = (time ?? '00:00').split(':')
-  const d = new Date(isoDate)
+  const d = localDate(isoDate)
   d.setHours(Number(hh), Number(mm), 0, 0)
   return d
 }
@@ -38,7 +69,7 @@ export function formatTime(t: string | null): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  return localDate(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 /** FR-14 — the prompt comes from the duty's own garage allowance, not a guess. */

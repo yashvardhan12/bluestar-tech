@@ -1,9 +1,13 @@
 // Invoice arithmetic. Pure functions, no React, no Supabase — so the totals
 // can be checked without a browser (see invoice.check.ts).
 //
-// A booking's amount is the sum of its duties' base_rate. The database has
-// extra_km_rate and extra_hour_rate but no actual km or hours run, so extras
-// cannot be computed; they get entered as custom rows instead.
+// A booking's amount is the sum of its duties' base_rate plus whatever
+// allowances that duty billed the customer (duty_allowances.customer_amount,
+// snapshotted at compute time — see lib/allowances.ts).
+//
+// extra_km_rate and extra_hour_rate are still not computed here. The duty now
+// records real odometer and timestamps, but nothing decides what an "extra"
+// costs beyond the package, so those stay manual custom rows.
 
 // Explicit .ts extension (tsconfig has allowImportingTsExtensions) so that
 // invoice.check.ts can run this module straight through node.
@@ -13,6 +17,8 @@ export type DiscountMode = 'amount' | 'percentage' | 'percentage_car_hire'
 
 export interface CalcDuty {
   baseRate: number | null
+  /** Sum of this duty's customer-billed allowances. Absent means none. */
+  allowances?: number
 }
 
 export interface CalcBooking {
@@ -48,7 +54,7 @@ export interface InvoiceTotals {
 }
 
 export function bookingAmount(duties: CalcDuty[]): number {
-  return round2(duties.reduce((sum, d) => sum + (d.baseRate ?? 0), 0))
+  return round2(duties.reduce((sum, d) => sum + (d.baseRate ?? 0) + (d.allowances ?? 0), 0))
 }
 
 export function calculateInvoice(input: {

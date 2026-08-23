@@ -5,7 +5,7 @@ import {
   ArrowLeft, Plus, Pencil, MoreHorizontal, Search,
   ChevronLeft, ChevronRight, ChevronDown, Eye, Truck,
   RotateCcw, XCircle,
-  Send, FileText, Printer, ArrowLeftRight, Car, FileX2,
+  Send, FileText, Printer, ArrowLeftRight, Car, FileX2, CheckCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -22,6 +22,8 @@ import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { syncBookingStatus } from '../../lib/bookingStatus'
+import { isCloseable } from '../../lib/dutyClose'
+import CloseDutyModal from '../../components/ui/CloseDutyModal'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,8 @@ interface Duty {
   driver?: Driver
   repTime: string
   status: DutyStatus
+  /** FR-59 gate — the action follows this column, never the status. */
+  closedAt: string | null
 }
 
 const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Completed', 'Billed', 'Cancelled']
@@ -104,6 +108,10 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
   }
 
   useMenuFlip(open, btnRef, menuRef, top => setPos(p => ({ ...p, top })))
+
+  // A status with no branch in the actions builder used to render a button
+  // that opened an empty 240px box. A dead affordance is worse than none.
+  if (items.length === 0) return null
 
   return (
     <>
@@ -171,6 +179,12 @@ function getDutyActions(
 ): (MenuItem | 'divider')[] {
   const s = duty.status
 
+  // FR-59. Same predicate the modal uses, so the menu can never offer a close
+  // that would then be refused.
+  const close: (MenuItem | 'divider')[] = isCloseable(duty.status, duty.closedAt)
+    ? [{ label: 'Close duty', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onCloseDuty }, 'divider']
+    : []
+
   if (s === 'Booked' || s === 'Confirmed') return [
     { label: 'View duty',               icon: <Eye        className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Edit duty',               icon: <Pencil     className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
@@ -195,7 +209,21 @@ function getDutyActions(
     { label: 'Cancel Duty',                 icon: <XCircle        className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
   ]
 
+  // A live duty. No 'View booking' — this page is the booking. Print and
+  // 'Send to driver' are still no-op stubs, so they are left out rather than
+  // added as more buttons that do nothing. Close duty lands here next.
+  if (s === 'On-Going') return [
+    ...close,
+    { label: 'View duty',     icon: <Eye            className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit duty',     icon: <Pencil         className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
+    'divider',
+    { label: 'Change Driver', icon: <ArrowLeftRight className="size-4" strokeWidth={1.75} />, onClick: handlers.onChangeDriver },
+    'divider',
+    { label: 'Cancel Duty',   icon: <XCircle        className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
+  ]
+
   if (s === 'Completed' || s === 'Billed') return [
+    ...close,
     { label: 'View duty',       icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Preview duty slip', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onPreviewSlip },
     { label: 'Edit duty slip',  icon: <Pencil   className="size-4" strokeWidth={1.75} />, onClick: handlers.onEditSlip },
@@ -261,7 +289,7 @@ export default function BookingDetailPage() {
         .single(),
       supabase
         .from('duties')
-        .select('id, status, start_date, end_date, duty_type, vehicle_group, reporting_time, vehicles(model_name, vehicle_number), drivers(id, name, initials)')
+        .select('id, status, closed_at, start_date, end_date, duty_type, vehicle_group, reporting_time, vehicles(model_name, vehicle_number), drivers(id, name, initials)')
         .eq('booking_id', bookingId)
         .order('start_date'),
     ])
@@ -278,6 +306,7 @@ export default function BookingDetailPage() {
     if (dutiesData) {
       setDuties(dutiesData.map((r: any) => ({
         id:            r.id,
+        closedAt:      r.closed_at,
         date:          isoToDisplay(r.start_date),
         customer:      bk?.customer_name ?? '',
         passenger:     bk ? (() => {
@@ -320,6 +349,7 @@ export default function BookingDetailPage() {
   }
 
   const [slipDuty, setSlipDuty]                 = useState<{ id: number; mode: 'view' | 'edit' } | null>(null)
+  const [closeTarget, setCloseTarget]            = useState<Duty | null>(null)
   const [allotDuty, setAllotDuty]               = useState<Duty | null>(null)
   const [changeDriverDuty, setChangeDriverDuty] = useState<Duty | null>(null)
   const [clearAllotTarget, setClearAllotTarget] = useState<Duty | null>(null)
@@ -609,7 +639,7 @@ export default function BookingDetailPage() {
                       onChangeDriver:   () => openChangeDriverDrawer(row),
                       onSendToDriver:   () => {},
                       onClearAllotment: () => setClearAllotTarget(row),
-                      onCloseDuty:      () => updateDutyStatus(row.id, 'Completed'),
+                      onCloseDuty:      () => setCloseTarget(row),
                       onUnconfirm:      () => updateDutyStatus(row.id, 'Booked'),
                       onConfirm:        () => updateDutyStatus(row.id, 'Booked'),
                       onPreviewSlip:    () => setSlipDuty({ id: row.id, mode: 'view' }),
@@ -807,6 +837,14 @@ export default function BookingDetailPage() {
           showToast('Driver updated successfully')
         }}
       />
+
+      {closeTarget && (
+        <CloseDutyModal
+          dutyId={closeTarget.id}
+          onClose={() => setCloseTarget(null)}
+          onSaved={() => { showToast('Duty closed'); void fetchDuties() }}
+        />
+      )}
 
       {slipDuty && (
         <DutySlipDrawer

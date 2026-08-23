@@ -4,6 +4,7 @@ import { Search, ChevronDown, ChevronLeft, ChevronRight, IndianRupee, Clipboard,
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
+import { todayISO } from '../../lib/dutyTime'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { useToast } from '../../components/ui/Toast'
 import Drawer from '../../components/ui/Drawer'
@@ -485,7 +486,7 @@ export default function PayrollPage() {
       }, { onConflict: 'driver_id,month' })
       if (error) throw error
       // Log the advance as a deduction entry
-      const todayStr = new Date().toISOString().slice(0, 10)
+      const todayStr = todayISO()
       await supabase.from('driver_expense_logs').insert({
         driver_id: advanceDriver.id,
         date:      todayStr,
@@ -534,7 +535,7 @@ export default function PayrollPage() {
       if (error) throw error
 
       // Log payment to expense logs
-      const todayStr = new Date().toISOString().slice(0, 10)
+      const todayStr = todayISO()
       await supabase.from('driver_expense_logs').insert({
         driver_id: confirmDriver.id,
         date:      todayStr,
@@ -636,7 +637,7 @@ export default function PayrollPage() {
       if (error) throw error
 
       // Insert daily log entries for today
-      const todayStr = new Date().toISOString().slice(0, 10)
+      const todayStr = todayISO()
       const logRows: { driver_id: number; date: string; type: string; amount: number }[] = []
       if (form.allowances) logRows.push({ driver_id: activeDriver.id, date: todayStr, type: 'Allowances', amount: Number(form.allowances) })
       for (const exp of expenses) {

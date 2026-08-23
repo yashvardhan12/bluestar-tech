@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
+import { localDate } from '../../lib/dutyTime'
 
 // ── types ──────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ function formatDate(dateStr: string | null): string {
 function nextEmiDate(emiDay: number | null, endDate: string | null): string {
   if (!emiDay) return '—'
   const today = new Date()
-  if (endDate && new Date(endDate) < today) return 'Loan closed'
+  if (endDate && localDate(endDate) < today) return 'Loan closed'
   const d = new Date(today.getFullYear(), today.getMonth(), emiDay)
   if (d <= today) d.setMonth(d.getMonth() + 1)
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
