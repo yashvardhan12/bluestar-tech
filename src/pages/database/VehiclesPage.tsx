@@ -29,8 +29,6 @@ interface Vehicle {
   insDueDate?: string | null
   insPremium?: number | null
   insCover?: number | null
-  rtoOwnerName?: string | null
-  rtoRegDate?: string | null
   chassisNumber?: string | null
   engineNumber?: string | null
   carExpiryDate?: string | null
@@ -42,7 +40,6 @@ interface Vehicle {
   loanEmiDate?: number | null
   regDocumentUrl?: string | null
   insDocumentUrl?: string | null
-  rtoDocumentUrl?: string | null
   loanDocumentUrl?: string | null
   attachDocumentUrl?: string | null
   notes?: string | null
@@ -193,8 +190,6 @@ const EMPTY_FORM = {
   insDueDate: '',
   insPremium: '',
   insCover: '',
-  rtoOwnerName: '',
-  rtoRegDate: '',
   chassisNumber: '',
   engineNumber: '',
   carExpiryDate: '',
@@ -206,7 +201,6 @@ const EMPTY_FORM = {
   loanEmiDate: '',
   regDocumentUrl: '',
   insDocumentUrl: '',
-  rtoDocumentUrl: '',
   loanDocumentUrl: '',
   attachDocumentUrl: '',
   notes: '',
@@ -237,7 +231,7 @@ export default function VehiclesPage() {
     const [vehiclesRes, groupsRes] = await Promise.all([
       supabase
         .from('vehicles')
-        .select('id, model_name, vehicle_number, status, vehicle_group_id, fuel_type, fastag_number, reg_owner_name, reg_date, ins_company, ins_policy_number, ins_issue_date, ins_due_date, ins_premium, ins_cover, rto_owner_name, rto_reg_date, chassis_number, engine_number, car_expiry_date, has_loan, loan_emi_amount, loan_start_date, loan_end_date, loan_bank_name, loan_emi_date, reg_document_url, ins_document_url, rto_document_url, loan_document_url, attach_document_url, notes')
+        .select('id, model_name, vehicle_number, status, vehicle_group_id, fuel_type, fastag_number, reg_owner_name, reg_date, ins_company, ins_policy_number, ins_issue_date, ins_due_date, ins_premium, ins_cover, chassis_number, engine_number, car_expiry_date, has_loan, loan_emi_amount, loan_start_date, loan_end_date, loan_bank_name, loan_emi_date, reg_document_url, ins_document_url, loan_document_url, attach_document_url, notes')
         .order('created_at', { ascending: false }),
       supabase.from('vehicle_groups').select('id, name').order('name'),
     ])
@@ -264,8 +258,6 @@ export default function VehiclesPage() {
         insDueDate: v.ins_due_date,
         insPremium: v.ins_premium,
         insCover: v.ins_cover,
-        rtoOwnerName: v.rto_owner_name,
-        rtoRegDate: v.rto_reg_date,
         chassisNumber: v.chassis_number,
         engineNumber: v.engine_number,
         carExpiryDate: v.car_expiry_date,
@@ -277,7 +269,6 @@ export default function VehiclesPage() {
         loanEmiDate: v.loan_emi_date,
         regDocumentUrl: v.reg_document_url,
         insDocumentUrl: v.ins_document_url,
-        rtoDocumentUrl: v.rto_document_url,
         loanDocumentUrl: v.loan_document_url,
         attachDocumentUrl: v.attach_document_url,
         notes: v.notes,
@@ -343,8 +334,6 @@ export default function VehiclesPage() {
       insDueDate: vehicle.insDueDate ?? '',
       insPremium: vehicle.insPremium?.toString() ?? '',
       insCover: vehicle.insCover?.toString() ?? '',
-      rtoOwnerName: vehicle.rtoOwnerName ?? '',
-      rtoRegDate: vehicle.rtoRegDate ?? '',
       chassisNumber: vehicle.chassisNumber ?? '',
       engineNumber: vehicle.engineNumber ?? '',
       carExpiryDate: vehicle.carExpiryDate ?? '',
@@ -356,7 +345,6 @@ export default function VehiclesPage() {
       loanEmiDate: vehicle.loanEmiDate?.toString() ?? '',
       regDocumentUrl: vehicle.regDocumentUrl ?? '',
       insDocumentUrl: vehicle.insDocumentUrl ?? '',
-      rtoDocumentUrl: vehicle.rtoDocumentUrl ?? '',
       loanDocumentUrl: vehicle.loanDocumentUrl ?? '',
       attachDocumentUrl: vehicle.attachDocumentUrl ?? '',
       notes: vehicle.notes ?? '',
@@ -409,8 +397,6 @@ export default function VehiclesPage() {
         ins_due_date: form.insDueDate || null,
         ins_premium: form.insPremium ? Number(form.insPremium) : null,
         ins_cover: form.insCover ? Number(form.insCover) : null,
-        rto_owner_name: form.rtoOwnerName || null,
-        rto_reg_date: form.rtoRegDate || null,
         chassis_number: form.chassisNumber || null,
         engine_number: form.engineNumber || null,
         car_expiry_date: form.carExpiryDate || null,
@@ -422,7 +408,6 @@ export default function VehiclesPage() {
         loan_emi_date: form.hasLoan && form.loanEmiDate ? Number(form.loanEmiDate) : null,
         reg_document_url: form.regDocumentUrl || null,
         ins_document_url: form.insDocumentUrl || null,
-        rto_document_url: form.rtoDocumentUrl || null,
         loan_document_url: form.loanDocumentUrl || null,
         attach_document_url: form.attachDocumentUrl || null,
         notes: form.notes || null,
@@ -774,23 +759,6 @@ export default function VehiclesPage() {
               <FileUpload label="Insurance Document" storagePath="ins"
                 existingUrl={form.insDocumentUrl || null} disabled={isView}
                 onChange={url => set('insDocumentUrl', url ?? '')} />
-            </SectionCard>
-
-            {/* RTO */}
-            <SectionCard title="RTO">
-              <Field label="Owner Name">
-                <input type="text" placeholder="John Doe" value={form.rtoOwnerName}
-                  onChange={e => set('rtoOwnerName', e.target.value)}
-                  disabled={isView} className={inputCls} />
-              </Field>
-              <Field label="Registration Date">
-                <input type="date" value={form.rtoRegDate}
-                  onChange={e => set('rtoRegDate', e.target.value)}
-                  disabled={isView} className={inputCls} />
-              </Field>
-              <FileUpload label="Registration Documents" storagePath="rto"
-                existingUrl={form.rtoDocumentUrl || null} disabled={isView}
-                onChange={url => set('rtoDocumentUrl', url ?? '')} />
             </SectionCard>
 
             {/* Parts */}

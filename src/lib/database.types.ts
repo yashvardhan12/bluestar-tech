@@ -171,8 +171,6 @@ export interface Database {
           ins_due_date: string | null
           ins_premium: number | null
           ins_cover: number | null
-          rto_owner_name: string | null
-          rto_reg_date: string | null
           chassis_number: string | null
           engine_number: string | null
           car_expiry_date: string | null
@@ -196,8 +194,6 @@ export interface Database {
           ins_due_date?: string | null
           ins_premium?: number | null
           ins_cover?: number | null
-          rto_owner_name?: string | null
-          rto_reg_date?: string | null
           chassis_number?: string | null
           engine_number?: string | null
           car_expiry_date?: string | null
