@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -9,7 +9,6 @@ import { clsx } from 'clsx'
 import ConfirmDeleteModal, { type DeleteCheckbox } from '../../components/ui/ConfirmDeleteModal'
 import AddBookingDrawer from './AddBookingDrawer'
 import { getBookingActions } from './bookingActions'
-import ImportBookingsModal from './ImportBookingsModal'
 import AllotDrawer from './AllotDrawer'
 import type { MockVehicle, MockDriver } from './AllotDrawer'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -21,6 +20,10 @@ import { supabase } from '../../lib/supabase'
 import { localDate } from '../../lib/dutyTime'
 import { useMenuFlip } from '../../lib/useMenuFlip'
 import { syncBookingStatus } from '../../lib/bookingStatus'
+
+// Lazy: the modal pulls in xlsx, a 352 kB chunk (119 kB gzipped) that only
+// matters once somebody actually imports a sheet. Nothing else parses a workbook.
+const ImportBookingsModal = lazy(() => import('./ImportBookingsModal'))
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -501,14 +504,18 @@ export default function AllBookingsPage() {
       </div>
 
       {/* Bulk import of a client trip export */}
-      <ImportBookingsModal
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImported={() => {
-          fetchBookings()
-          showToast('Bookings imported')
-        }}
-      />
+      {importOpen && (
+        <Suspense fallback={null}>
+          <ImportBookingsModal
+            open={importOpen}
+            onClose={() => setImportOpen(false)}
+            onImported={() => {
+              fetchBookings()
+              showToast('Bookings imported')
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Booking drawer — add / edit / view */}
       <AddBookingDrawer
