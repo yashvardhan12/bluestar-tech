@@ -29,6 +29,7 @@ interface DutyType {
   rate12PlusHrs: number | null
   ratePerKm: number | null
   dailyOutstationCharges: number | null
+  extraHourRate: number | null
   isP2P: boolean
   isGTG: boolean
 }
@@ -153,6 +154,7 @@ const EMPTY_FORM = {
   rate12PlusHrs: '',
   ratePerKm: '',
   dailyOutstationCharges: '',
+  extraHourRate: '',
   isP2P: false,
   isGTG: false,
 }
@@ -189,10 +191,11 @@ export default function DutyTypesPage() {
   async function fetchData() {
     const [dtRes, vgRes, alRes] = await Promise.all([
       supabase.from('duty_types')
-        .select('id, category, type_name, vehicle_group_id, fixed_charges, night_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, daily_outstation_charges, is_p2p, is_gtg, vehicle_groups(name)')
+        .select('id, category, type_name, vehicle_group_id, fixed_charges, night_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, daily_outstation_charges, extra_hour_rate, is_p2p, is_gtg, vehicle_groups(name)')
         .order('created_at', { ascending: false }),
       supabase.from('vehicle_groups').select('id, name').order('name'),
-      supabase.from('allowances').select('id, name, unit, driver_rate').eq('is_active', true).order('id'),
+      // extra_hour is priced by the Monthly field below, never opted into here.
+      supabase.from('allowances').select('id, name, unit, driver_rate').eq('is_active', true).neq('code', 'extra_hour').order('id'),
     ])
     if (vgRes.data) setVehicleGroups(vgRes.data)
     if (alRes.data) setAllowanceList((alRes.data as any[]).map(a => ({
@@ -214,6 +217,7 @@ export default function DutyTypesPage() {
         rate12PlusHrs: d.rate_12_plus_hrs,
         ratePerKm: d.rate_per_km,
         dailyOutstationCharges: d.daily_outstation_charges,
+        extraHourRate: d.extra_hour_rate,
         isP2P: d.is_p2p,
         isGTG: d.is_gtg,
       })))
@@ -258,6 +262,7 @@ export default function DutyTypesPage() {
       rate12PlusHrs: r.rate12PlusHrs != null ? String(r.rate12PlusHrs) : '',
       ratePerKm: r.ratePerKm != null ? String(r.ratePerKm) : '',
       dailyOutstationCharges: r.dailyOutstationCharges != null ? String(r.dailyOutstationCharges) : '',
+      extraHourRate: r.extraHourRate != null ? String(r.extraHourRate) : '',
       isP2P: r.isP2P,
       isGTG: r.isGTG,
     }
@@ -343,6 +348,7 @@ export default function DutyTypesPage() {
       rate_12_plus_hrs: form.rate12PlusHrs ? Number(form.rate12PlusHrs) : null,
       rate_per_km: form.ratePerKm ? Number(form.ratePerKm) : null,
       daily_outstation_charges: form.dailyOutstationCharges ? Number(form.dailyOutstationCharges) : null,
+      extra_hour_rate: form.extraHourRate ? Number(form.extraHourRate) : null,
       is_p2p: form.isP2P,
       is_gtg: form.isGTG,
     }
@@ -626,6 +632,10 @@ export default function DutyTypesPage() {
                     </p>
                     <NumericField label="Rate per kilometer" required={!readOnly} value={form.ratePerKm} onChange={v => set('ratePerKm', v)} disabled={readOnly} />
                   </div>
+
+                  {/* Charged once on a duty that reports before 05:00 or releases
+                      at or after 23:00 — see isNightDuty in lib/dutyPrice.ts. */}
+                  <NumericField label="Night charges" value={form.nightCharges} onChange={v => set('nightCharges', v)} disabled={readOnly} />
                 </>
               )}
 
@@ -643,6 +653,7 @@ export default function DutyTypesPage() {
                   <NumericField label="Fixed Charges" required={!readOnly} value={form.fixedCharges} onChange={v => set('fixedCharges', v)} disabled={readOnly} />
                   <NumericField label="Rate per kilometer" required={!readOnly} value={form.ratePerKm} onChange={v => set('ratePerKm', v)} disabled={readOnly} />
                   <NumericField label="Daily outstation charges" required={!readOnly} value={form.dailyOutstationCharges} onChange={v => set('dailyOutstationCharges', v)} disabled={readOnly} />
+                  <NumericField label="Extra hours rate (per hour, after 12 hours)" required={!readOnly} value={form.extraHourRate} onChange={v => set('extraHourRate', v)} disabled={readOnly} />
                 </>
               )}
 

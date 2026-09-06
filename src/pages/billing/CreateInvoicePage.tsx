@@ -12,7 +12,7 @@ import { useActiveCompany } from '../../lib/useActiveCompany'
 import { formatINR, amountInWords } from '../../lib/money'
 import { todayISO } from '../../lib/dutyTime'
 import { calculateInvoice, bookingAmount, type DiscountMode } from '../../lib/invoice'
-import { toAllowanceLines, allowanceTotal } from './invoiceTypes'
+import { toDutyRow, loadRateCards, DUTY_SELECT } from './invoiceTypes'
 import AddBookingsDrawer from './AddBookingsDrawer'
 import type { BookingBlock, DutyRow } from './invoiceTypes'
 
@@ -272,7 +272,17 @@ function DutiesTable({ duties }: { duties: DutyRow[] }) {
                   <p className="text-sm text-gray-900">{duty.vehicle}</p>
                   <p className="text-sm text-gray-500">{duty.plate}</p>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-600">{duty.dutyType}</td>
+                <td className="px-6 py-4 text-sm text-gray-600">
+                  {duty.dutyType}
+                  {/* No rate was typed on this duty, so it is priced from the
+                      duty type rate card. Say so — an operator must never meet
+                      a figure on an invoice with no account of where it came from. */}
+                  {duty.computed && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                      From rate card
+                    </span>
+                  )}
+                </td>
                 <td className="px-6 py-4 text-sm text-gray-700 text-right whitespace-nowrap">
                   {formatINR(duty.baseRate)}
                 </td>
@@ -441,6 +451,8 @@ export default function CreateInvoicePage() {
     setLoading(true)
     setLoadError(null)
 
+    const cards = await loadRateCards()
+
     const { data, error } = await supabase
       .from('invoices')
       .select(`id, invoice_number, invoice_date, due_date, period_start, period_end,
@@ -449,10 +461,7 @@ export default function CreateInvoicePage() {
                invoice_lines(kind, label, rate, amount, taxable, sort_order),
                invoice_bookings(booking_id, custom_description, sort_order,
                  bookings(booking_ref, start_date, end_date,
-                   duties(id, start_date, duty_type, base_rate,
-                     vehicles(model_name, vehicle_number),
-                     duty_allowances(qty, customer_rate, customer_amount,
-                       allowances(name, unit)))))`)
+                   duties(${DUTY_SELECT})))`)
       .eq('id', invoiceId)
       .maybeSingle()
 
@@ -488,16 +497,7 @@ export default function CreateInvoicePage() {
         bookingRef: ib.bookings?.booking_ref || `#${ib.booking_id}`,
         dateRange: `${displayDate(ib.bookings?.start_date ?? '')} to ${displayDate(ib.bookings?.end_date ?? '')}`,
         customDescription: ib.custom_description ?? '',
-        duties: (ib.bookings?.duties ?? []).map((d: any) => ({
-          id: d.id,
-          date: displayDate(d.start_date ?? ''),
-          vehicle: d.vehicles?.model_name ?? '—',
-          plate: d.vehicles?.vehicle_number ?? '',
-          dutyType: d.duty_type ?? '—',
-          baseRate: d.base_rate == null ? null : Number(d.base_rate),
-          allowances: allowanceTotal(d.duty_allowances),
-          allowanceLines: toAllowanceLines(d.duty_allowances),
-        })),
+        duties: (ib.bookings?.duties ?? []).map((d: any) => toDutyRow(d, cards, displayDate)),
       })))
 
     const lines = ((data.invoice_lines ?? []) as any[]).sort((a, b) => a.sort_order - b.sort_order)
@@ -664,6 +664,25 @@ export default function CreateInvoicePage() {
       if (lineRows.length > 0) {
         const { error } = await supabase.from('invoice_lines').insert(lineRows)
         if (error) throw error
+      }
+
+      // A rate derived from the duty type is frozen the moment it is invoiced.
+      // Until it is written down it gets re-derived on every read, so editing a
+      // duty type would move a figure on an invoice already sent. Writing it
+      // onto the duty makes it an entered rate, which toDutyRow() then always
+      // prefers over the card — so this is idempotent, and a later save of the
+      // same invoice finds nothing left to freeze.
+      //
+      // ponytail: one update per duty. An invoice carries a handful; move to a
+      // single RPC if a monthly one ever carries hundreds.
+      const toFreeze = bookings.flatMap(b => b.duties).filter(d => d.computed && d.baseRate != null)
+      if (toFreeze.length > 0) {
+        const results = await Promise.all(toFreeze.map(d =>
+          supabase.from('duties').update({ base_rate: d.baseRate }).eq('id', d.id)))
+        const failed = results.find(r => r.error)
+        // Not fatal: the invoice itself saved, and its stored totals already
+        // carry these amounts. The duty just stays derived until the next save.
+        if (failed) console.error('[invoice] freezing computed rates failed:', failed.error!.message)
       }
 
       // Bookings that have been invoiced are Billed. `bookings.status` already

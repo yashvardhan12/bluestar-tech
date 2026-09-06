@@ -8,6 +8,7 @@ import {
   syncDutyAllowances, loadDutyAllowances, overrideQty, resetQty,
   type DutyAllowanceRow,
 } from '../../lib/dutyAllowances'
+import { MONTHLY_INCLUDED_HOURS } from '../../lib/allowances'
 import { EXPENSE_TYPES } from '../../lib/driver'
 import Drawer from '../../components/ui/Drawer'
 import Field from '../../components/ui/Field'
@@ -56,6 +57,7 @@ interface Slip {
   estDropTime: string | null
   startOdo: number | null
   endOdo: number | null
+  totalKm: number | null
   startedAt: string | null
   closedAt: string | null
   thresholdKm: number | null
@@ -143,7 +145,11 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
   onSaved?: () => void
 }) {
   const { showToast } = useToast()
-  const readOnly = mode === 'view'
+  // `mode` is the state the drawer opens in, not a lock: a slip opened to read
+  // is one click from being edited. The parent unmounts on close, so this
+  // re-initialises from the prop every time it opens.
+  const [editing, setEditing] = useState(mode === 'edit')
+  const readOnly = !editing
 
   const [slip, setSlip]         = useState<Slip | null>(null)
   const [loading, setLoading]   = useState(true)
@@ -169,7 +175,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
         .from('duties')
         .select(`
           id, booking_id, status, start_date, end_date, reporting_time, est_drop_time,
-          duty_type, vehicle_group, base_rate, start_odo, end_odo,
+          duty_type, vehicle_group, base_rate, start_odo, end_odo, total_km,
           started_at, closed_at, no_show_reason, driver_id,
           bookings ( booking_ref, customer_name, booked_by_name,
                      booking_passengers ( name, sort_order ) ),
@@ -218,6 +224,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
         estDropTime:    d.est_drop_time,
         startOdo:       d.start_odo == null ? null : Number(d.start_odo),
         endOdo:         d.end_odo == null ? null : Number(d.end_odo),
+        totalKm:        d.total_km == null ? null : Number(d.total_km),
         startedAt:      d.started_at,
         closedAt:       d.closed_at,
         thresholdKm:    dutyType?.threshold_km == null ? null : Number(dutyType.threshold_km),
@@ -243,7 +250,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
     return () => { cancelled = true }
   }, [dutyId])
 
-  const km   = slip ? kmTotals(slip.startOdo, slip.endOdo, slip.thresholdKm) : { total: null, extra: null }
+  const km   = slip ? kmTotals(slip.startOdo, slip.endOdo, slip.thresholdKm, slip.totalKm) : { total: null, extra: null }
   const time = slip ? timeTotals(slip.startedAt, slip.closedAt, slip.pkgMins) : { total: null, extra: null }
 
   async function refreshAllowances() {
@@ -338,13 +345,26 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
       width="w-[680px]"
       footer={
         readOnly ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-10 w-full rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-          >
-            Close
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 flex-1 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            {/* Nothing on a billed slip is editable — the body already refuses
+                every field — so the button would open a form that does nothing. */}
+            {slip && slip.status !== 'Billed' && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="h-10 flex-1 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer"
+              >
+                Edit duty slip
+              </button>
+            )}
+          </div>
         ) : (
           <div className="flex gap-3">
             <button
@@ -480,6 +500,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
                     const observed =
                       row.code === 'overtime'    ? `closed ${clock(slip.closedAt)} · due ${hm(slip.estDropTime)}`
                     : row.code === 'early_start' ? `started ${clock(slip.startedAt)} · due ${hm(slip.reportingTime)}`
+                    : row.code === 'extra_hour'  ? `ran ${clock(slip.startedAt)} – ${clock(slip.closedAt)} · ${MONTHLY_INCLUDED_HOURS}h included`
                     : null
                     const rateLine = row.driverRate != null ? `${formatINR(row.driverRate)} × ${row.qty}` : null
                     const detail = [observed, rateLine].filter(Boolean).join(' · ')

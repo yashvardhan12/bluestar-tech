@@ -25,13 +25,19 @@ export function hhmm(mins: number | null): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
+/** `totalKm` is the distance entered directly, for the duty whose readings
+ *  nobody has. The odometer pair wins when it is there: it is the evidence,
+ *  and a typed figure is a report of it. */
 export function kmTotals(
   startOdo: number | null,
   endOdo: number | null,
   thresholdKm: number | null,
+  totalKm: number | null = null,
 ): SlipTotal {
-  if (startOdo == null || endOdo == null) return { total: null, extra: null }
-  const total = Math.max(0, endOdo - startOdo)
+  const total = startOdo != null && endOdo != null
+    ? Math.max(0, endOdo - startOdo)
+    : totalKm
+  if (total == null) return { total: null, extra: null }
   return { total, extra: thresholdKm == null ? null : Math.max(0, total - thresholdKm) }
 }
 

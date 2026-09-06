@@ -43,9 +43,10 @@ export function captureState(d: DutyCaptureFacts): CaptureState {
 /**
  * Gated on `closed_at`, never on status.
  *
- * A back-dated allotment reads `Completed` through `duties_status` while
- * carrying an empty slip; gating on status would hide the action from exactly
- * the rows that need it. A closed duty is out of scope on purpose — changing a
+ * A back-dated allotment carries an empty slip while its stored status reads
+ * `Completed`; gating on status would hide the action from exactly the rows
+ * that need it. `duties_status` now derives `Needs closing` for them (036), but
+ * the raw column is what BookingDetailPage and the driver RPCs see. A closed duty is out of scope on purpose — changing a
  * figure there is FR-56 correction, which belongs on the duty slip beside the
  * evidence.
  */
@@ -69,6 +70,9 @@ export interface CloseDraft {
   closeTime: string
   endOdo: string
   endOdoUnknown: boolean
+  /** Distance run, typed straight in. The way out for a duty whose readings
+   *  nobody wrote down — the operator has the total off the paper slip. */
+  totalKm: string
 }
 
 /** "HH:MM:SS" → "HH:MM"; null → "". */
@@ -98,6 +102,7 @@ export function closeDefaults(d: DutyCaptureFacts): CloseDraft {
     closeTime:       hhmm(d.estDropTime),
     endOdo:          '',
     endOdoUnknown:   false,
+    totalKm:         '',
   }
 }
 
@@ -106,6 +111,7 @@ export interface CloseErrors {
   closeTime?: string
   startOdo?: string
   endOdo?: string
+  totalKm?: string
 }
 
 /** Readings are optional (FR-59) but must be coherent when given. Odometers are
@@ -156,6 +162,16 @@ export function validateClose(d: DutyCaptureFacts, draft: CloseDraft): CloseErro
     errors.endOdo = `Must be more than the start reading of ${start.toLocaleString('en-IN')} km.`
   }
 
+  // The distance, when the operator has it instead of the readings. Optional,
+  // but it may not quietly contradict a pair that is also there — the slip can
+  // only print one number, and a silent winner is how a wrong one gets billed.
+  const typed = parseOdo(draft.totalKm)
+  if (Number.isNaN(typed)) {
+    errors.totalKm = 'Enter a whole number of kilometres.'
+  } else if (typed != null && start != null && end != null && end - start !== typed) {
+    errors.totalKm = `The readings give ${(end - start).toLocaleString('en-IN')} km. Clear one or the other.`
+  }
+
   // A duty cannot end before it began. Usually a mistyped end date on a
   // multi-day duty, so the message points at the date, not the clock.
   if (!errors.startTime && !errors.closeTime) {
@@ -188,6 +204,7 @@ export function buildClosePayload(
   const payload: Record<string, any> = {
     closed_at:         atTime(draft.closeDate, draft.closeTime).toISOString(),
     end_odo:           draft.endOdoUnknown ? null : parseOdo(draft.endOdo),
+    total_km:          parseOdo(draft.totalKm),
     status:            'Completed',
     closed_by_profile: userId,
     // The one place now() is right: when the entry was made, not when it ran.

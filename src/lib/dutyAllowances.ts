@@ -61,7 +61,7 @@ export async function syncDutyAllowances(dutyId: number): Promise<void> {
 
   const [dtRes, drvRes, sibRes, alRes] = await Promise.all([
     // type_name is unique per company as of migration 028, so this is single-valued.
-    supabase.from('duty_types').select('id, category').eq('type_name', duty.duty_type ?? '').maybeSingle(),
+    supabase.from('duty_types').select('id, category, extra_hour_rate').eq('type_name', duty.duty_type ?? '').maybeSingle(),
     duty.driver_id
       ? supabase.from('drivers').select('off_day, shift_start_time, shift_end_time').eq('id', duty.driver_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -81,6 +81,15 @@ export async function syncDutyAllowances(dutyId: number): Promise<void> {
       .from('duty_type_allowances').select('allowance_id, customer_rate').eq('duty_type_id', dutyTypeId)
     if (error) console.error('[dutyAllowances] load prices', error.message)
     customerRates = Object.fromEntries((data ?? []).map((r: any) => [r.allowance_id, Number(r.customer_rate)]))
+  }
+
+  // Extra hours price off the duty type itself, not off duty_type_allowances —
+  // it is part of the Monthly package, not an allowance the operator opts into.
+  // Injecting it here keeps computeAllowances() unaware that any rate is special.
+  const extraHourRate = (dtRes.data as any)?.extra_hour_rate
+  const extraHourId = ((alRes.data as any[]) ?? []).find(a => a.code === 'extra_hour')?.id
+  if (extraHourId != null && extraHourRate != null) {
+    customerRates[extraHourId] = Number(extraHourRate)
   }
 
   // Order by reporting time so "second duty of the day" means the second one

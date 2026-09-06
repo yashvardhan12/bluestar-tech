@@ -5,12 +5,16 @@ import Drawer from '../../components/ui/Drawer'
 import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
 import { bookingAmount } from '../../lib/invoice'
-import { toAllowanceLines, allowanceTotal, type BookingBlock } from './invoiceTypes'
+import { toAllowanceLines, allowanceTotal, toDutyRow, loadRateCards, DUTY_SELECT, type BookingBlock } from './invoiceTypes'
 import { syncDutyAllowances } from '../../lib/dutyAllowances'
 
 // Picks the bookings an invoice covers. Only shows bookings belonging to the
 // selected customer that are not already on this or any other invoice —
 // billing the same duty twice is the failure mode worth spending a query on.
+//
+// The booking's status badge is not a gate: this query reads `bookings`, not
+// `bookings_status`. So the unclosed-duty check lives here too, or the badge
+// says Needs closing while the invoice takes the booking anyway.
 
 interface Props {
   open: boolean
@@ -35,6 +39,9 @@ export default function AddBookingsDrawer({
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [picked, setPicked] = useState<Set<number>>(new Set())
+  /** bookingId → duties with no closed_at. Blocked, not hidden: "where did my
+   *  booking go" is a support call, "2 duties need closing" is an instruction. */
+  const [blocked, setBlocked] = useState<Map<number, number>>(new Map())
 
   // The prop is a fresh array on every parent render; depending on it directly
   // would rebuild fetchCandidates each time and re-fire the effect forever.
@@ -60,9 +67,11 @@ export default function AddBookingsDrawer({
     }
     const billedIds = new Set<number>((billed ?? []).map((b: any) => b.booking_id))
 
+    const cards = await loadRateCards()
+
     const { data, error: err } = await supabase
       .from('bookings')
-      .select('id, booking_ref, start_date, end_date, status, duties(id, start_date, duty_type, base_rate, vehicles(model_name, vehicle_number), duty_allowances(qty, customer_rate, customer_amount, allowances(name, unit)))')
+      .select(`id, booking_ref, start_date, end_date, status, duties(${DUTY_SELECT})`)
       .eq('customer_name', customerName)
       .neq('status', 'Cancelled')
       .order('start_date', { ascending: false })
@@ -73,23 +82,26 @@ export default function AddBookingsDrawer({
       return
     }
 
-    setCandidates((data ?? [])
-      .filter((b: any) => !billedIds.has(b.id) && !excluded.has(b.id))
+    const rows = (data ?? []).filter((b: any) => !billedIds.has(b.id) && !excluded.has(b.id))
+
+    // A duty with no closed_at has no odometer pair and no real timestamps, so
+    // priceDuty returns null and it lands on the invoice at no charge. Airport
+    // is worse: it prices off fixed_charges alone, so it bills in full from no
+    // readings at all and looks entirely normal.
+    const open = new Map<number, number>()
+    for (const b of rows) {
+      const n = (b.duties ?? []).filter((d: any) => d.status !== 'Cancelled' && d.closed_at == null).length
+      if (n > 0) open.set(b.id, n)
+    }
+    setBlocked(open)
+
+    setCandidates(rows
       .map((b: any) => ({
         bookingId: b.id,
         bookingRef: b.booking_ref || `#${b.id}`,
         dateRange: `${formatDate(b.start_date)} to ${formatDate(b.end_date)}`,
         customDescription: '',
-        duties: (b.duties ?? []).map((d: any) => ({
-          id: d.id,
-          date: formatDate(d.start_date),
-          vehicle: d.vehicles?.model_name ?? '—',
-          plate: d.vehicles?.vehicle_number ?? '',
-          dutyType: d.duty_type ?? '—',
-          baseRate: d.base_rate == null ? null : Number(d.base_rate),
-          allowances: allowanceTotal(d.duty_allowances),
-          allowanceLines: toAllowanceLines(d.duty_allowances),
-        })),
+        duties: (b.duties ?? []).map((d: any) => toDutyRow(d, cards, formatDate)),
       })))
     setLoading(false)
   }, [customerName, excluded])
@@ -198,15 +210,18 @@ export default function AddBookingsDrawer({
         <div className="flex flex-col gap-3">
           {candidates.map(b => {
             const isPicked = picked.has(b.bookingId)
+            const unclosed = blocked.get(b.bookingId) ?? 0
             return (
               <label key={b.bookingId}
                 className={clsx(
-                  'flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors',
-                  isPicked ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-white hover:bg-gray-50',
+                  'flex items-start gap-3 p-4 rounded-xl border transition-colors',
+                  unclosed > 0
+                    ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                    : clsx('cursor-pointer', isPicked ? 'border-violet-300 bg-violet-50' : 'border-gray-200 bg-white hover:bg-gray-50'),
                 )}
               >
-                <input type="checkbox" checked={isPicked} onChange={() => toggle(b.bookingId)}
-                  className="mt-0.5 size-4 rounded border-gray-300 accent-violet-600 cursor-pointer shrink-0" />
+                <input type="checkbox" checked={isPicked} disabled={unclosed > 0} onChange={() => toggle(b.bookingId)}
+                  className="mt-0.5 size-4 rounded border-gray-300 accent-violet-600 cursor-pointer shrink-0 disabled:cursor-not-allowed" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900">Booking ID {b.bookingRef}</p>
                   <p className="text-sm text-gray-500 mt-0.5">{b.dateRange}</p>
@@ -215,6 +230,11 @@ export default function AddBookingsDrawer({
                     {' · '}
                     <span className="font-medium text-gray-700">{formatINR(bookingAmount(b.duties))}</span>
                   </p>
+                  {unclosed > 0 && (
+                    <p className="text-sm font-medium text-warning-700 mt-1">
+                      {unclosed} {unclosed === 1 ? 'duty needs' : 'duties need'} closing before this can be invoiced
+                    </p>
+                  )}
                 </div>
               </label>
             )

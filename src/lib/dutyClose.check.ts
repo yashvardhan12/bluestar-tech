@@ -40,9 +40,19 @@ assert.equal(canClose({ ...base, noShowReason: 'no show' }), false, 'no-show is 
 assert.equal(canClose({ ...base, status: 'Billed' }), false, 'billed is off limits')
 assert.equal(canClose({ ...base, status: 'Cancelled' }), false, 'cancelled never ran')
 
-// A back-dated allotment reads Completed through duties_status but has an empty
-// slip. Gating on status would hide the action from exactly these rows.
+// Since 036 a back-dated allotment reads 'Needs closing' through duties_status.
+assert.equal(canClose({ ...base, status: 'Needs closing' }), true, 'the whole point of the status')
+assert.equal(isCloseable('Needs closing', null), true)
+
+// The raw column still says Completed on those rows, and BookingDetailPage and
+// the driver RPCs read it directly. Gating on status would hide the action from
+// exactly the rows that need it, so the rule stays on closed_at.
 assert.equal(canClose({ ...base, status: 'Completed' }), true, 'Completed-by-date with no closed_at stays closable')
+
+// An allotted duty that has not started is closable — same rule, and the row
+// menus on All Duties and Booking Detail spread it in.
+assert.equal(canClose({ ...base, status: 'Allotted' }), true, 'allotted, not yet run, still closable')
+assert.equal(isCloseable('Allotted', null), true)
 
 // The row-level gate the duty lists use, from the two columns a list row has.
 // Same rule as canClose, so a menu can never offer what the modal refuses.
@@ -130,3 +140,24 @@ assert.ok(
 }
 
 console.log('dutyClose.check.ts — all assertions passed')
+
+// ── distance without an odometer pair ──────────────────────────────────────
+{
+  const draft = { ...closeDefaults(base), startOdoUnknown: true, endOdoUnknown: true, totalKm: '142' }
+  assert.equal(hasErrors(validateClose(base, draft)), false, 'a typed distance needs no readings')
+  assert.equal(buildClosePayload(base, draft, null).total_km, 142)
+  assert.equal(buildClosePayload(base, draft, null).end_odo, null)
+
+  // Blank stays blank — never 0, same rule as the readings.
+  assert.equal(buildClosePayload(base, closeDefaults(base), null).total_km, null)
+
+  // Fractions are not kilometres here.
+  assert.equal(validateClose(base, { ...draft, totalKm: '0' }).totalKm != null, true)
+
+  // A distance that contradicts the readings is refused rather than silently
+  // losing to them: 45120 → 45262 is 142, not 150.
+  const both = { ...closeDefaults(base), startOdo: '45120', endOdo: '45262', totalKm: '150' }
+  assert.equal(validateClose(base, both).totalKm != null, true, 'mismatch is named, not swallowed')
+  assert.equal(hasErrors(validateClose(base, { ...both, totalKm: '142' })), false, 'agreeing is fine')
+  assert.equal(hasErrors(validateClose(base, { ...both, totalKm: '' })), false, 'readings alone are fine')
+}

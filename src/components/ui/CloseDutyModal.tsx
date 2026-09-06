@@ -157,9 +157,9 @@ export default function CloseDutyModal({ dutyId, onClose, onSaved }: Props) {
     if (!facts || !draft || !ctx) return null
     const startOdo = facts.startedAt ? facts.startOdo : (draft.startOdoUnknown ? null : Number(draft.startOdo) || null)
     const endOdo = draft.endOdoUnknown ? null : Number(draft.endOdo) || null
-    const km = errors.endOdo || errors.startOdo
+    const km = errors.endOdo || errors.startOdo || errors.totalKm
       ? { total: null, extra: null }
-      : kmTotals(startOdo, endOdo, ctx.thresholdKm)
+      : kmTotals(startOdo, endOdo, ctx.thresholdKm, Number(draft.totalKm) || null)
 
     let time: ReturnType<typeof timeTotals> = { total: null, extra: null }
     if (!errors.startTime && !errors.closeTime && draft.closeTime) {
@@ -231,7 +231,10 @@ export default function CloseDutyModal({ dutyId, onClose, onSaved }: Props) {
         {!facts || !draft || !ctx ? (
           <p className="px-6 py-16 text-center text-sm text-gray-400">Loading duty…</p>
         ) : (
-          <div className="flex flex-col gap-5 overflow-y-auto px-6 pb-6">
+          <div className="flex flex-col gap-5 overflow-y-auto px-6 pb-6 [&>*]:shrink-0">
+            {/* [&>*]:shrink-0 — the bordered cards below are overflow-hidden, which gives
+                them an automatic min-height of 0, so this column would squash and clip
+                them instead of scrolling. */}
 
             {/* ── context: who to call, what ran ── */}
             <div className="overflow-hidden rounded-xl border border-gray-200">
@@ -450,6 +453,29 @@ export default function CloseDutyModal({ dutyId, onClose, onSaved }: Props) {
                   {errors.endOdo}
                 </p>
               )}
+
+              {/* The readings only ever served to produce this number. When the
+                  driver reports the distance and not the readings, take it. */}
+              <div className="flex items-center gap-3">
+                <Label>Distance</Label>
+                <div className="relative">
+                  <input
+                    inputMode="numeric" placeholder="142"
+                    value={draft.totalKm}
+                    onChange={e => setDraft({ ...draft, totalKm: e.target.value.replace(/\D/g, '') })}
+                    aria-invalid={!!errors.totalKm}
+                    aria-describedby={errors.totalKm ? 'close-totalkm-err' : undefined}
+                    className={clsx(INPUT, 'w-[150px] pr-8', errors.totalKm && 'border-amber-500 ring-4 ring-amber-50')}
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">km</span>
+                </div>
+                <span className="text-xs text-gray-400">if the readings are not known</span>
+              </div>
+              {errors.totalKm && (
+                <p id="close-totalkm-err" aria-live="polite" className="ml-[104px] text-xs font-medium text-amber-700">
+                  {errors.totalKm}
+                </p>
+              )}
             </div>
 
             {/* ── expenses the driver already logged, so they are not re-entered ──
@@ -509,13 +535,13 @@ export default function CloseDutyModal({ dutyId, onClose, onSaved }: Props) {
               </div>
             )}
 
-            {(draft.endOdoUnknown || draft.startOdoUnknown) && (
+            {(draft.endOdoUnknown || draft.startOdoUnknown) && preview?.km.total == null && (
               <div className="flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm leading-5 text-amber-700">
                 <AlertTriangle className="mt-px size-4 shrink-0" strokeWidth={1.75} />
                 <span>
-                  <b className="font-semibold">This duty will invoice at base rate.</b> With no
-                  odometer pair there is no extra-kilometre charge to calculate, and the duty
-                  slip will show a dash for distance.
+                  <b className="font-semibold">This duty will invoice at base rate.</b> With
+                  neither an odometer pair nor a distance there is no extra-kilometre charge to
+                  calculate, and the duty slip will show a dash for distance.
                 </span>
               </div>
             )}

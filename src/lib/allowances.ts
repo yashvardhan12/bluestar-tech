@@ -15,6 +15,7 @@ import { atTime } from './dutyTime.ts'
 export type AllowanceCode =
   | 'daily' | 'overtime' | 'outstation' | 'outstation_overnight'
   | 'off_day' | 'early_start' | 'night' | 'extra_duty' | 'airport'
+  | 'extra_hour'
 
 export type AllowanceUnit = 'day' | 'hour' | 'duty' | 'night'
 
@@ -92,6 +93,25 @@ export function ceilHours(mins: number): number {
   return mins <= 0 ? 0 : Math.ceil(mins / 60)
 }
 
+/**
+ * Hours included in a Monthly package before the per-hour extra rate starts.
+ * Fixed rather than configurable: every Monthly contract the client runs is a
+ * 12-hour day. Make it a column on duty_types the day one of them is not.
+ */
+export const MONTHLY_INCLUDED_HOURS = 12
+
+/**
+ * Minutes a Monthly day ran beyond its included hours, measured on the vehicle's
+ * real use — closed_at minus started_at — not against the scheduled window. A
+ * day that was never started or never closed has no measured use, so it charges
+ * nothing rather than guessing from the plan.
+ */
+export function extraHourMins(duty: DutyFacts): number {
+  if (!duty.startedAt || !duty.closedAt) return 0
+  const ran = (new Date(duty.closedAt).getTime() - new Date(duty.startedAt).getTime()) / 60_000
+  return Math.round(ran) - MONTHLY_INCLUDED_HOURS * 60
+}
+
 /** Minutes the duty ran past the time it was due to end. Exported because the
  *  duty slip prints the observed fact behind an overtime line. */
 export function overtimeMins(duty: DutyFacts, baseline: Baseline): number {
@@ -135,6 +155,10 @@ export function quantityFor(rule: AllowanceRule, duty: DutyFacts): number {
       return outstation ? nightsSpanned(duty.startDate, duty.endDate) : 0
     case 'overtime':
       return ceilHours(overtimeMins(duty, rule.baseline))
+    case 'extra_hour':
+      // Monthly only, and one duty is one day (see dutyWindows.ts), so this
+      // fires per day of the month exactly as the contract reads.
+      return duty.category === 'Monthly' ? ceilHours(extraHourMins(duty)) : 0
     case 'early_start':
       return ceilHours(earlyStartMins(duty, rule.baseline))
     case 'off_day':

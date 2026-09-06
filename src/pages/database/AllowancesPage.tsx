@@ -40,6 +40,7 @@ const TRIGGER: Record<AllowanceCode, string> = {
   night:                'The duty runs past midnight into another day',
   extra_duty:           "The driver's second and any further duty that day",
   airport:              'An airport duty type, or a booking marked as an airport run',
+  extra_hour:           'A monthly day the vehicle ran more than 12 hours. Priced on the duty type, not here.',
 }
 
 const UNIT_LABEL: Record<AllowanceUnit, string> = {

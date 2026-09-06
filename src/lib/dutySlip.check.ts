@@ -26,6 +26,15 @@ assert.deepEqual(kmTotals(200, 300, null), { total: 100, extra: null })
 assert.deepEqual(kmTotals(200, null, 300), { total: null, extra: null })
 assert.deepEqual(kmTotals(null, 300, 300), { total: null, extra: null })
 
+// A typed distance stands in when the pair is incomplete, and is billed the
+// same way — 320 against a 300km package is 20 extra, readings or not.
+assert.deepEqual(kmTotals(null, null, 300, 320), { total: 320, extra: 20 })
+assert.deepEqual(kmTotals(200, null, 300, 320), { total: 320, extra: 20 })
+// The readings are the evidence: they win over a figure someone typed.
+assert.deepEqual(kmTotals(200, 300, 300, 999), { total: 100, extra: 0 })
+// Neither → still nothing to say.
+assert.deepEqual(kmTotals(null, null, 300, null), { total: null, extra: null })
+
 // ── package window ───────────────────────────────────────────────────────────
 // 04:00 → 16:00 same day is the 12h package in the design.
 assert.equal(packageMins('2026-08-04', '04:00:00', '2026-08-04', '16:00:00'), 720)

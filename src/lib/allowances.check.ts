@@ -17,6 +17,7 @@ import assert from 'node:assert/strict'
 import {
   computeAllowances, quantityFor, driverTotal, customerTotal,
   daysSpanned, nightsSpanned, ceilHours, weekdayName,
+  extraHourMins, MONTHLY_INCLUDED_HOURS,
   type AllowanceRule, type DutyFacts,
 } from './allowances.ts'
 
@@ -48,6 +49,9 @@ const RULES: AllowanceRule[] = [
   { id: 7, code: 'night',                unit: 'night', baseline: 'duty_window', driverRate: 250, isActive: true },
   { id: 8, code: 'extra_duty',           unit: 'duty',  baseline: 'duty_window', driverRate: 400, isActive: true },
   { id: 9, code: 'airport',              unit: 'duty',  baseline: 'duty_window', driverRate: 200, isActive: true },
+  // Bills the customer only: driver pay for a long monthly day is the overtime
+  // allowance's job, not this one's.
+  { id: 10, code: 'extra_hour',          unit: 'hour',  baseline: 'duty_window', driverRate: null, isActive: true },
 ]
 
 const DUTY: DutyFacts = {
@@ -180,3 +184,79 @@ const byCode = (lines: ReturnType<typeof computeAllowances>, code: string) =>
 }
 
 console.log('allowances.check.ts — all assertions passed')
+
+
+// ── monthly extra hours: per day, past 12, on real use ──────────────────────
+{
+  const rule = RULES.find(r => r.code === 'extra_hour')!
+  // One monthly day. dutyWindows.ts gives Monthly one duty per day, so start
+  // and end date being equal is the normal shape, not an edge case.
+  const day: DutyFacts = {
+    ...DUTY,
+    category: 'Monthly',
+    startDate: '2026-08-05', endDate: '2026-08-05',
+    startedAt: '2026-08-05T08:00:00',
+    closedAt:  '2026-08-05T22:00:00',   // ran 14h
+  }
+
+  assert.equal(extraHourMins(day), 120, '14h against a 12h package is 120 minutes')
+  assert.equal(quantityFor(rule, day), 2, 'two extra hours')
+
+  assert.equal(
+    quantityFor(rule, { ...day, closedAt: '2026-08-05T20:00:00' }), 0,
+    'exactly 12 hours is inside the package',
+  )
+  assert.equal(
+    quantityFor(rule, { ...day, closedAt: '2026-08-05T18:00:00' }), 0,
+    'a short day is never a deduction',
+  )
+  assert.equal(
+    quantityFor(rule, { ...day, closedAt: '2026-08-05T20:01:00' }), 1,
+    'one minute over is a whole hour, same as every other hourly rule',
+  )
+
+  // Measured on use, not on the plan: the scheduled window is irrelevant here,
+  // which is exactly what separates this from the overtime allowance.
+  assert.equal(
+    quantityFor(rule, { ...day, reportingTime: '08:00', estDropTime: '23:00' }), 2,
+    'a generous scheduled window does not absorb the extra hours',
+  )
+
+  // Crossing midnight: a monthly day that closes at 01:00 the next morning ran
+  // 17 hours, and the duty's own end_date moves with it.
+  assert.equal(
+    quantityFor(rule, { ...day, endDate: '2026-08-06', closedAt: '2026-08-06T01:00:00' }), 5,
+    '08:00 to 01:00 is 17 hours, five of them extra',
+  )
+
+  assert.equal(quantityFor(rule, { ...day, startedAt: null }), 0, 'never started, never charged')
+  assert.equal(quantityFor(rule, { ...day, closedAt: null }), 0, 'still open, nothing measured yet')
+  assert.equal(quantityFor(rule, { ...day, category: 'Hourly' }), 0, 'monthly only')
+  assert.equal(quantityFor(rule, { ...day, category: 'Outstation' }), 0)
+  assert.equal(quantityFor(rule, { ...day, category: null }), 0, 'an unmatched duty type charges nothing')
+}
+
+// ── extra hours price off the duty type, and reach the customer only ────────
+{
+  const day: DutyFacts = {
+    ...DUTY,
+    category: 'Monthly',
+    startedAt: '2026-08-05T08:00:00',
+    closedAt:  '2026-08-05T22:00:00',
+  }
+  // 10 is extra_hour: dutyAllowances.ts injects duty_types.extra_hour_rate here
+  // rather than reading duty_type_allowances, but computeAllowances cannot tell.
+  const lines = computeAllowances(day, RULES, { 10: 250 })
+  const extra = byCode(lines, 'extra_hour')!
+
+  assert.equal(extra.qty, 2)
+  assert.equal(extra.customerAmount, 500, '2 hours × 250')
+  assert.equal(extra.driverAmount, 0, 'no driver rate set, so the driver side stays zero')
+
+  // A monthly duty type with the field left blank bills nothing, rather than
+  // billing zero-rate lines that read as priced on the invoice.
+  const unpriced = computeAllowances(day, RULES, {})
+  assert.equal(byCode(unpriced, 'extra_hour')!.customerAmount, 0)
+}
+
+assert.equal(MONTHLY_INCLUDED_HOURS, 12, 'the package everything above assumes')
