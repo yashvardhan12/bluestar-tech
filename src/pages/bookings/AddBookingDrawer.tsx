@@ -6,6 +6,8 @@ import { useLocations } from '../../lib/locations'
 import LocationSelect from '../../components/ui/LocationSelect'
 import Toggle from '../../components/ui/Toggle'
 import { localDate, toISODate } from '../../lib/dutyTime'
+import { createBooking } from '../../lib/createBooking'
+import { generateDutyRows } from '../../lib/dutyWindows'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -144,22 +146,11 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
   // ── booking ref ──────────────────────────────────────────────────────────────
   const [bookingRef, setBookingRef] = useState('')
 
-  useEffect(() => {
-    if (!open) return
-    if (mode === 'add') {
-      supabase
-        .from('bookings')
-        .select('booking_ref')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => {
-          const last = data?.booking_ref ?? 'BK-00000'
-          const num  = parseInt(last.replace('BK-', ''), 10) || 0
-          setBookingRef(`BK-${String(num + 1).padStart(5, '0')}`)
-        })
-    }
-  }, [open, mode])
+  // No client-side ref generation. `set_booking_ref()` assigns BK-##### from
+  // booking_ref_seq whenever the insert sends an empty string — which is both
+  // race-free and immune to what the newest row happens to contain. The old
+  // "newest booking_ref, strip BK-, parseInt, +1" read a bulk-imported Travel
+  // ID as 60082453 and issued BK-60082454 for the next manual booking. See 032.
 
   // ── form state ──────────────────────────────────────────────────────────────
   const [customer, setCustomer]               = useState('')
@@ -275,25 +266,14 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
     }
   }
 
+  // Edit path only: fills in duties for a booking that has none yet. The create
+  // path goes through createBooking(), which owns the same fan-out.
   async function createDuties(bookingId: number) {
-    const base = { booking_id: bookingId, ...dutySharedFields(), status: 'Booked' }
-
-    if (dutyCategory === 'Airport' || dutyCategory === 'Outstation') {
-      return supabase.from('duties').insert({ ...base, start_date: startDate, end_date: endDate })
-    } else {
-      // Hourly / Monthly: one duty per day
-      const rows = []
-      const cur = localDate(startDate)
-      const end = localDate(endDate)
-      while (cur <= end) {
-        const d = toISODate(cur)
-        rows.push({ ...base, start_date: d, end_date: d })
-        cur.setDate(cur.getDate() + 1)
-      }
-      return rows.length > 0
-        ? supabase.from('duties').insert(rows)
-        : Promise.resolve({ error: null })
-    }
+    const rows = generateDutyRows(dutyCategory, startDate, endDate)
+      .map(w => ({ booking_id: bookingId, ...dutySharedFields(), ...w }))
+    return rows.length > 0
+      ? supabase.from('duties').insert(rows)
+      : Promise.resolve({ error: null })
   }
 
   // ── fetch existing booking for edit/view ─────────────────────────────────────
@@ -444,39 +424,22 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
       return
     }
 
-    // Insert booking row
-    const { data: booking, error: bookingErr } = await supabase
-      .from('bookings')
-      .insert({ booking_ref: bookingRef || '', ...bookingPayload })
-      .select('id')
-      .single()
+    const result = await createBooking({
+      bookingRef,
+      booking:   bookingPayload,
+      passengers,
+      shared:    dutySharedFields(),
+      category:  dutyCategory,
+      startDate,
+      endDate,
+    })
 
-    if (bookingErr || !booking) {
-      console.error('[AddBookingDrawer] insert failed:', bookingErr)
+    if (result.error) {
       setError('Failed to create booking. Please try again.')
       setSaving(false)
       return
     }
-
-    // Insert passengers
-    const validPassengers = passengers.filter(p => p.name || p.phone)
-    if (validPassengers.length > 0) {
-      const { error: passErr } = await supabase
-        .from('booking_passengers')
-        .insert(validPassengers.map((p, i) => ({
-          booking_id: booking.id,
-          name:       p.name || null,
-          phone:      p.phone || null,
-          sort_order: i,
-        })))
-      if (passErr) console.error('[AddBookingDrawer] passengers insert failed:', passErr)
-    }
-
-    // Auto-create duties based on category
-    if (dutyCategory && startDate && endDate) {
-      const { error: dutiesErr } = await createDuties(booking.id)
-      if (dutiesErr) console.error('[AddBookingDrawer] duties insert failed:', dutiesErr)
-    }
+    if (result.partial) console.error('[AddBookingDrawer]', result.partial)
 
     setSaving(false)
     resetForm()
@@ -523,7 +486,9 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
           <div className="flex flex-col gap-5">
 
             {/* Booking ID + Customer */}
-            <InputField label="Booking ID" value={bookingRef} onChange={setBookingRef} placeholder="e.g. BK-00001" readOnly={readOnly} />
+            <InputField label="Booking ID" value={bookingRef} onChange={setBookingRef}
+              placeholder={activeMode === 'add' ? 'Assigned automatically on save' : 'e.g. BK-00001'}
+              readOnly={readOnly} />
             <SelectField
               label="Customer" required={!readOnly}
               placeholder="Select Customer"

@@ -2,13 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
-  Search, Plus, Trash2, MoreHorizontal, ChevronDown,
-  ChevronLeft, ChevronRight, CheckCircle, Eye, Pencil, Car,
-  FileText, RotateCcw, XCircle,
+  Search, Plus, MoreHorizontal, ChevronDown,
+  ChevronLeft, ChevronRight, Upload,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import ConfirmDeleteModal, { type DeleteCheckbox } from '../../components/ui/ConfirmDeleteModal'
 import AddBookingDrawer from './AddBookingDrawer'
+import { getBookingActions } from './bookingActions'
+import ImportBookingsModal from './ImportBookingsModal'
 import AllotDrawer from './AllotDrawer'
 import type { MockVehicle, MockDriver } from './AllotDrawer'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -47,7 +48,7 @@ function isoToDisplay(iso: string): string {
   return `${dd}/${mm}/${yyyy}`
 }
 
-const STATUS_TABS: StatusFilter[] = ['All', 'Booked', 'Confirmed', 'Allotted', 'Partially Allotted', 'On-Going', 'Completed', 'Billed', 'Cancelled']
+const STATUS_TABS: StatusFilter[] = ['All', 'Booked', 'Confirmed', 'Allotted', 'Partially Allotted', 'On-Going', 'Needs closing', 'Completed', 'Billed', 'Cancelled']
 const PAGE_SIZE = 8
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -57,19 +58,6 @@ function getPaginationPages(current: number, total: number): (number | '...')[] 
   if (current <= 3) return [1, 2, 3, '...', total - 2, total - 1, total]
   if (current >= total - 2) return [1, 2, 3, '...', total - 2, total - 1, total]
   return [1, '...', current - 1, current, current + 1, '...', total]
-}
-
-// ── sub-components ────────────────────────────────────────────────────────────
-
-function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
-  checked: boolean; indeterminate: boolean; onChange: () => void
-}) {
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate }, [indeterminate])
-  return (
-    <input ref={ref} type="checkbox" checked={checked} onChange={onChange}
-      className="size-4 rounded border-gray-300 accent-violet-600 cursor-pointer" />
-  )
 }
 
 // ── actions menu ──────────────────────────────────────────────────────────────
@@ -153,84 +141,6 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
   )
 }
 
-function getBookingActions(
-  booking: Booking,
-  handlers: {
-    onView: () => void
-    onEdit: () => void
-    onConfirm: () => void
-    onAllotAll: () => void
-    onCancel: () => void
-    onRestore: () => void
-    onDelete: () => void
-    onViewDuties: () => void
-    onGenerateInvoice: () => void
-  },
-): (MenuItem | 'divider')[] {
-  const s = booking.status
-
-  if (s === 'Booked') return [
-    { label: 'Confirm booking', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onConfirm, variant: 'confirm' },
-    'divider',
-    { label: 'View booking',   icon: <Eye    className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Edit booking',   icon: <Pencil className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
-    'divider',
-    { label: 'View duty(s)',   icon: <Car    className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
-    'divider',
-    { label: 'Delete Booking', icon: <Trash2 className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
-  ]
-
-  if (s === 'Confirmed') return [
-    { label: 'View booking',     icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Edit booking',     icon: <Pencil   className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
-    'divider',
-    { label: 'View duty(s)',     icon: <Car      className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
-    { label: 'Allot all duties', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onAllotAll },
-    { label: 'Generate invoice', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onGenerateInvoice },
-    'divider',
-    { label: 'Delete Booking',   icon: <Trash2   className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
-  ]
-
-  if (s === 'Allotted' || s === 'Partially Allotted') return [
-    { label: 'View booking',      icon: <Eye        className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Edit booking',      icon: <Pencil     className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
-    'divider',
-    { label: 'View duty(s)',      icon: <Car        className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
-    { label: 'Re-allot all duties', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onAllotAll },
-    'divider',
-    { label: 'Cancel booking',    icon: <XCircle    className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
-    { label: 'Delete booking',    icon: <Trash2     className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
-  ]
-
-  if (s === 'On-Going') return [
-    { label: 'View booking',   icon: <Eye    className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    'divider',
-    { label: 'View duty(s)',   icon: <Car    className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
-  ]
-
-  if (s === 'Completed') return [
-    { label: 'View booking',     icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'View duty(s)',     icon: <Car      className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
-    'divider',
-    { label: 'Generate Invoice', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onGenerateInvoice, variant: 'confirm' },
-  ]
-
-  if (s === 'Billed') return [
-    { label: 'View booking', icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'View duty(s)', icon: <Car      className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewDuties },
-    { label: 'View Invoice', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onGenerateInvoice },
-  ]
-
-  if (s === 'Cancelled') return [
-    { label: 'View booking',    icon: <Eye       className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Restore booking', icon: <RotateCcw className="size-4" strokeWidth={1.75} />, onClick: handlers.onRestore },
-    'divider',
-    { label: 'Delete Booking',  icon: <Trash2    className="size-4" strokeWidth={1.75} />, onClick: handlers.onDelete, variant: 'danger' },
-  ]
-
-  return [{ label: 'View booking', icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onView }]
-}
-
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function AllBookingsPage() {
@@ -241,11 +151,11 @@ export default function AllBookingsPage() {
   const [loading, setLoading]         = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [search, setSearch]           = useState('')
-  const [selected, setSelected]       = useState<Set<number>>(new Set())
   const [page, setPage]               = useState(1)
   const [dateRange, setDateRange]     = useState<DateRange | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null)
   const [deleteSms, setDeleteSms] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [bookingDrawer, setBookingDrawer] = useState<{ open: boolean; mode: 'add' | 'edit' | 'view'; bookingId?: number }>({ open: false, mode: 'add' })
   const [allotDrawer, setAllotDrawer] = useState<{ open: boolean; bookingId?: number; vehicleGroup?: string; dutyCount?: number }>({ open: false })
 
@@ -333,27 +243,6 @@ export default function AllBookingsPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageRows   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const allSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r.id))
-  const someSelected = pageRows.some(r => selected.has(r.id)) && !allSelected
-
-  function toggleAll() {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (allSelected) pageRows.forEach(r => next.delete(r.id))
-      else pageRows.forEach(r => next.add(r.id))
-      return next
-    })
-  }
-
-  function toggleRow(id: number) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
   function handleSearch(value: string) { setSearch(value); setPage(1) }
   function handleStatusFilter(tab: StatusFilter) { setStatusFilter(tab); setPage(1) }
 
@@ -361,7 +250,6 @@ export default function AllBookingsPage() {
     if (!deleteTarget) return
     const { error } = await supabase.from('bookings').delete().eq('id', deleteTarget.id)
     if (error) { showToast('Failed to delete booking'); return }
-    setSelected(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next })
     setRows(prev => prev.filter(r => r.id !== deleteTarget.id))
     setDeleteTarget(null)
     showToast('Booking deleted successfully')
@@ -401,6 +289,13 @@ export default function AllBookingsPage() {
             className="px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer"
           >
             All Duties
+          </button>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <Upload className="size-4" strokeWidth={1.75} />
+            Import Duties
           </button>
           <button
             onClick={openAddDrawer}
@@ -461,12 +356,9 @@ export default function AllBookingsPage() {
           <thead>
             <tr className="bg-gray-50">
               <th className="h-[44px] px-6 text-left border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  <IndeterminateCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} />
-                  <button className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer transition-colors">
-                    Start date <ChevronDown className="size-3.5 shrink-0" strokeWidth={1.75} />
-                  </button>
-                </div>
+                <button className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer transition-colors">
+                  Start date <ChevronDown className="size-3.5 shrink-0" strokeWidth={1.75} />
+                </button>
               </th>
               <th className="h-[44px] px-6 text-left border-b border-gray-200">
                 <span className="text-xs font-medium text-gray-600">Customer</span>
@@ -505,18 +397,9 @@ export default function AllBookingsPage() {
               >
                 {/* Date */}
                 <td className="h-[72px] px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.id)}
-                      onChange={() => toggleRow(row.id)}
-                      onClick={e => e.stopPropagation()}
-                      className="size-4 rounded border-gray-300 accent-violet-600 cursor-pointer shrink-0"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{row.startDate}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">to {row.endDate}</p>
-                    </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{row.startDate}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">to {row.endDate}</p>
                   </div>
                 </td>
 
@@ -562,6 +445,10 @@ export default function AllBookingsPage() {
                       onDelete:          () => { setDeleteTarget(row); setDeleteSms(false) },
                       onViewDuties:      () => navigate(`/bookings/${row.id}`),
                       onGenerateInvoice: () => navigate(`/bookings/${row.id}`),
+                      // The list does not load a per-booking closed-duty count,
+                      // so `closedDuties` is left undefined and the slip pack
+                      // item stays off here. It lives on the booking itself.
+                      onPrintSlips:      () => window.open(`/bookings/${row.id}/slips`, '_blank', 'noopener'),
                     })}
                   />
                 </td>
@@ -612,6 +499,16 @@ export default function AllBookingsPage() {
           </button>
         </div>
       </div>
+
+      {/* Bulk import of a client trip export */}
+      <ImportBookingsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          fetchBookings()
+          showToast('Bookings imported')
+        }}
+      />
 
       {/* Booking drawer — add / edit / view */}
       <AddBookingDrawer
