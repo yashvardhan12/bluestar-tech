@@ -47,9 +47,11 @@ interface DutyRow {
   dutyType: string
   driver?: { id: number; initials: string; name: string }
   repTime: string
-  status: DutyStatus
-  /** FR-59 gate. A back-dated duty reads Completed with an empty slip, so the
-   *  action is offered on this column and never on the status. */
+  /** `Needs closing` is derived by duties_status and never written. */
+  status: DutyStatus | 'Needs closing'
+  /** FR-59 gate. Still read here rather than off the status: BookingDetailPage
+   *  and the driver RPCs see the raw column, where Completed can still mean an
+   *  empty slip. One rule, one source. */
   closedAt: string | null
 }
 
@@ -63,7 +65,8 @@ function isoToDisplay(iso: string): string {
 
 // FR-58. Ships with Close Duty, not after it: FR-59 removes the only existing
 // mechanism for finishing a forgotten duty, and without this tab nobody can find
-// one — a duty past its end date already reads Completed through duties_status.
+// one. Since 036 'Needs closing' is a status the view derives, not a filter this
+// page assembles, so the tab is an ordinary status tab.
 const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Needs closing', 'Completed']
 const BATCH_SIZE = 20
 
@@ -182,6 +185,7 @@ function getDutyActions(
   ]
 
   if (s === 'Allotted') return [
+    ...close,
     { label: 'View duty',                   icon: <Eye            className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Edit duty',                   icon: <Pencil         className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
     'divider',
@@ -205,8 +209,19 @@ function getDutyActions(
     { label: 'Cancel Duty',     icon: <XCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
   ]
 
-  if (s === 'Completed') return [
+  // The overdue duty. `close` leads because closing it is the only thing that
+  // moves it on — nothing else here changes its state.
+  if (s === 'Needs closing') return [
     ...close,
+    { label: 'View duty',    icon: <Eye     className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit duty',    icon: <Pencil  className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
+    'divider',
+    { label: 'View booking', icon: <Eye     className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewBooking },
+  ]
+
+  // No `close` spread: since 036 a row can only read Completed here if it
+  // carries a closed_at, and isCloseable would refuse it anyway.
+  if (s === 'Completed') return [
     { label: 'View duty',    icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     'divider',
     { label: 'View booking', icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewBooking },
@@ -277,18 +292,11 @@ export default function AllDutiesPage() {
 
     if (statusFilter === 'Upcoming') {
       q = q.in('effective_status', ['Booked', 'Confirmed', 'Allotted'])
-    } else if (statusFilter === 'Needs closing') {
-      // FR-58. `effective_status = 'Completed'` with no `closed_at` is exactly
-      // "allotted, scheduled end has passed, nothing closed it" — the view only
-      // derives Completed when `vehicle_id IS NOT NULL AND end_date < today`,
-      // and a genuinely closed duty always carries the timestamp.
-      //
-      // One rule catches both doors: a duty the driver started and abandoned,
-      // and a back-dated allotment that never went through the app. A duty still
-      // running today reads On-Going and is deliberately not here — it is not
-      // overdue, it is in progress.
-      q = q.eq('effective_status', 'Completed').is('closed_at', null)
     } else if (statusFilter !== 'All') {
+      // 'Needs closing' comes through here like any other status — 036 moved the
+      // "reads Completed, carries no closed_at" predicate into the view. A duty
+      // still running today reads On-Going and is deliberately not here: it is
+      // not overdue, it is in progress.
       q = q.eq('effective_status', statusFilter)
     }
 
@@ -619,7 +627,7 @@ export default function AllDutiesPage() {
                       onViewBooking:    () => setViewBookingId(row.bookingId),
                       onAllot:          () => setAllotDuty(row),
                       onChangeDriver:   () => setChangeDriverDuty(row),
-                      onPrintSlip:      () => {},
+                      onPrintSlip:      () => window.open(`/duties/${row.id}/slip`, '_blank', 'noopener'),
                       onClearAllotment: () => setClearAllotTarget(row),
                       onCloseDuty:      () => setCloseTarget(row),
                       onRestore:        () => setRestoreTarget(row),

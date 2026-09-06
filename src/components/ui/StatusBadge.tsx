@@ -6,6 +6,7 @@ export type BookingStatus =
   | 'Allotted'
   | 'Partially Allotted'
   | 'On-Going'
+  | 'Needs closing'
   | 'Completed'
   | 'Billed'
   | 'Cancelled'
@@ -44,6 +45,13 @@ const CONFIG: Record<Status, {
     badge: 'bg-blue-50 border-blue-200 text-blue-700',
     dot:   'bg-blue-400',
     label: 'On-going',
+  },
+  // Deliberately not green. The whole point of splitting this out of Completed
+  // is that it does not look finished.
+  'Needs closing': {
+    badge: 'bg-warning-50 border-warning-200 text-warning-700',
+    dot:   'bg-warning-500',
+    label: 'Needs closing',
   },
   'Completed': {
     badge: 'bg-green-50 border-green-200 text-green-700',
