@@ -24,6 +24,7 @@ import FastagPage              from './pages/database/FastagPage'
 import AllBookingsPage         from './pages/bookings/AllBookingsPage'
 import AllDutiesPage           from './pages/bookings/AllDutiesPage'
 import BookingDetailPage       from './pages/bookings/BookingDetailPage'
+import DutySlipPrintPage       from './pages/bookings/DutySlipPrintPage'
 
 import InvoicesPage            from './pages/billing/InvoicesPage'
 import CreateInvoicePage       from './pages/billing/CreateInvoicePage'
@@ -143,6 +144,11 @@ export default function App() {
         {/* One route tree, one Supabase client, one deploy — not a second app.
             The two shells never render together. */}
         <Route path="/driver/*" element={<RequireDriver><DriverApp /></RequireDriver>} />
+        {/* The printed slip renders outside AppShell: it is a document, and a
+            sidebar has no business on one. Still behind RequireAuth — RLS
+            scopes it, but an anonymous URL should not reach a customer's slip. */}
+        <Route path="/duties/:dutyId/slip"      element={<RequireAuth><DutySlipPrintPage /></RequireAuth>} />
+        <Route path="/bookings/:bookingId/slips" element={<RequireAuth><DutySlipPrintPage /></RequireAuth>} />
         <Route path="/*" element={<RequireAuth><AuthedApp /></RequireAuth>} />
       </Routes>
     </BrowserRouter>

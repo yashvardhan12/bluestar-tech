@@ -9,7 +9,11 @@ import {
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
+import type { BookingStatus } from '../../components/ui/StatusBadge'
 import ConfirmDeleteModal from '../../components/ui/ConfirmDeleteModal'
+import AddBookingDrawer from './AddBookingDrawer'
+import { getBookingActions } from './bookingActions'
+import type { MenuItem } from './bookingActions'
 import ClearAllotmentModal from '../../components/ui/ClearAllotmentModal'
 import DateRangePicker from '../../components/ui/DateRangePicker'
 import type { DateRange } from '../../components/ui/DateRangePicker'
@@ -27,7 +31,7 @@ import CloseDutyModal from '../../components/ui/CloseDutyModal'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type DutyStatus = 'Booked' | 'Confirmed' | 'Allotted' | 'On-Going' | 'Completed' | 'Billed' | 'Cancelled'
+type DutyStatus = 'Booked' | 'Confirmed' | 'Allotted' | 'On-Going' | 'Needs closing' | 'Completed' | 'Billed' | 'Cancelled'
 type DutyFilter = 'All' | 'Upcoming' | DutyStatus
 
 interface Driver {
@@ -53,7 +57,7 @@ interface Duty {
   closedAt: string | null
 }
 
-const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Completed', 'Billed', 'Cancelled']
+const DUTY_TABS: DutyFilter[] = ['All', 'Upcoming', 'Booked', 'Confirmed', 'Allotted', 'On-Going', 'Needs closing', 'Completed', 'Billed', 'Cancelled']
 const PAGE_SIZE = 8
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -79,8 +83,6 @@ function IndeterminateCheckbox({ checked, indeterminate, onChange }: {
 }
 
 // ── actions menu ─────────────────────────────────────────────────────────────
-
-interface MenuItem { label: string; icon: React.ReactNode; onClick: () => void; variant?: 'default' | 'danger' | 'primary' }
 
 function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
   const [open, setOpen] = useState(false)
@@ -140,7 +142,7 @@ function ActionsMenu({ items }: { items: (MenuItem | 'divider')[] }) {
                   className={clsx(
                     'w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition-colors cursor-pointer',
                     item.variant === 'danger'  && 'text-red-600 hover:bg-red-50',
-                    item.variant === 'primary' && 'text-violet-700 font-semibold hover:bg-violet-50',
+                    item.variant === 'confirm' && 'text-green-700 bg-green-50 hover:bg-green-100',
                     (!item.variant || item.variant === 'default') && 'text-gray-700 hover:bg-gray-50',
                   )}
                 >
@@ -197,6 +199,7 @@ function getDutyActions(
   ]
 
   if (s === 'Allotted') return [
+    ...close,
     { label: 'View duty',                   icon: <Eye            className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
     { label: 'Edit duty',                   icon: <Pencil         className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
     'divider',
@@ -220,6 +223,14 @@ function getDutyActions(
     { label: 'Change Driver', icon: <ArrowLeftRight className="size-4" strokeWidth={1.75} />, onClick: handlers.onChangeDriver },
     'divider',
     { label: 'Cancel Duty',   icon: <XCircle        className="size-4" strokeWidth={1.75} />, onClick: handlers.onCancel, variant: 'danger' },
+  ]
+
+  // Ran, never closed. No slip actions: there is no slip to preview or print
+  // until the close writes one.
+  if (s === 'Needs closing') return [
+    ...close,
+    { label: 'View duty', icon: <Eye    className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+    { label: 'Edit duty', icon: <Pencil className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
   ]
 
   if (s === 'Completed' || s === 'Billed') return [
@@ -260,7 +271,13 @@ export default function BookingDetailPage() {
 
   const [duties, setDuties]             = useState<Duty[]>([])
   const [loading, setLoading]           = useState(true)
-  const [bookingInfo, setBookingInfo]   = useState<{ customer: string; passenger: string; passengerExtra?: number } | null>(null)
+  const [bookingInfo, setBookingInfo]   = useState<{
+    customer: string; passenger: string; passengerExtra?: number
+    /** Derived by bookings_status, so it agrees with the list. */
+    status: BookingStatus; startDate: string | null; endDate: string | null
+  } | null>(null)
+  const [editBooking, setEditBooking]   = useState(false)
+  const [deleteBooking, setDeleteBooking] = useState(false)
   const [statusFilter, setStatusFilter] = useState<DutyFilter>('All')
   const [search, setSearch]             = useState('')
   const [selected, setSelected]         = useState<Set<number>>(new Set())
@@ -282,14 +299,21 @@ export default function BookingDetailPage() {
     setLoading(true)
 
     const [{ data: bk }, { data: dutiesData }] = await Promise.all([
+      // bookings_status, not bookings: the header badge and the actions menu
+      // must read the same derived status the list shows, or this page offers
+      // Generate Invoice on a booking the list calls Needs closing.
       supabase
-        .from('bookings')
-        .select('customer_name, booking_passengers(name, sort_order)')
+        .from('bookings_status')
+        .select('status:effective_status, customer_name, start_date, end_date, booking_passengers(name, sort_order)')
         .eq('id', bookingId)
         .single(),
+      // Reads come from duties_status so this page and All Duties can never
+      // disagree about the same duty — it used to show the raw column, which
+      // says Completed on a duty that was never closed. Writes below still go
+      // to the `duties` table.
       supabase
-        .from('duties')
-        .select('id, status, closed_at, start_date, end_date, duty_type, vehicle_group, reporting_time, vehicles(model_name, vehicle_number), drivers(id, name, initials)')
+        .from('duties_status')
+        .select('id, status:effective_status, closed_at, start_date, end_date, duty_type, vehicle_group, reporting_time, vehicles(model_name, vehicle_number), drivers(id, name, initials)')
         .eq('booking_id', bookingId)
         .order('start_date'),
     ])
@@ -300,6 +324,9 @@ export default function BookingDetailPage() {
         customer:       bk.customer_name,
         passenger:      sorted[0]?.name ?? '—',
         passengerExtra: sorted.length > 1 ? sorted.length - 1 : undefined,
+        status:         bk.status as BookingStatus,
+        startDate:      bk.start_date,
+        endDate:        bk.end_date,
       })
     }
 
@@ -340,6 +367,42 @@ export default function BookingDetailPage() {
       window.history.replaceState({}, '')
     }
   }, [loading, duties, location.state])
+
+  // ── booking-level actions, behind the ⋯ menu ───────────────────────────────
+  // These write `bookings.status` directly, exactly as AllBookingsPage does.
+  // bookings_status only treats Billed and Cancelled as terminal, so everything
+  // else is re-derived on the next read and cannot be left stale by this.
+  async function setBookingStatus(status: BookingStatus) {
+    const { error } = await supabase.from('bookings').update({ status }).eq('id', bookingId)
+    if (error) { showToast('Failed to update booking'); return }
+    await fetchDuties()
+    showToast(status === 'Cancelled' ? 'Booking cancelled' : 'Booking updated')
+  }
+
+  async function confirmBooking() {
+    const { error } = await supabase.from('bookings').update({ status: 'Confirmed' }).eq('id', bookingId)
+    if (error) { showToast('Failed to confirm booking'); return }
+    // Same rule as the list: a duty already Completed or Cancelled is not
+    // dragged back to Confirmed by confirming its booking.
+    await supabase
+      .from('duties')
+      .update({ status: 'Confirmed' })
+      .eq('booking_id', bookingId)
+      .not('status', 'in', '("Cancelled","Completed")')
+    await fetchDuties()
+    showToast('Booking confirmed')
+  }
+
+  async function deleteThisBooking() {
+    const { error } = await supabase.from('bookings').delete().eq('id', bookingId)
+    if (error) { showToast('Failed to delete booking'); return }
+    // The page we are standing on no longer exists.
+    navigate('/bookings/all')
+  }
+
+  /** Only closed duties have a slip worth printing; the pack route skips the
+   *  rest, and this count decides whether the menu offers it at all. */
+  const closedDuties = duties.filter(d => d.closedAt != null && d.status !== 'Cancelled').length
 
   function openDutyDrawer(mode: DutyDrawerMode, duty: Duty | null = null) {
     setDutyDrawer({ open: true, mode, duty })
@@ -397,6 +460,34 @@ export default function BookingDetailPage() {
     })
   }
 
+  // ── bulk actions on the selection ──────────────────────────────────────────
+  // Deliberately not bulk delete. Duties on a booking are the thing being sold;
+  // the useful bulk verbs are the ones that move them forward, and every one of
+  // them is reversible from the row menu.
+
+  const selectedIds = [...selected]
+  /** Only a closed duty has a slip. The pack route filters again and reports
+   *  what it dropped, so the count here is a label, not a gate. */
+  const selectedClosed = duties.filter(d => selected.has(d.id) && d.closedAt != null).length
+
+  function printSelectedSlips() {
+    window.open(`/bookings/${bookingId}/slips?duties=${selectedIds.join(',')}`, '_blank', 'noopener')
+  }
+
+  async function confirmSelected() {
+    // Same guard the booking-level confirm uses: a duty already Completed or
+    // Cancelled is not dragged backwards by a bulk action.
+    const { error } = await supabase
+      .from('duties')
+      .update({ status: 'Confirmed' })
+      .in('id', selectedIds)
+      .not('status', 'in', '("Cancelled","Completed")')
+    if (error) { showToast('Failed to confirm duties'); return }
+    setSelected(new Set())
+    await fetchDuties()
+    showToast(`${selectedIds.length} ${selectedIds.length === 1 ? 'duty' : 'duties'} confirmed`)
+  }
+
   /** Update a duty's status in DB, then re-sync the parent booking status. */
   async function updateDutyStatus(id: number, status: DutyStatus) {
     const { error } = await supabase.from('duties').update({ status }).eq('id', id)
@@ -450,7 +541,9 @@ export default function BookingDetailPage() {
               Booking ID: {bookingId}{bookingInfo ? ` — ${bookingInfo.customer}` : ''}
             </h1>
             <p className="text-base font-normal text-gray-500 leading-6 mt-0.5">
-              12/06/2024 to 18/06/2024
+              {bookingInfo?.startDate
+                ? `${isoToDisplay(bookingInfo.startDate)} to ${isoToDisplay(bookingInfo.endDate ?? bookingInfo.startDate)}`
+                : '—'}
             </p>
           </div>
 
@@ -462,13 +555,36 @@ export default function BookingDetailPage() {
               <Plus className="size-4" strokeWidth={2.5} />
               Add Duty
             </button>
-            <button className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer">
+            <button
+              onClick={() => setEditBooking(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-violet-300 rounded-lg bg-white text-sm font-semibold text-violet-700 shadow-xs hover:bg-violet-50 transition-colors cursor-pointer"
+            >
               <Pencil className="size-4" strokeWidth={1.75} />
               Edit
             </button>
-            <button className="p-2.5 border border-gray-300 rounded-lg bg-white text-gray-500 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer">
-              <MoreHorizontal className="size-5" strokeWidth={1.75} />
-            </button>
+            {bookingInfo && (
+              <ActionsMenu
+                items={getBookingActions(
+                  { status: bookingInfo.status },
+                  {
+                    onView:            () => setEditBooking(true),
+                    onEdit:            () => setEditBooking(true),
+                    onConfirm:         () => void confirmBooking(),
+                    onAllotAll:        () => showToast('Allot each duty from its row menu'),
+                    onCancel:          () => void setBookingStatus('Cancelled'),
+                    onRestore:         () => void setBookingStatus('Booked'),
+                    onDelete:          () => setDeleteBooking(true),
+                    onViewDuties:      () => {},
+                    // No booking preselect exists on the create-invoice route
+                    // yet; the list's own item lands on this page, so this is
+                    // still a step forward rather than a circle.
+                    onGenerateInvoice: () => navigate('/billing/invoices/create'),
+                    onPrintSlips:      () => window.open(`/bookings/${bookingId}/slips`, '_blank', 'noopener'),
+                  },
+                  { onDetailPage: true, closedDuties },
+                )}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -513,6 +629,41 @@ export default function BookingDetailPage() {
           </button>
         )}
       </div>
+
+      {/* ── Bulk actions ──
+          Shown only with a selection, so the checkboxes lead somewhere. Mirrors
+          the bar the database pages use, minus the bulk delete: see above. */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+          <p className="text-sm font-semibold text-violet-900">
+            {selected.size} {selected.size === 1 ? 'duty' : 'duties'} selected
+          </p>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => void confirmSelected()}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-xs transition-colors hover:bg-gray-50 cursor-pointer"
+            >
+              <CheckCircle className="size-4" strokeWidth={1.75} />
+              Confirm
+            </button>
+            <button
+              onClick={printSelectedSlips}
+              disabled={selectedClosed === 0}
+              title={selectedClosed === 0 ? 'None of the selected duties has been closed yet' : undefined}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Printer className="size-4" strokeWidth={1.75} />
+              Print {selectedClosed > 0 ? selectedClosed : ''} duty slip{selectedClosed === 1 ? '' : 's'}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="px-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Table ── */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
@@ -644,7 +795,7 @@ export default function BookingDetailPage() {
                       onConfirm:        () => updateDutyStatus(row.id, 'Booked'),
                       onPreviewSlip:    () => setSlipDuty({ id: row.id, mode: 'view' }),
                       onEditSlip:       () => setSlipDuty({ id: row.id, mode: 'edit' }),
-                      onPrintSlip:      () => {},
+                      onPrintSlip:      () => window.open(`/duties/${row.id}/slip`, '_blank', 'noopener'),
                       onRestore:        () => updateDutyStatus(row.id, 'Booked'),
                       onCancel:         () => updateDutyStatus(row.id, 'Cancelled'),
                       onDelete:         () => setDeleteTarget(row),
@@ -845,6 +996,22 @@ export default function BookingDetailPage() {
           onSaved={() => { showToast('Duty closed'); void fetchDuties() }}
         />
       )}
+
+      <AddBookingDrawer
+        open={editBooking}
+        mode="edit"
+        bookingId={Number(bookingId)}
+        onClose={() => setEditBooking(false)}
+        onCreated={() => { void fetchDuties(); showToast('Booking updated successfully') }}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteBooking}
+        title="Delete this booking?"
+        description="The booking and every duty on it are removed. This cannot be undone."
+        onClose={() => setDeleteBooking(false)}
+        onConfirm={() => { setDeleteBooking(false); void deleteThisBooking() }}
+      />
 
       {slipDuty && (
         <DutySlipDrawer
