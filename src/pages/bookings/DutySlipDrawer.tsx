@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, IndianRupee, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { AlertTriangle, Check, ChevronDown, Eye, IndianRupee, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
@@ -9,15 +10,24 @@ import {
   type DutyAllowanceRow,
 } from '../../lib/dutyAllowances'
 import { MONTHLY_INCLUDED_HOURS } from '../../lib/allowances'
-import { EXPENSE_TYPES } from '../../lib/driver'
+import { EXPENSE_TYPES, signedUrl } from '../../lib/driver'
+import {
+  odoMarks, timeMarks, lateEntry, signatureNote,
+  type ProvenanceFacts, type Mark,
+} from '../../lib/dutyProvenance'
 import Drawer from '../../components/ui/Drawer'
 import Field from '../../components/ui/Field'
 import { useToast } from '../../components/ui/Toast'
 
 /**
- * The duty slip an operator opens once a duty is Completed — what the driver
- * captured, plus the two things the operator still owns: the chargeable
+ * The completion record an operator opens once a duty is Completed — what the
+ * driver captured, plus the two things the operator still owns: the chargeable
  * expenses and the no-show flag.
+ *
+ * Titled "Completion details", not "Duty Slip": the duty slip is the printed
+ * page you hand a customer (DutySlipSheet). This is the record behind it, and
+ * it holds things that page deliberately never shows — the odometer
+ * photographs, who typed which figure, and what is being charged.
  *
  * Everything the driver wrote (odometer pair, timestamps, signature) is read
  * only here. Correcting a reading is FR-56 and needs the corrected_by /
@@ -62,6 +72,10 @@ interface Slip {
   closedAt: string | null
   thresholdKm: number | null
   pkgMins: number | null
+  /** Who recorded each figure, and how long after the duty ran. Rendered as a
+   *  mark beside every captured number — see lib/dutyProvenance.ts. */
+  prov: ProvenanceFacts
+  operatorName: string | null
 }
 
 // ── formatting ────────────────────────────────────────────────────────────────
@@ -115,15 +129,68 @@ function DataRow({ label, value, alt, children }: {
   )
 }
 
-function TotalsRow({ label, cells }: { label: string; cells: string[] }) {
+interface TotalCell {
+  value: string
+  /** Absent on the derived columns — Total and Extra are arithmetic, not
+   *  something anybody recorded, so they carry no mark. */
+  mark?: Mark
+  photo?: string | null
+}
+
+/** The mark under a captured figure. Muted by design: it has to be legible
+ *  without competing with the number it qualifies. */
+function MarkLine({ mark, photo, onOpen }: {
+  mark: Mark
+  photo?: string | null
+  onOpen: () => void
+}) {
+  if (mark.backing === 'missing') return null
+
+  if (mark.backing === 'photographed' && photo) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        title="Open the odometer photograph"
+        className="mt-1 flex items-center gap-1.5 rounded-md text-xs font-medium text-violet-700 hover:underline cursor-pointer"
+      >
+        <img src={photo} alt="" className="size-5 rounded border border-gray-200 object-cover" />
+        Photo
+      </button>
+    )
+  }
+
+  return (
+    <span
+      className={clsx(
+        'mt-1 flex items-center gap-1 text-xs font-medium',
+        mark.backing === 'driver' ? 'text-gray-500' : 'text-warning-700',
+      )}
+    >
+      {mark.backing === 'driver'
+        ? <Check className="size-3" strokeWidth={2} />
+        : <Pencil className="size-3" strokeWidth={2} />}
+      {mark.label}
+    </span>
+  )
+}
+
+function TotalsRow({ label, cells, onOpenPhoto }: {
+  label: string
+  cells: TotalCell[]
+  onOpenPhoto: (url: string) => void
+}) {
   return (
     <div className="grid grid-cols-5 border-b border-gray-200 last:border-b-0">
       <div className="flex h-[72px] items-center bg-gray-50 px-6">
         <p className="text-sm font-medium text-gray-900">{label}</p>
       </div>
       {cells.map((c, i) => (
-        <div key={i} className="flex h-[72px] items-center px-6">
-          <p className="text-sm text-gray-600 tabular-nums">{c}</p>
+        <div key={i} className="flex h-[72px] flex-col justify-center px-6">
+          <p className="text-sm text-gray-600 tabular-nums">{c.value}</p>
+          {c.mark && (
+            <MarkLine mark={c.mark} photo={c.photo} onOpen={() => c.photo && onOpenPhoto(c.photo)} />
+          )}
         </div>
       ))}
     </div>
@@ -138,11 +205,15 @@ const CARD = 'rounded-xl border border-gray-200 bg-white shadow-xs overflow-hidd
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
+export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved, onViewDuty }: {
   dutyId: number
   mode: 'view' | 'edit'
   onClose: () => void
   onSaved?: () => void
+  /** Swaps this panel for the duty's own drawer. Omitted where the host has
+   *  no duty drawer to swap to, and the tertiary action then does not render —
+   *  a button that leads nowhere is worse than no button. */
+  onViewDuty?: () => void
 }) {
   const { showToast } = useToast()
   // `mode` is the state the drawer opens in, not a lock: a slip opened to read
@@ -160,12 +231,18 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
   const [allowances, setAllowances] = useState<DutyAllowanceRow[]>([])
   const [qtyEdits, setQtyEdits]     = useState<Record<number, string>>({})
   const [allowanceBusy, setAllowanceBusy] = useState(false)
+  const [media, setMedia] = useState<{ startOdo: string | null; endOdo: string | null; signature: string | null }>({
+    startOdo: null, endOdo: null, signature: null,
+  })
+  /** A plain enlargement, not a gallery. Inline was the brief. */
+  const [zoom, setZoom] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     async function load() {
       setLoading(true)
+      setMedia({ startOdo: null, endOdo: null, signature: null })
 
       // The client is createClient<any>, so an embedded relation comes back typed
       // as an array however the query is written. Every page here casts the row
@@ -177,6 +254,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
           id, booking_id, status, start_date, end_date, reporting_time, est_drop_time,
           duty_type, vehicle_group, base_rate, start_odo, end_odo, total_km,
           started_at, closed_at, no_show_reason, driver_id,
+          start_odo_photo, end_odo_photo, signature_path, closed_by_profile, corrected_at,
           bookings ( booking_ref, customer_name, booked_by_name,
                      booking_passengers ( name, sort_order ) ),
           vehicles ( model_name, vehicle_number ),
@@ -190,10 +268,15 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
 
       // The duty's position inside its booking is what makes "BK-00021-2"
       // meaningful to the customer; the row id alone means nothing to them.
-      const [{ data: siblings }, { data: dutyType }, { data: exp }] = await Promise.all([
+      const [{ data: siblings }, { data: dutyType }, { data: exp }, { data: closer }] = await Promise.all([
         supabase.from('duties').select('id').eq('booking_id', d.booking_id).order('id'),
         supabase.from('duty_types').select('threshold_km').eq('type_name', d.duty_type ?? '').maybeSingle(),
         supabase.from('driver_expense_logs').select('id, type, amount').eq('duty_id', dutyId).order('created_at'),
+        // Only when an operator closed it. A driver close leaves this null, and
+        // the warning reads perfectly well without a name anyway.
+        d.closed_by_profile
+          ? supabase.from('profiles').select('first_name, last_name').eq('id', d.closed_by_profile).maybeSingle()
+          : Promise.resolve({ data: null }),
       ])
 
       if (cancelled) return
@@ -229,6 +312,17 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
         closedAt:       d.closed_at,
         thresholdKm:    dutyType?.threshold_km == null ? null : Number(dutyType.threshold_km),
         pkgMins:        packageMins(d.start_date, d.reporting_time, d.end_date, d.est_drop_time),
+        prov: {
+          closedByProfile: d.closed_by_profile,
+          correctedAt:     d.corrected_at,
+          closedAt:        d.closed_at,
+          startOdoPhoto:   d.start_odo_photo,
+          endOdoPhoto:     d.end_odo_photo,
+          signaturePath:   d.signature_path,
+        },
+        operatorName: closer
+          ? [closer.first_name, closer.last_name].filter(Boolean).join(' ') || null
+          : null,
       })
 
       const rows: ExpenseRow[] = (exp ?? []).map((r: { id: number; type: string; amount: number }) => ({
@@ -238,6 +332,16 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
       setOriginal(rows)
       setNoShow(d.no_show_reason != null)
       setLoading(false)
+
+      // After the slip is on screen, never before it. The provenance marks come
+      // off the stored paths and render immediately; only the thumbnails need a
+      // signed URL, and three storage round-trips are not worth a spinner.
+      const [startUrl, endUrl, sigUrl] = await Promise.all(
+        [d.start_odo_photo, d.end_odo_photo, d.signature_path]
+          .map(pth => (pth ? signedUrl(pth) : Promise.resolve(null))),
+      )
+      if (cancelled) return
+      setMedia({ startOdo: startUrl, endOdo: endUrl, signature: sigUrl })
 
       // Lazily, on the operator's side. A billed duty is skipped inside sync,
       // so opening an invoiced slip never moves its numbers.
@@ -252,6 +356,12 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
 
   const km   = slip ? kmTotals(slip.startOdo, slip.endOdo, slip.thresholdKm, slip.totalKm) : { total: null, extra: null }
   const time = slip ? timeTotals(slip.startedAt, slip.closedAt, slip.pkgMins) : { total: null, extra: null }
+
+  // Who recorded what. Null-slip placeholders keep the hooks above unconditional.
+  const BLANK: Mark = { backing: 'missing', label: '—' }
+  const odo   = slip ? odoMarks(slip.prov, slip.startOdo, slip.endOdo)      : { start: BLANK, end: BLANK }
+  const times = slip ? timeMarks(slip.prov, slip.startedAt, slip.closedAt)  : { start: BLANK, end: BLANK }
+  const late  = slip ? lateEntry(slip.prov, slip.operatorName)              : null
 
   async function refreshAllowances() {
     setAllowances(await loadDutyAllowances(dutyId))
@@ -340,7 +450,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
     <Drawer
       open
       onClose={onClose}
-      title="Duty Slip"
+      title="Completion details"
       description={slip ? `${slip.dutyRef} · ${slip.customer}` : undefined}
       width="w-[680px]"
       footer={
@@ -361,7 +471,7 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
                 onClick={() => setEditing(true)}
                 className="h-10 flex-1 rounded-lg bg-violet-600 text-sm font-semibold text-white hover:bg-violet-700 transition-colors cursor-pointer"
               >
-                Edit duty slip
+                Edit
               </button>
             )}
           </div>
@@ -412,6 +522,19 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
             <DataRow alt label="Price"         value={slip.price == null ? '—' : formatINR(slip.price)} />
           </div>
 
+          {/* Swaps this panel for the duty's own drawer rather than stacking a
+              second one over it; the host reopens this on the way back. */}
+          {onViewDuty && (
+            <button
+              type="button"
+              onClick={onViewDuty}
+              className="-mt-0.5 flex w-fit items-center gap-1.5 rounded-lg px-1 py-1 text-sm font-semibold text-violet-700 hover:underline cursor-pointer"
+            >
+              <Eye className="size-4" strokeWidth={1.75} />
+              View duty
+            </button>
+          )}
+
           {/* Totals */}
           <div className="flex flex-col gap-1.5">
             <SectionLabel>Totals</SectionLabel>
@@ -425,12 +548,63 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
               </div>
               <TotalsRow
                 label="KM"
-                cells={[num(slip.startOdo), num(slip.endOdo), num(km.total), num(km.extra)]}
+                onOpenPhoto={setZoom}
+                cells={[
+                  { value: num(slip.startOdo), mark: odo.start, photo: media.startOdo },
+                  { value: num(slip.endOdo),   mark: odo.end,   photo: media.endOdo },
+                  { value: num(km.total) },
+                  { value: num(km.extra) },
+                ]}
               />
               <TotalsRow
                 label="Time"
-                cells={[clock(slip.startedAt), clock(slip.closedAt), hhmm(time.total), hhmm(time.extra)]}
+                onOpenPhoto={setZoom}
+                cells={[
+                  { value: clock(slip.startedAt), mark: times.start },
+                  { value: clock(slip.closedAt),  mark: times.end },
+                  { value: hhmm(time.total) },
+                  { value: hhmm(time.extra) },
+                ]}
               />
+            </div>
+
+            {/* Earned, not automatic: an operator close made the same day shows
+                `typed` on every figure and says nothing more. A warning that
+                fires on the normal path is furniture. */}
+            {late && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-warning-200 bg-warning-50 px-4 py-3">
+                <AlertTriangle className="mt-px size-4 shrink-0 text-warning-600" strokeWidth={1.75} />
+                <div>
+                  <p className="text-sm font-medium text-warning-800">{late.sentence}</p>
+                  <p className="mt-0.5 text-sm text-warning-700">
+                    No photograph or signature was captured for this duty.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Signature ──
+              FR-57 makes this the billing authority, and until now it was
+              captured, stored, and shown to nobody. */}
+          <div className="flex flex-col gap-1.5">
+            <SectionLabel>Passenger signature</SectionLabel>
+            <div className={clsx(CARD, 'flex items-center gap-4 px-6 py-4')}>
+              {media.signature ? (
+                <button
+                  type="button"
+                  onClick={() => setZoom(media.signature)}
+                  title="Open the signature"
+                  className="cursor-pointer rounded-md border border-gray-200 bg-white px-3 py-1.5 hover:border-violet-300"
+                >
+                  <img src={media.signature} alt="Passenger signature captured at close of duty" className="h-9 w-auto" />
+                </button>
+              ) : (
+                <div className="flex h-12 flex-1 items-center rounded-md border border-dashed border-gray-300 px-3">
+                  <p className="text-sm text-gray-400">Not captured</p>
+                </div>
+              )}
+              <p className="text-sm text-gray-500">{slip ? signatureNote(slip.prov) : ''}</p>
             </div>
           </div>
 
@@ -686,6 +860,32 @@ export default function DutySlipDrawer({ dutyId, mode, onClose, onSaved }: {
           </label>
 
         </div>
+      )}
+      {/* Portalled to the body: Drawer's panel carries `transition-transform`,
+          and a transformed ancestor becomes the containing block for `fixed`,
+          which would trap this inside the 480px panel. */}
+      {zoom && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-950/80 p-8"
+          onClick={() => setZoom(null)}
+          role="presentation"
+        >
+          <button
+            type="button"
+            onClick={() => setZoom(null)}
+            aria-label="Close photograph"
+            className="absolute right-6 top-6 rounded-lg p-2 text-white hover:bg-white/10 cursor-pointer"
+          >
+            <X className="size-6" strokeWidth={1.75} />
+          </button>
+          <img
+            src={zoom}
+            alt="Odometer photograph captured by the driver"
+            onClick={e => e.stopPropagation()}
+            className="max-h-full max-w-full rounded-lg bg-white object-contain shadow-2xl"
+          />
+        </div>,
+        document.body,
       )}
     </Drawer>
   )

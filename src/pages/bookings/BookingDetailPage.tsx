@@ -5,7 +5,7 @@ import {
   ArrowLeft, Plus, Pencil, MoreHorizontal, Search,
   ChevronLeft, ChevronRight, ChevronDown, Eye, Truck,
   RotateCcw, XCircle,
-  Send, FileText, Printer, ArrowLeftRight, Car, FileX2, CheckCircle,
+  Send, ClipboardCheck, Printer, ArrowLeftRight, Car, FileX2, CheckCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -171,8 +171,7 @@ function getDutyActions(
     onCloseDuty: () => void
     onUnconfirm: () => void
     onConfirm: () => void
-    onPreviewSlip: () => void
-    onEditSlip: () => void
+    onCompletionDetails: () => void
     onPrintSlip: () => void
     onRestore: () => void
     onCancel: () => void
@@ -233,12 +232,13 @@ function getDutyActions(
     { label: 'Edit duty', icon: <Pencil className="size-4" strokeWidth={1.75} />, onClick: handlers.onEdit },
   ]
 
+  // A finished duty has one destination, not four. Viewing the duty and editing
+  // the record both live inside Completion details now; only printing is a
+  // genuinely separate act, because it leaves the app.
   if (s === 'Completed' || s === 'Billed') return [
     ...close,
-    { label: 'View duty',       icon: <Eye      className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
-    { label: 'Preview duty slip', icon: <FileText className="size-4" strokeWidth={1.75} />, onClick: handlers.onPreviewSlip },
-    { label: 'Edit duty slip',  icon: <Pencil   className="size-4" strokeWidth={1.75} />, onClick: handlers.onEditSlip },
-    { label: 'Print duty slip', icon: <Printer  className="size-4" strokeWidth={1.75} />, onClick: handlers.onPrintSlip },
+    { label: 'View completion details', icon: <ClipboardCheck className="size-4" strokeWidth={1.75} />, onClick: handlers.onCompletionDetails },
+    { label: 'Print duty slip',         icon: <Printer        className="size-4" strokeWidth={1.75} />, onClick: handlers.onPrintSlip },
   ]
 
   if (s === 'Cancelled') return [
@@ -277,6 +277,9 @@ export default function BookingDetailPage() {
     status: BookingStatus; startDate: string | null; endDate: string | null
   } | null>(null)
   const [editBooking, setEditBooking]   = useState(false)
+  /** Add-mode drawer prefilled from this booking. Separate state: the edit drawer
+      is bound to this booking's id and must not be reused to create a new one. */
+  const [duplicating, setDuplicating]   = useState(false)
   const [deleteBooking, setDeleteBooking] = useState(false)
   const [statusFilter, setStatusFilter] = useState<DutyFilter>('All')
   const [search, setSearch]             = useState('')
@@ -407,11 +410,30 @@ export default function BookingDetailPage() {
   function openDutyDrawer(mode: DutyDrawerMode, duty: Duty | null = null) {
     setDutyDrawer({ open: true, mode, duty })
   }
+  /** Completion details → the duty's own drawer. Declared here rather than
+   *  inline in JSX: `returnToSlip` is captured by closeDutyDrawer above, and
+   *  the React Compiler refuses a mutation ordered after that first use. */
+  function viewDutyFromSlip(id: number) {
+    const row = duties.find(d => d.id === id) ?? null
+    returnToSlip.current = id
+    setSlipDuty(null)
+    openDutyDrawer('view', row)
+  }
+
   function closeDutyDrawer() {
     setDutyDrawer(prev => ({ ...prev, open: false }))
+    // Swapped in from Completion details: put the operator back where she was
+    // rather than on the bare list. Without this, "View duty" is a one-way door
+    // and the way back is to find the row and reopen the menu.
+    const back = returnToSlip.current
+    returnToSlip.current = null
+    if (back != null) setSlipDuty({ id: back, mode: 'view' })
   }
 
   const [slipDuty, setSlipDuty]                 = useState<{ id: number; mode: 'view' | 'edit' } | null>(null)
+  /** The duty whose Completion details to reopen once the duty drawer closes.
+   *  A ref, not state: nothing renders from it, it only survives the swap. */
+  const returnToSlip                            = useRef<number | null>(null)
   const [closeTarget, setCloseTarget]            = useState<Duty | null>(null)
   const [allotDuty, setAllotDuty]               = useState<Duty | null>(null)
   const [changeDriverDuty, setChangeDriverDuty] = useState<Duty | null>(null)
@@ -580,6 +602,7 @@ export default function BookingDetailPage() {
                     // still a step forward rather than a circle.
                     onGenerateInvoice: () => navigate('/billing/invoices/create'),
                     onPrintSlips:      () => window.open(`/bookings/${bookingId}/slips`, '_blank', 'noopener'),
+                    onDuplicate:       () => setDuplicating(true),
                   },
                   { onDetailPage: true, closedDuties },
                 )}
@@ -793,8 +816,7 @@ export default function BookingDetailPage() {
                       onCloseDuty:      () => setCloseTarget(row),
                       onUnconfirm:      () => updateDutyStatus(row.id, 'Booked'),
                       onConfirm:        () => updateDutyStatus(row.id, 'Booked'),
-                      onPreviewSlip:    () => setSlipDuty({ id: row.id, mode: 'view' }),
-                      onEditSlip:       () => setSlipDuty({ id: row.id, mode: 'edit' }),
+                      onCompletionDetails: () => setSlipDuty({ id: row.id, mode: 'view' }),
                       onPrintSlip:      () => window.open(`/duties/${row.id}/slip`, '_blank', 'noopener'),
                       onRestore:        () => updateDutyStatus(row.id, 'Booked'),
                       onCancel:         () => updateDutyStatus(row.id, 'Cancelled'),
@@ -1005,6 +1027,19 @@ export default function BookingDetailPage() {
         onCreated={() => { void fetchDuties(); showToast('Booking updated successfully') }}
       />
 
+      {/* "This one again, different date." Lands on the new booking so she is
+          looking at what she just made, not at the one she copied. */}
+      <AddBookingDrawer
+        open={duplicating}
+        mode="add"
+        copyFromId={Number(bookingId)}
+        onClose={() => setDuplicating(false)}
+        onCreated={createdId => {
+          showToast('Booking created successfully')
+          if (createdId) navigate(`/bookings/${createdId}`)
+        }}
+      />
+
       <ConfirmDeleteModal
         open={deleteBooking}
         title="Delete this booking?"
@@ -1019,6 +1054,7 @@ export default function BookingDetailPage() {
           mode={slipDuty.mode}
           onClose={() => setSlipDuty(null)}
           onSaved={fetchDuties}
+          onViewDuty={() => viewDutyFromSlip(slipDuty.id)}
         />
       )}
     </div>

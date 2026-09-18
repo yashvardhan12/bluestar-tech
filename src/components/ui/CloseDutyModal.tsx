@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/auth'
 import { formatDate, formatTime } from '../../lib/dutyTime'
 import { hhmm, kmTotals, packageMins, timeTotals } from '../../lib/dutySlip'
 import { syncBookingStatus } from '../../lib/bookingStatus'
+import { signedUrl } from '../../lib/driver'
 import { syncDutyAllowances } from '../../lib/dutyAllowances'
 import {
   buildClosePayload, captureState, closeDefaults, hasErrors, validateClose,
@@ -62,6 +63,14 @@ function Legend({ children, note }: { children: React.ReactNode; note?: string }
       {note && <span className="ml-2 normal-case tracking-normal font-normal text-gray-400">{note}</span>}
     </p>
   )
+}
+
+/** The bucket is private, so the path has to be signed before it can be opened.
+ *  A new tab rather than an overlay: this modal is a form the operator is part
+ *  way through, and covering it would put her work behind a dismissable layer. */
+async function openOdoPhoto(path: string) {
+  const url = await signedUrl(path)
+  if (url) window.open(url, '_blank', 'noopener')
 }
 
 export default function CloseDutyModal({ dutyId, onClose, onSaved }: Props) {
@@ -334,10 +343,18 @@ export default function CloseDutyModal({ dutyId, onClose, onSaved }: Props) {
                       {facts.startOdo.toLocaleString('en-IN')} km
                     </span>
                     {ctx.startOdoPhoto && (
-                      <span className="ml-auto inline-flex h-6 items-center gap-1.5 rounded-md bg-violet-50 px-2 text-xs font-medium text-violet-700">
+                      // Was a chip that announced a photograph and refused to
+                      // show it. The operator is about to type a closing figure
+                      // against this reading — she should be able to look at it.
+                      <button
+                        type="button"
+                        onClick={() => void openOdoPhoto(ctx.startOdoPhoto!)}
+                        title="Open the odometer photograph"
+                        className="ml-auto inline-flex h-6 items-center gap-1.5 rounded-md bg-violet-50 px-2 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors cursor-pointer"
+                      >
                         <Camera className="size-3" strokeWidth={1.75} />
                         Photo
-                      </span>
+                      </button>
                     )}
                   </div>
                 )}

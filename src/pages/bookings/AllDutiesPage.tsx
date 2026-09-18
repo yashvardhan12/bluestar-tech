@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, ChevronDown, MoreHorizontal,
-  Eye, Pencil, Car, ArrowLeftRight, Printer, FileX2, XCircle, RotateCcw, CheckCircle2,
+  Eye, Pencil, Car, ArrowLeftRight, Printer, FileX2, XCircle, RotateCcw, CheckCircle2, ClipboardCheck,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -18,6 +18,7 @@ import type { DateRange } from '../../components/ui/DateRangePicker'
 import ClearAllotmentModal from '../../components/ui/ClearAllotmentModal'
 import RestoreDutyModal from '../../components/ui/RestoreDutyModal'
 import CloseDutyModal from '../../components/ui/CloseDutyModal'
+import DutySlipDrawer from './DutySlipDrawer'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
 import { localDate, toISODate } from '../../lib/dutyTime'
@@ -47,8 +48,9 @@ interface DutyRow {
   dutyType: string
   driver?: { id: number; initials: string; name: string }
   repTime: string
-  /** `Needs closing` is derived by duties_status and never written. */
-  status: DutyStatus | 'Needs closing'
+  /** `Needs closing` is derived by duties_status and never written; `Billed` is
+   *  written by invoicing and passes through the view untouched. */
+  status: DutyStatus | 'Needs closing' | 'Billed'
   /** FR-59 gate. Still read here rather than off the status: BookingDetailPage
    *  and the driver RPCs see the raw column, where Completed can still mean an
    *  empty slip. One rule, one source. */
@@ -161,6 +163,7 @@ function getDutyActions(
     onPrintSlip: () => void
     onClearAllotment: () => void
     onCloseDuty: () => void
+    onCompletionDetails: () => void
     onRestore: () => void
     onCancel: () => void
   },
@@ -221,10 +224,15 @@ function getDutyActions(
 
   // No `close` spread: since 036 a row can only read Completed here if it
   // carries a closed_at, and isCloseable would refuse it anyway.
-  if (s === 'Completed') return [
-    { label: 'View duty',    icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onView },
+  //
+  // Identical to the booking page's branch on purpose. A finished duty must
+  // offer the same thing wherever it is met, and "View duty" now lives inside
+  // Completion details rather than beside it.
+  if (s === 'Completed' || s === 'Billed') return [
+    { label: 'View completion details', icon: <ClipboardCheck className="size-4" strokeWidth={1.75} />, onClick: handlers.onCompletionDetails },
+    { label: 'Print duty slip',         icon: <Printer        className="size-4" strokeWidth={1.75} />, onClick: handlers.onPrintSlip },
     'divider',
-    { label: 'View booking', icon: <Eye className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewBooking },
+    { label: 'View booking',            icon: <Eye            className="size-4" strokeWidth={1.75} />, onClick: handlers.onViewBooking },
   ]
 
   if (s === 'Cancelled') return [
@@ -268,9 +276,21 @@ export default function AllDutiesPage() {
   const [restoreTarget, setRestoreTarget]       = useState<DutyRow | null>(null)
   const [closeTarget, setCloseTarget]           = useState<DutyRow | null>(null)
   const [viewBookingId, setViewBookingId]       = useState<number | null>(null)
+  const [slipDuty, setSlipDuty]                 = useState<number | null>(null)
+  /** Reopen Completion details after the duty drawer it swapped to closes. */
+  const returnToSlip                            = useRef<number | null>(null)
 
   const offsetRef   = useRef(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  /** Completion details → the duty's own drawer. In the body, not inline in
+   *  JSX, for the same ordering reason as BookingDetailPage. */
+  function viewDutyFromSlip(id: number) {
+    const row = rows.find(r => r.id === id) ?? null
+    returnToSlip.current = id
+    setSlipDuty(null)
+    setDutyDrawer({ open: true, mode: 'view', row })
+  }
 
   function buildQuery(from: number) {
     // Reads come from duties_status, which derives the time-dependent statuses
@@ -630,6 +650,7 @@ export default function AllDutiesPage() {
                       onPrintSlip:      () => window.open(`/duties/${row.id}/slip`, '_blank', 'noopener'),
                       onClearAllotment: () => setClearAllotTarget(row),
                       onCloseDuty:      () => setCloseTarget(row),
+                      onCompletionDetails: () => setSlipDuty(row.id),
                       onRestore:        () => setRestoreTarget(row),
                       onCancel:         () => handleCancel(row),
                     }
@@ -670,7 +691,12 @@ export default function AllDutiesPage() {
           endDate:   (() => { const [dd, mm, yyyy] = dutyDrawer.row.endDate.split('/');   return `${yyyy}-${mm}-${dd}` })(),
         } : undefined}
         dutyId={dutyDrawer.row?.id}
-        onClose={() => setDutyDrawer(prev => ({ ...prev, open: false }))}
+        onClose={() => {
+          setDutyDrawer(prev => ({ ...prev, open: false }))
+          const back = returnToSlip.current
+          returnToSlip.current = null
+          if (back != null) setSlipDuty(back)
+        }}
         onSave={async form => {
           if (!dutyDrawer.row) return
           await supabase.from('duties').update({
@@ -779,6 +805,16 @@ export default function AllDutiesPage() {
             // rather than patch — a closed duty may also leave the active filter.
             void fetchInitial()
           }}
+        />
+      )}
+
+      {slipDuty != null && (
+        <DutySlipDrawer
+          dutyId={slipDuty}
+          mode="view"
+          onClose={() => setSlipDuty(null)}
+          onSaved={() => { void fetchInitial() }}
+          onViewDuty={() => viewDutyFromSlip(slipDuty)}
         />
       )}
 
