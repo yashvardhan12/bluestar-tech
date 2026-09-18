@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import { formatINR } from '../../lib/money'
 import { todayISO } from '../../lib/dutyTime'
 import { useMenuFlip } from '../../lib/useMenuFlip'
+import { useFitRows } from '../../lib/useFitRows'
 import { useToast } from '../../components/ui/Toast'
 import Drawer from '../../components/ui/Drawer'
 
@@ -42,8 +43,6 @@ interface PayrollRow extends Driver {
   payroll: PayrollRecord | null
 }
 
-const PAGE_SIZE = 8
-
 const EXPENSE_TYPES = ['Fuel', 'Car Wash', 'Fast Tags', 'Parking', 'Challans', 'Other']
 
 // ── sticky column widths ──────────────────────────────────────────────────────
@@ -79,12 +78,6 @@ function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/)
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
-const STATUSES: PayrollStatus[] = ['Paid', 'Not Paid', 'Partially Paid']
-
-function fallbackStatus(driverId: number): PayrollStatus {
-  return STATUSES[driverId % STATUSES.length]
 }
 
 function getPaginationPages(current: number, total: number): (number | '...')[] {
@@ -359,6 +352,7 @@ export default function PayrollPage() {
   const [drivers, setDrivers]       = useState<Driver[]>([])
   const [payrollMap, setPayrollMap] = useState<Record<number, PayrollRecord>>({})
   const [search, setSearch]         = useState('')
+  const [cardRef, pageSize]         = useFitRows()
   const [page, setPage]             = useState(1)
 
   // ── add expense drawer ───────────────────────────────────────────────────────
@@ -585,8 +579,10 @@ export default function PayrollPage() {
     const q = search.toLowerCase()
     return !q || d.name.toLowerCase().includes(q) || (d.phone ?? '').includes(q)
   })
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageDrivers = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  // pageSize shrinks when the window does — don't strand the user past the last page
+  const current    = Math.min(page, totalPages)
+  const pageDrivers = filtered.slice((current - 1) * pageSize, current * pageSize)
 
   const rows: PayrollRow[] = pageDrivers.map(d => ({
     ...d,
@@ -656,7 +652,7 @@ export default function PayrollPage() {
   }
 
 
-  const paginationPages = getPaginationPages(page, totalPages)
+  const paginationPages = getPaginationPages(current, totalPages)
 
   // ── drawer total ─────────────────────────────────────────────────────────────
 
@@ -687,7 +683,7 @@ export default function PayrollPage() {
 
       {/* Table area */}
       <div className="flex-1 overflow-hidden px-10 pb-8">
-        <div className="h-full flex flex-col rounded-xl border border-gray-200 shadow-xs bg-white overflow-hidden">
+        <div ref={cardRef} className="h-full flex flex-col rounded-xl border border-gray-200 shadow-xs bg-white overflow-hidden">
 
           {rows.length === 0 ? (
             <EmptyState isFiltered={search.length > 0} />
@@ -808,7 +804,9 @@ export default function PayrollPage() {
                         {/* Sticky right — Status */}
                         <td className="sticky z-10 bg-white group-hover:bg-gray-50 h-[72px] px-4 py-4 border-l border-gray-200"
                           style={{ width: STATUS_W, minWidth: STATUS_W, right: ACTIONS_W }}>
-                          <PayrollBadge status={p?.status ?? fallbackStatus(row.id)} />
+                          {/* No driver_payroll row = nothing recorded yet. A badge here would
+                              assert a payment that never happened — match the row's dashes. */}
+                          {p ? <PayrollBadge status={p.status} /> : <span className="text-sm text-gray-400">—</span>}
                         </td>
 
                         {/* Sticky right — Actions */}
@@ -832,7 +830,7 @@ export default function PayrollPage() {
           {/* Pagination */}
           {totalPages > 1 && (
           <div className="border-t border-gray-200 flex items-center justify-between px-6 pt-3 pb-4 shrink-0">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            <button onClick={() => setPage(Math.max(1, current - 1))} disabled={current === 1}
               className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
               <ChevronLeft className="size-5" strokeWidth={1.75} /> Previous
             </button>
@@ -841,15 +839,15 @@ export default function PayrollPage() {
                 <button key={i} onClick={() => typeof p_ === 'number' && setPage(p_)} disabled={p_ === '...'}
                   className={clsx(
                     'size-10 rounded-lg text-sm font-medium flex items-center justify-center transition-colors',
-                    p_ === page   && 'bg-gray-50 text-gray-900 font-semibold',
-                    p_ !== page   && p_ !== '...' && 'text-gray-600 hover:bg-gray-50',
+                    p_ === current && 'bg-gray-50 text-gray-900 font-semibold',
+                    p_ !== current && p_ !== '...' && 'text-gray-600 hover:bg-gray-50',
                     p_ === '...'  && 'cursor-default pointer-events-none text-gray-600',
                   )}>
                   {p_}
                 </button>
               ))}
             </div>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            <button onClick={() => setPage(Math.min(totalPages, current + 1))} disabled={current === totalPages}
               className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white shadow-xs hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
               Next <ChevronRight className="size-5" strokeWidth={1.75} />
             </button>
