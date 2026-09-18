@@ -40,3 +40,6 @@ _bmad/
 
 # BMad scratch working copies
 _bmad-output/**/.working/
+
+# Codex config (contains an API key)
+.codex/
