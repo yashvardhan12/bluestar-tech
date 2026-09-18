@@ -18,6 +18,8 @@ interface Allowance {
   name: string
   unit: AllowanceUnit
   baseline: Baseline
+  /** "HH:MM", only meaningful when baseline is 'custom'. */
+  baselineTime: string | null
   driverRate: number | null
   isActive: boolean
 }
@@ -25,6 +27,7 @@ interface Allowance {
 interface Draft {
   driverRate: string
   baseline: Baseline
+  baselineTime: string
   isActive: boolean
 }
 
@@ -53,21 +56,32 @@ const USES_BASELINE: AllowanceCode[] = ['overtime', 'early_start']
 const BASELINE_LABEL: Record<Baseline, string> = {
   duty_window:  "The duty's scheduled times",
   driver_shift: "The driver's shift times",
+  custom:       'A fixed time',
 }
 
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow bg-white'
 
 function toDraft(a: Allowance): Draft {
   return {
-    driverRate: a.driverRate != null ? String(a.driverRate) : '',
-    baseline:   a.baseline,
-    isActive:   a.isActive,
+    driverRate:   a.driverRate != null ? String(a.driverRate) : '',
+    baseline:     a.baseline,
+    baselineTime: a.baselineTime ?? '',
+    isActive:     a.isActive,
   }
 }
 
 function isDirty(a: Allowance, d: Draft): boolean {
   const rate = d.driverRate.trim() === '' ? null : Number(d.driverRate)
-  return rate !== a.driverRate || d.baseline !== a.baseline || d.isActive !== a.isActive
+  return rate !== a.driverRate
+    || d.baseline !== a.baseline
+    || draftTime(d) !== a.baselineTime
+    || d.isActive !== a.isActive
+}
+
+/** The time actually stored: only a custom baseline keeps one, so switching away
+ *  from custom clears it rather than leaving a stale time behind the select. */
+function draftTime(d: Draft): string | null {
+  return d.baseline === 'custom' && d.baselineTime.trim() !== '' ? d.baselineTime : null
 }
 
 export default function AllowancesPage() {
@@ -75,6 +89,9 @@ export default function AllowancesPage() {
   const [rows, setRows] = useState<Allowance[]>([])
   const [drafts, setDrafts] = useState<Record<number, Draft>>({})
   const [loading, setLoading] = useState(true)
+  // A failed read is not an empty company. Conflating them told an operator
+  // their allowances had been deleted when the query had simply errored.
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { fetchAllowances() }, [])
@@ -82,24 +99,28 @@ export default function AllowancesPage() {
   async function fetchAllowances() {
     const { data, error } = await supabase
       .from('allowances')
-      .select('id, code, name, unit, baseline, driver_rate, is_active')
+      .select('id, code, name, unit, baseline, baseline_time, driver_rate, is_active')
       .order('id')
 
     if (error) {
       console.error('[allowances] load', error.message)
-      showToast('Could not load allowances')
+      setLoadError(error.message)
       setLoading(false)
       return
     }
+    setLoadError(null)
 
     const mapped: Allowance[] = (data ?? []).map((r: any) => ({
       id:         r.id,
       code:       r.code,
       name:       r.name,
       unit:       r.unit,
-      baseline:   r.baseline,
-      driverRate: r.driver_rate != null ? Number(r.driver_rate) : null,
-      isActive:   r.is_active,
+      baseline:     r.baseline,
+      // Postgres hands back "HH:MM:SS"; the input and every comparison here
+      // work in "HH:MM", so narrow it once at the boundary.
+      baselineTime: r.baseline_time ? String(r.baseline_time).slice(0, 5) : null,
+      driverRate:   r.driver_rate != null ? Number(r.driver_rate) : null,
+      isActive:     r.is_active,
     }))
     setRows(mapped)
     setDrafts(Object.fromEntries(mapped.map(a => [a.id, toDraft(a)])))
@@ -126,8 +147,9 @@ export default function AllowancesPage() {
         .from('allowances')
         .update({
           driver_rate: d.driverRate.trim() === '' ? null : Number(d.driverRate),
-          baseline:    d.baseline,
-          is_active:   d.isActive,
+          baseline:      d.baseline,
+          baseline_time: draftTime(d),
+          is_active:     d.isActive,
         })
         .eq('id', a.id)
 
@@ -159,7 +181,7 @@ export default function AllowancesPage() {
         </div>
       </div>
 
-      {unpriced > 0 && !loading && (
+      {unpriced > 0 && !loading && !loadError && (
         <div className="flex items-start gap-3 rounded-xl border border-warning-200 bg-warning-25 px-4 py-3">
           <p className="text-sm text-warning-700">
             <span className="font-medium">
@@ -186,6 +208,22 @@ export default function AllowancesPage() {
           <tbody>
             {loading ? (
               <tr><td colSpan={5} className="h-[120px] px-6 text-center text-sm text-gray-400">Loading…</td></tr>
+            ) : loadError ? (
+              <tr><td colSpan={5} className="px-6 py-6">
+                <p className="text-sm font-medium text-error-700">Could not load allowances.</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Nothing has been deleted — the query failed. Retry, and if it keeps
+                  failing the database may be behind the app.
+                </p>
+                <p className="mt-2 font-mono text-xs text-gray-400">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => { setLoading(true); fetchAllowances() }}
+                  className="mt-3 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Retry
+                </button>
+              </td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={5} className="h-[120px] px-6 text-center text-sm text-gray-400">
                 No allowances found for this company.
@@ -224,15 +262,34 @@ export default function AllowancesPage() {
 
                   <td className="px-6 py-4">
                     {USES_BASELINE.includes(a.code) ? (
-                      <select
-                        value={d.baseline}
-                        onChange={e => set(a.id, 'baseline', e.target.value as Baseline)}
-                        aria-label={`${a.name} baseline`}
-                        className={clsx(inputCls, 'cursor-pointer')}
-                      >
-                        <option value="duty_window">{BASELINE_LABEL.duty_window}</option>
-                        <option value="driver_shift">{BASELINE_LABEL.driver_shift}</option>
-                      </select>
+                      <div className="flex flex-col gap-1.5">
+                        <select
+                          value={d.baseline}
+                          onChange={e => set(a.id, 'baseline', e.target.value as Baseline)}
+                          aria-label={`${a.name} baseline`}
+                          className={clsx(inputCls, 'cursor-pointer')}
+                        >
+                          <option value="duty_window">{BASELINE_LABEL.duty_window}</option>
+                          <option value="driver_shift">{BASELINE_LABEL.driver_shift}</option>
+                          <option value="custom">{BASELINE_LABEL.custom}</option>
+                        </select>
+                        {d.baseline === 'custom' && (
+                          <>
+                            <input
+                              type="time"
+                              value={d.baselineTime}
+                              onChange={e => set(a.id, 'baselineTime', e.target.value)}
+                              aria-label={`${a.name} custom time`}
+                              className={clsx(inputCls, 'tabular-nums')}
+                            />
+                            {d.baselineTime.trim() === '' && (
+                              <p className="text-xs text-warning-700">
+                                No time set — falls back to the duty's scheduled times.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-sm text-gray-400">—</span>
                     )}

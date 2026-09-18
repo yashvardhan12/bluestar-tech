@@ -19,8 +19,9 @@ export type AllowanceCode =
 
 export type AllowanceUnit = 'day' | 'hour' | 'duty' | 'night'
 
-/** Which clock overtime and early start are measured against. Ignored by the rest. */
-export type Baseline = 'duty_window' | 'driver_shift'
+/** Which clock overtime and early start are measured against. Ignored by the rest.
+ *  'custom' reads the rule's own baselineTime. */
+export type Baseline = 'duty_window' | 'driver_shift' | 'custom'
 
 /** One row of the company's master list. */
 export interface AllowanceRule {
@@ -28,6 +29,8 @@ export interface AllowanceRule {
   code: AllowanceCode
   unit: AllowanceUnit
   baseline: Baseline
+  /** "HH:MM" the rule measures against when baseline is 'custom'. */
+  baselineTime?: string | null
   driverRate: number | null
   isActive: boolean
 }
@@ -112,16 +115,33 @@ export function extraHourMins(duty: DutyFacts): number {
   return Math.round(ran) - MONTHLY_INCLUDED_HOURS * 60
 }
 
+/**
+ * Which clock a line is measured against, with the fallbacks applied once.
+ * `shift` and `scheduled` are the duty's own end/start or report/shift pair,
+ * so this serves both overtime and early start.
+ */
+function resolveBaseline(
+  baseline: Baseline,
+  custom: string | null,
+  shift: string | null,
+  scheduled: string | null,
+): string | null {
+  if (baseline === 'custom') return custom || scheduled
+  if (baseline === 'driver_shift') return shift || scheduled
+  return scheduled
+}
+
 /** Minutes the duty ran past the time it was due to end. Exported because the
  *  duty slip prints the observed fact behind an overtime line. */
-export function overtimeMins(duty: DutyFacts, baseline: Baseline): number {
+export function overtimeMins(
+  duty: DutyFacts, baseline: Baseline, baselineTime: string | null = null,
+): number {
   if (!duty.closedAt) return 0
-  // driver_shift falls back to the duty window whenever the driver has no shift
-  // recorded — otherwise the allowance silently pays nothing, and every driver
-  // in production currently has these blank.
-  const time = baseline === 'driver_shift' && duty.driverShiftEnd
-    ? duty.driverShiftEnd
-    : duty.estDropTime
+  // Both non-default baselines fall back to the duty window when the time they
+  // need is missing — a driver with no shift recorded, or a custom baseline
+  // nobody set a time on. An allowance that silently pays nothing is worse than
+  // one that measures against the booking.
+  const time = resolveBaseline(baseline, baselineTime, duty.driverShiftEnd, duty.estDropTime)
   if (!time) return 0
   const due = atTime(duty.endDate, time)
   return Math.round((new Date(duty.closedAt).getTime() - due.getTime()) / 60_000)
@@ -129,11 +149,11 @@ export function overtimeMins(duty: DutyFacts, baseline: Baseline): number {
 
 /** Minutes the driver started before they were due to report. Exported for the
  *  same reason as overtimeMins. */
-export function earlyStartMins(duty: DutyFacts, baseline: Baseline): number {
+export function earlyStartMins(
+  duty: DutyFacts, baseline: Baseline, baselineTime: string | null = null,
+): number {
   if (!duty.startedAt) return 0
-  const time = baseline === 'driver_shift' && duty.driverShiftStart
-    ? duty.driverShiftStart
-    : duty.reportingTime
+  const time = resolveBaseline(baseline, baselineTime, duty.driverShiftStart, duty.reportingTime)
   if (!time) return 0
   const due = atTime(duty.startDate, time)
   return Math.round((due.getTime() - new Date(duty.startedAt).getTime()) / 60_000)
@@ -154,13 +174,13 @@ export function quantityFor(rule: AllowanceRule, duty: DutyFacts): number {
       // the extended hours. Confirmed with the client.
       return outstation ? nightsSpanned(duty.startDate, duty.endDate) : 0
     case 'overtime':
-      return ceilHours(overtimeMins(duty, rule.baseline))
+      return ceilHours(overtimeMins(duty, rule.baseline, rule.baselineTime ?? null))
     case 'extra_hour':
       // Monthly only, and one duty is one day (see dutyWindows.ts), so this
       // fires per day of the month exactly as the contract reads.
       return duty.category === 'Monthly' ? ceilHours(extraHourMins(duty)) : 0
     case 'early_start':
-      return ceilHours(earlyStartMins(duty, rule.baseline))
+      return ceilHours(earlyStartMins(duty, rule.baseline, rule.baselineTime ?? null))
     case 'off_day':
       return duty.driverOffDay && weekdayName(duty.startDate) === duty.driverOffDay ? 1 : 0
     case 'extra_duty':

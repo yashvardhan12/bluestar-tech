@@ -170,6 +170,46 @@ const byCode = (lines: ReturnType<typeof computeAllowances>, code: string) =>
   // Every driver in production has blank shift times. Falling back to the duty
   // window is what stops the allowance paying nothing at all.
   assert.equal(quantityFor(shift, { ...duty, driverShiftEnd: null }), 1, 'falls back')
+
+  // ── a custom baseline measures against a time the operator set ────────────
+  const custom = { ...RULES[1], baseline: 'custom' as const, baselineTime: '16:00' }
+  assert.equal(quantityFor(custom, duty), 3, '2h30 past a 16:00 custom baseline')
+  assert.equal(
+    quantityFor(custom, duty), quantityFor({ ...custom, baselineTime: '16:00' }, duty),
+    'the custom time is read, not the shift or the scheduled drop',
+  )
+
+  // Same fallback contract as driver_shift: a custom baseline nobody set a time
+  // on measures against the booking rather than paying nothing.
+  assert.equal(quantityFor({ ...custom, baselineTime: null }, duty), 1, 'blank custom falls back')
+  assert.equal(quantityFor({ ...custom, baselineTime: '' }, duty), 1, 'empty string falls back')
+
+  // A custom time later than the actual close is not overtime.
+  assert.equal(quantityFor({ ...custom, baselineTime: '20:00' }, duty), 0, 'closed before the custom time')
+
+  // Postgres hands back HH:MM:SS; atTime takes either.
+  assert.equal(quantityFor({ ...custom, baselineTime: '16:00:00' }, duty), 3, 'seconds are tolerated')
+}
+
+// ── early start honours the same three baselines ────────────────────────────
+{
+  const duty: DutyFacts = {
+    ...DUTY,
+    reportingTime: '06:00',
+    driverShiftStart: '07:00',
+    startedAt: '2026-08-05T04:20:00',
+  }
+  const early = RULES[5]   // early_start
+  assert.equal(quantityFor({ ...early, baseline: 'duty_window' }, duty), 2, '1h40 before the report')
+  assert.equal(quantityFor({ ...early, baseline: 'driver_shift' }, duty), 3, '2h40 before the shift')
+  assert.equal(
+    quantityFor({ ...early, baseline: 'custom', baselineTime: '05:00' }, duty), 1,
+    '40 min before a 05:00 custom baseline rounds up to one hour',
+  )
+  assert.equal(
+    quantityFor({ ...early, baseline: 'custom', baselineTime: null }, duty), 2,
+    'blank custom falls back to the scheduled report',
+  )
 }
 
 // ── rates that produce paise still land on two decimals ─────────────────────

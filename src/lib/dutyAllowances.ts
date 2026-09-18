@@ -69,7 +69,7 @@ export async function syncDutyAllowances(dutyId: number): Promise<void> {
       ? supabase.from('duties').select('id, reporting_time').eq('driver_id', duty.driver_id)
           .eq('start_date', duty.start_date).neq('status', 'Cancelled')
       : Promise.resolve({ data: null, error: null }),
-    supabase.from('allowances').select('id, code, unit, baseline, driver_rate, is_active'),
+    supabase.from('allowances').select('id, code, unit, baseline, baseline_time, driver_rate, is_active'),
   ])
 
   if (alRes.error) { console.error('[dutyAllowances] load rate card', alRes.error.message); return }
@@ -118,6 +118,7 @@ export async function syncDutyAllowances(dutyId: number): Promise<void> {
 
   const rules: AllowanceRule[] = ((alRes.data as any[]) ?? []).map(a => ({
     id: a.id, code: a.code, unit: a.unit, baseline: a.baseline,
+    baselineTime: a.baseline_time ?? null,
     driverRate: a.driver_rate != null ? Number(a.driver_rate) : null,
     isActive: a.is_active,
   }))
