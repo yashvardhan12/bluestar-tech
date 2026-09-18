@@ -39,6 +39,7 @@
 //   Airport      fixed_charges, night_charges          — never hours, never km
 //   Hourly       threshold_km then bands OR rate_per_km, night_charges
 //   Outstation   rate_per_km, daily_outstation_charges — never night, never bands
+//   Custom       package_rate, included_hours/_km, extra_hour_rate, extra_km_rate
 //   Monthly      not priced here; it is a package plus extra hours
 //
 // dutyPrice.check.ts holds this shut: every category is priced against a card
@@ -62,6 +63,16 @@ export interface RateCard {
   ratePerKm: number | null
   nightCharges: number | null
   dailyOutstationCharges: number | null
+  // ── Custom only ──────────────────────────────────────────────────────────
+  /** Hours the package covers. Null means hours are not metered on this type. */
+  includedHours: number | null
+  /** Kilometres the package covers. Null means distance is not metered. */
+  includedKm: number | null
+  /** The package itself. Deliberately not fixed_charges — that belongs to
+   *  Airport, and one category never reads another's field. */
+  packageRate: number | null
+  extraHourRate: number | null
+  extraKmRate: number | null
 }
 
 /** What the duty ran. Everything already resolved by the caller. */
@@ -199,6 +210,62 @@ function outstationLines(card: RateCard, run: RunFacts, km: number | null): Pric
   return lines
 }
 
+/**
+ * Custom (the client's "First 8 hours or first 80 km, whichever occurs first"):
+ * one package rate, then a per-hour rate past the included hours and a per-km
+ * rate past the included kilometres.
+ *
+ * The two overages are charged independently, which is the standard reading of
+ * that clause — "whichever occurs first" says the package stops covering you,
+ * not that only one overage bills. A duty running 10 hrs and 100 km on an 8/80
+ * package pays for 2 hours AND 20 km.
+ *
+ * Part hours round up: the contract sells "every one (1) hour following the
+ * first 8", so 8h20m owes a whole extra hour. Same for part kilometres.
+ *
+ * ponytail: no night charge on this category — the client's rate card has no
+ * night row for the package. If a later contract adds one, call addNight here
+ * and give it its own cross-contamination assertion.
+ */
+function customLines(
+  card: RateCard, km: number | null, hours: number | null,
+): PriceLine[] | null {
+  if (card.packageRate == null) return null
+
+  const lines: PriceLine[] = [{
+    label: `Package (${card.includedHours ?? '—'} hrs / ${card.includedKm ?? '—'} km)`,
+    amount: round2(card.packageRate),
+  }]
+
+  // A metered limit with nothing recorded to measure against cannot be priced.
+  // An unmetered one (null) is a package with no cap, not a free overage.
+  if (card.includedHours != null) {
+    if (hours == null) return null
+    const extra = Math.ceil(Math.max(hours - card.includedHours, 0))
+    if (extra > 0) {
+      if (card.extraHourRate == null) return null
+      lines.push({
+        label: `${extra} hr @ ${card.extraHourRate}/hr (past ${card.includedHours} hrs)`,
+        amount: round2(extra * card.extraHourRate),
+      })
+    }
+  }
+
+  if (card.includedKm != null) {
+    if (km == null) return null
+    const extra = Math.ceil(Math.max(km - card.includedKm, 0))
+    if (extra > 0) {
+      if (card.extraKmRate == null) return null
+      lines.push({
+        label: `${extra} km @ ${card.extraKmRate}/km (past ${card.includedKm} km)`,
+        amount: round2(extra * card.extraKmRate),
+      })
+    }
+  }
+
+  return lines
+}
+
 /** Shared by the two categories that charge it, and reached by no other. */
 function addNight(lines: PriceLine[], card: RateCard, run: RunFacts): void {
   if (card.nightCharges && isNightDuty(run.startedAt, run.closedAt)) {
@@ -222,6 +289,7 @@ export function priceDuty(card: RateCard, run: RunFacts): DutyPrice | null {
     case 'Airport':    lines = airportLines(card, run); break
     case 'Hourly':     lines = hourlyLines(card, run, km, hours); break
     case 'Outstation': lines = outstationLines(card, run, km); break
+    case 'Custom':     lines = customLines(card, km, hours); break
     default:           lines = null
   }
   if (lines == null) return null

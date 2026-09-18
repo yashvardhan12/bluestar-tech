@@ -86,7 +86,7 @@ export type RateCards = Map<string, RateCard>
 export async function loadRateCards(): Promise<RateCards> {
   const { data, error } = await supabase
     .from('duty_types')
-    .select('type_name, category, fixed_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, night_charges, daily_outstation_charges')
+    .select('type_name, category, fixed_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, night_charges, daily_outstation_charges, included_hours, included_km, package_rate, extra_hour_rate, extra_km_rate')
   if (error) { console.error('[billing] rate cards', error.message); return new Map() }
 
   const num = (v: any) => (v == null ? null : Number(v))
@@ -100,6 +100,13 @@ export async function loadRateCards(): Promise<RateCards> {
     ratePerKm:              num(d.rate_per_km),
     nightCharges:           num(d.night_charges),
     dailyOutstationCharges: num(d.daily_outstation_charges),
+    // Custom only. A null included_hours or included_km is not a missing value:
+    // it means that axis is not metered, and customLines() skips the overage.
+    includedHours:          num(d.included_hours),
+    includedKm:             num(d.included_km),
+    packageRate:            num(d.package_rate),
+    extraHourRate:          num(d.extra_hour_rate),
+    extraKmRate:            num(d.extra_km_rate),
   }]))
 }
 

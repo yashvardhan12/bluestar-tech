@@ -11,7 +11,9 @@ import { priceDuty, hoursRun, hourBands, isNightDuty, type RateCard } from './du
 const card = (o: Partial<RateCard>): RateCard => ({
   category: 'Hourly', fixedCharges: null, thresholdKm: null,
   rate0to6Hrs: null, rate6to12Hrs: null, rate12PlusHrs: null,
-  ratePerKm: null, nightCharges: null, dailyOutstationCharges: null, ...o,
+  ratePerKm: null, nightCharges: null, dailyOutstationCharges: null,
+  includedHours: null, includedKm: null, packageRate: null,
+  extraHourRate: null, extraKmRate: null, ...o,
 })
 
 /** One day, pickup to release, as the sheet writes them: HHMM, 2400 = midnight. */
@@ -102,6 +104,85 @@ assert.equal(total(card({ category: 'Outstation', ratePerKm: 52, dailyOutstation
 // RIL - Super Deluxe: 150 km is still under the 200 km threshold, so hours win
 assert.equal(total(flat(2052, 118, 500), run(700, 2400, 150, 150)), 35534, 'Super Deluxe local, 150 km still under the 200 km threshold')
 assert.equal(total(card({ category: 'Outstation', ratePerKm: 118, dailyOutstationCharges: 700 }), outdoor(250, 150)), 30350, 'Super Deluxe outdoor')
+
+// ── Custom ───────────────────────────────────────────────────────────────────
+//
+// The relation this category prices: a package covering the first n hours or
+// n km, then a per-hour rate past the hours and a per-km rate past the km.
+// Both limits and all three rates are operator-entered per duty type — nothing
+// here is a default and nothing is seeded.
+//
+// The 8/80 shape and the figures below are one client's amendment ("First 8
+// hours or first 80 km, whichever occurs first"), used as fixtures because
+// arithmetic needs concrete numbers and a real contract is the safest source
+// of them. Another operator's 4/40 at their own rates prices the same way.
+
+const dzire = card({
+  category: 'Custom', includedHours: 8, includedKm: 80,
+  packageRate: 2600, extraHourRate: 200, extraKmRate: 22,
+})
+
+assert.equal(total(dzire, run(900, 1700, 80)), 2600, 'Dzire inside the package pays the package')
+assert.equal(total(dzire, run(900, 1700, 12)), 2600, 'a short duty still pays the whole package')
+assert.equal(total(dzire, run(900, 1900, 80)), 3000, '2 hours over: 2600 + 2 x 200')
+assert.equal(total(dzire, run(900, 1700, 100)), 3040, '20 km over: 2600 + 20 x 22')
+// Both overages bill. "Whichever occurs first" ends the package, it does not
+// pick which overage applies.
+assert.equal(total(dzire, run(900, 1900, 100)), 3440, '2 hrs and 20 km over: 2600 + 400 + 440')
+// "Every one (1) hour following" — a part hour is a whole chargeable hour.
+assert.equal(total(dzire, run(900, 1730, 80)), 2800, 'half an hour over is charged as one')
+assert.equal(total(dzire, run(900, 1700, 80.5)), 2622, 'half a km over is charged as one')
+
+// Innova Crysta column: 3800 / 300 / 30
+const innova = card({
+  category: 'Custom', includedHours: 8, includedKm: 80,
+  packageRate: 3800, extraHourRate: 300, extraKmRate: 30,
+})
+assert.equal(total(innova, run(900, 2100, 150)), 7100, 'Innova 12 hrs, 150 km: 3800 + 4 x 300 + 70 x 30')
+
+// Merc-S column: 18000 / 1800 / 180
+assert.equal(
+  total(card({ category: 'Custom', includedHours: 8, includedKm: 80,
+               packageRate: 18000, extraHourRate: 1800, extraKmRate: 180 }),
+        run(900, 2000, 120)),
+  18000 + 3 * 1800 + 40 * 180,
+  'Merc-S 11 hrs, 120 km',
+)
+
+// An unmetered axis is a package with no cap, not a free overage.
+assert.equal(
+  total(card({ category: 'Custom', includedHours: 8, packageRate: 2600, extraHourRate: 200 }),
+        run(900, 1700, 5000)),
+  2600,
+  'no included_km means distance is not metered at all',
+)
+
+// Holes in the card refuse to price rather than under-bill.
+assert.equal(priceDuty(card({ category: 'Custom', includedHours: 8, includedKm: 80 }), run(900, 1700, 80)), null,
+  'no package rate is a hole in the card, not a free duty')
+assert.equal(priceDuty(card({ category: 'Custom', includedHours: 8, includedKm: 80, packageRate: 2600 }), run(900, 1900, 80)), null,
+  'hours ran over with no extra_hour_rate refuses to price')
+assert.equal(priceDuty(card({ category: 'Custom', includedHours: 8, includedKm: 80, packageRate: 2600 }), run(900, 1700, 100)), null,
+  'km ran over with no extra_km_rate refuses to price')
+assert.equal(
+  priceDuty(dzire, { ...run(900, 1700, 80), startedAt: null, closedAt: null }),
+  null,
+  'a metered package with no clock cannot be priced',
+)
+
+// One category, one relation — the same assertion every other category carries.
+assert.equal(
+  total(card({
+    category: 'Custom', includedHours: 8, includedKm: 80,
+    packageRate: 2600, extraHourRate: 200, extraKmRate: 22,
+    // every other category's fields, deliberately live
+    fixedCharges: 9999, thresholdKm: 1, rate0to6Hrs: 9999, rate6to12Hrs: 9999,
+    rate12PlusHrs: 9999, ratePerKm: 9999, nightCharges: 9999,
+    dailyOutstationCharges: 9999,
+  }), run(700, 2400, 100)),
+  2600 + 9 * 200 + 20 * 22,
+  'Custom ignores fixed_charges, the bands, rate_per_km, night and the daily allowance',
+)
 
 // ── refusals and edges ───────────────────────────────────────────────────────
 

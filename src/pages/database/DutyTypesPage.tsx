@@ -12,7 +12,7 @@ import type { AllowanceUnit } from '../../lib/allowances'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
-type Category = 'Airport' | 'Hourly' | 'Outstation' | 'Monthly'
+type Category = 'Airport' | 'Hourly' | 'Outstation' | 'Monthly' | 'Custom'
 type DrawerMode = 'add' | 'view' | 'edit'
 
 interface DutyType {
@@ -30,6 +30,11 @@ interface DutyType {
   ratePerKm: number | null
   dailyOutstationCharges: number | null
   extraHourRate: number | null
+  // Custom only. includedHours/includedKm null means that axis is not metered.
+  includedHours: number | null
+  includedKm: number | null
+  packageRate: number | null
+  extraKmRate: number | null
   isP2P: boolean
   isGTG: boolean
 }
@@ -42,7 +47,7 @@ interface AllowanceMaster {
   driverRate: number | null
 }
 
-const CATEGORIES: Category[] = ['Airport', 'Hourly', 'Outstation', 'Monthly']
+const CATEGORIES: Category[] = ['Airport', 'Hourly', 'Outstation', 'Monthly', 'Custom']
 
 const UNIT_LABEL: Record<AllowanceUnit, string> = {
   day: 'per day', hour: 'per hour', duty: 'per duty', night: 'per night',
@@ -109,12 +114,12 @@ function SelectField({ label, required, value, onChange, placeholder, options, d
   )
 }
 
-function NumericField({ label, required, placeholder, value, onChange, disabled }: {
+function NumericField({ label, required, placeholder, value, onChange, disabled, hint }: {
   label: string; required?: boolean; placeholder?: string
-  value: string; onChange: (v: string) => void; disabled?: boolean
+  value: string; onChange: (v: string) => void; disabled?: boolean; hint?: string
 }) {
   return (
-    <Field label={label} required={required}>
+    <Field label={label} required={required} hint={hint}>
       <input type="number" placeholder={placeholder ?? '150'} value={value}
         onChange={e => onChange(e.target.value)} disabled={disabled} className={inputCls} />
     </Field>
@@ -155,6 +160,10 @@ const EMPTY_FORM = {
   ratePerKm: '',
   dailyOutstationCharges: '',
   extraHourRate: '',
+  includedHours: '',
+  includedKm: '',
+  packageRate: '',
+  extraKmRate: '',
   isP2P: false,
   isGTG: false,
 }
@@ -191,7 +200,7 @@ export default function DutyTypesPage() {
   async function fetchData() {
     const [dtRes, vgRes, alRes] = await Promise.all([
       supabase.from('duty_types')
-        .select('id, category, type_name, vehicle_group_id, fixed_charges, night_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, daily_outstation_charges, extra_hour_rate, is_p2p, is_gtg, vehicle_groups(name)')
+        .select('id, category, type_name, vehicle_group_id, fixed_charges, night_charges, threshold_km, rate_0_6_hrs, rate_6_12_hrs, rate_12_plus_hrs, rate_per_km, daily_outstation_charges, extra_hour_rate, included_hours, included_km, package_rate, extra_km_rate, is_p2p, is_gtg, vehicle_groups(name)')
         .order('created_at', { ascending: false }),
       supabase.from('vehicle_groups').select('id, name').order('name'),
       // extra_hour is priced by the Monthly field below, never opted into here.
@@ -218,6 +227,10 @@ export default function DutyTypesPage() {
         ratePerKm: d.rate_per_km,
         dailyOutstationCharges: d.daily_outstation_charges,
         extraHourRate: d.extra_hour_rate,
+        includedHours: d.included_hours,
+        includedKm: d.included_km,
+        packageRate: d.package_rate,
+        extraKmRate: d.extra_km_rate,
         isP2P: d.is_p2p,
         isGTG: d.is_gtg,
       })))
@@ -263,6 +276,10 @@ export default function DutyTypesPage() {
       ratePerKm: r.ratePerKm != null ? String(r.ratePerKm) : '',
       dailyOutstationCharges: r.dailyOutstationCharges != null ? String(r.dailyOutstationCharges) : '',
       extraHourRate: r.extraHourRate != null ? String(r.extraHourRate) : '',
+      includedHours: r.includedHours != null ? String(r.includedHours) : '',
+      includedKm: r.includedKm != null ? String(r.includedKm) : '',
+      packageRate: r.packageRate != null ? String(r.packageRate) : '',
+      extraKmRate: r.extraKmRate != null ? String(r.extraKmRate) : '',
       isP2P: r.isP2P,
       isGTG: r.isGTG,
     }
@@ -349,6 +366,10 @@ export default function DutyTypesPage() {
       rate_per_km: form.ratePerKm ? Number(form.ratePerKm) : null,
       daily_outstation_charges: form.dailyOutstationCharges ? Number(form.dailyOutstationCharges) : null,
       extra_hour_rate: form.extraHourRate ? Number(form.extraHourRate) : null,
+      included_hours: form.includedHours ? Number(form.includedHours) : null,
+      included_km: form.includedKm ? Number(form.includedKm) : null,
+      package_rate: form.packageRate ? Number(form.packageRate) : null,
+      extra_km_rate: form.extraKmRate ? Number(form.extraKmRate) : null,
       is_p2p: form.isP2P,
       is_gtg: form.isGTG,
     }
@@ -654,6 +675,41 @@ export default function DutyTypesPage() {
                   <NumericField label="Rate per kilometer" required={!readOnly} value={form.ratePerKm} onChange={v => set('ratePerKm', v)} disabled={readOnly} />
                   <NumericField label="Daily outstation charges" required={!readOnly} value={form.dailyOutstationCharges} onChange={v => set('dailyOutstationCharges', v)} disabled={readOnly} />
                   <NumericField label="Extra hours rate (per hour, after 12 hours)" required={!readOnly} value={form.extraHourRate} onChange={v => set('extraHourRate', v)} disabled={readOnly} />
+                </>
+              )}
+
+              {/* Custom fields — the "first n hrs or n km, whichever ends first"
+                  package. Both overages bill; see customLines in dutyPrice.ts. */}
+              {cat === 'Custom' && (
+                <>
+                  <div className="rounded-lg border border-violet-100 bg-violet-50 px-3.5 py-3">
+                    <p className="text-sm font-medium text-gray-700">What the package covers</p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      The duty bills the package rate until either limit is passed, then the
+                      extras below apply — both of them, independently.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <NumericField
+                      label="Included hours" required={!readOnly} placeholder="8"
+                      hint="Hours the package covers. Leave blank if hours are not metered on this type."
+                      value={form.includedHours} onChange={v => set('includedHours', v)} disabled={readOnly} />
+                    <NumericField
+                      label="Included kilometres" required={!readOnly} placeholder="80"
+                      hint="Kilometres the package covers. Leave blank if distance is not metered."
+                      value={form.includedKm} onChange={v => set('includedKm', v)} disabled={readOnly} />
+                  </div>
+
+                  <NumericField label="Package rate" required={!readOnly} placeholder="2600"
+                    value={form.packageRate} onChange={v => set('packageRate', v)} disabled={readOnly} />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <NumericField label="Extra hour rate" required={!readOnly} placeholder="200"
+                      value={form.extraHourRate} onChange={v => set('extraHourRate', v)} disabled={readOnly} />
+                    <NumericField label="Extra km rate" required={!readOnly} placeholder="22"
+                      value={form.extraKmRate} onChange={v => set('extraKmRate', v)} disabled={readOnly} />
+                  </div>
                 </>
               )}
 
