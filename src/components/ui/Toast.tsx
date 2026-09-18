@@ -4,15 +4,27 @@ import { clsx } from 'clsx'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
+/**
+ * One optional follow-on offered next to Dismiss. Was a label-less `onUndo` that
+ * nothing ever passed; it is a named action now because the useful case turned
+ * out not to be undo — it is "do the next obvious thing", e.g. duplicating a
+ * booking straight after saving it, while the operator still has the caller on
+ * the line.
+ */
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface ToastItem {
   id: string
   message: string
-  onUndo?: () => void
+  action?: ToastAction
   variant: 'success' | 'error'
 }
 
 interface ToastContextValue {
-  showToast: (message: string, onUndo?: () => void) => void
+  showToast: (message: string, action?: ToastAction) => void
   /** Save failures. The caller keeps its form state; this only reports. */
   showError: (message: string) => void
 }
@@ -31,6 +43,8 @@ export function useToast() {
 // ── single toast ──────────────────────────────────────────────────────────────
 
 const AUTO_DISMISS_MS = 4000
+/** An offer needs long enough to be read and weighed, not just noticed. */
+const AUTO_DISMISS_ACTION_MS = 8000
 
 function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
   const [visible, setVisible] = useState(false)
@@ -46,7 +60,7 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
   // leaves the user believing the save worked.
   useEffect(() => {
     if (isError) return
-    const t = setTimeout(() => dismiss(), AUTO_DISMISS_MS)
+    const t = setTimeout(() => dismiss(), toast.action ? AUTO_DISMISS_ACTION_MS : AUTO_DISMISS_MS)
     return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast.id, isError])
@@ -56,8 +70,8 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
     setTimeout(() => onDismiss(toast.id), 300)
   }
 
-  function handleUndo() {
-    toast.onUndo?.()
+  function handleAction() {
+    toast.action?.onClick()
     dismiss()
   }
 
@@ -104,13 +118,13 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
             >
               Dismiss
             </button>
-            {toast.onUndo && (
+            {toast.action && (
               <button
                 type="button"
-                onClick={handleUndo}
+                onClick={handleAction}
                 className="text-sm font-semibold text-violet-700 hover:text-violet-800 transition-colors cursor-pointer"
               >
-                Undo
+                {toast.action.label}
               </button>
             )}
           </div>
@@ -134,9 +148,9 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
-  const showToast = useCallback((message: string, onUndo?: () => void) => {
+  const showToast = useCallback((message: string, action?: ToastAction) => {
     const id = Math.random().toString(36).slice(2)
-    setToasts(prev => [...prev, { id, message, onUndo, variant: 'success' }])
+    setToasts(prev => [...prev, { id, message, action, variant: 'success' }])
   }, [])
 
   const showError = useCallback((message: string) => {

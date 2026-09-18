@@ -1,4 +1,4 @@
-import { Eye, Pencil, Car, FileText, Trash2, XCircle, RotateCcw, CheckCircle, Printer } from 'lucide-react'
+import { Eye, Pencil, Car, FileText, Trash2, XCircle, RotateCcw, CheckCircle, Printer, Copy } from 'lucide-react'
 import type { BookingStatus } from '../../components/ui/StatusBadge'
 
 /**
@@ -31,11 +31,13 @@ export function getBookingActions(
     onGenerateInvoice: () => void
     /** Every closed duty on the booking, one sheet per page. */
     onPrintSlips: () => void
+    /** Opens a new booking prefilled from this one. Offered on every status. */
+    onDuplicate: () => void
   },
   opts: { onDetailPage?: boolean; closedDuties?: number } = {},
 ): (MenuItem | 'divider')[] {
   const s = booking.status
-  const t = (items: (MenuItem | 'divider')[]) => trim(items, opts, handlers.onPrintSlips)
+  const t = (items: (MenuItem | 'divider')[]) => trim(items, opts, handlers.onPrintSlips, handlers.onDuplicate)
 
   if (s === 'Booked') return t([
     { label: 'Confirm booking', icon: <CheckCircle className="size-4" strokeWidth={1.75} />, onClick: handlers.onConfirm, variant: 'confirm' },
@@ -113,8 +115,25 @@ function trim(
   items: (MenuItem | 'divider')[],
   opts: { onDetailPage?: boolean; closedDuties?: number },
   onPrintSlips: () => void,
+  onDuplicate: () => void,
 ): (MenuItem | 'divider')[] {
   let out = items
+
+  // Offered on every status, including Cancelled and Billed — those are the best
+  // duplicate candidates there are. A cancelled booking is one somebody is about
+  // to rebook; a billed one is proof the trip repeats.
+  //
+  // Inserted above the first destructive item rather than appended, so it never
+  // ends up sitting under Delete. No branch has to place it.
+  const firstDanger = out.findIndex(i => i !== 'divider' && i.variant === 'danger')
+  const at = firstDanger === -1 ? out.length : firstDanger
+  out = [
+    ...out.slice(0, at),
+    'divider',
+    { label: 'Duplicate booking', icon: <Copy className="size-4" strokeWidth={1.75} />, onClick: onDuplicate },
+    'divider',
+    ...out.slice(at),
+  ]
 
   if (opts.onDetailPage) {
     out = out.filter(i => i === 'divider' || (i.label !== 'View booking' && i.label !== 'View duty(s)'))

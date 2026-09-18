@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react'
-import { X, Plus, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Plus, RefreshCw, Search, Copy } from 'lucide-react'
 import { clsx } from 'clsx'
 import { supabase } from '../../lib/supabase'
 import { useLocations } from '../../lib/locations'
 import LocationSelect from '../../components/ui/LocationSelect'
 import Toggle from '../../components/ui/Toggle'
-import { localDate, toISODate } from '../../lib/dutyTime'
+import { localDate, toISODate, formatDate } from '../../lib/dutyTime'
 import { createBooking } from '../../lib/createBooking'
 import { generateDutyRows } from '../../lib/dutyWindows'
+import { bookingToForm, BOOKING_FORM_SELECT } from '../../lib/bookingPrefill'
+import type { BookingFormValues } from '../../lib/bookingPrefill'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -114,6 +116,133 @@ function SectionCard({ title, children }: { title: string; children: React.React
   )
 }
 
+// ── copy-from picker ──────────────────────────────────────────────────────────
+
+interface CopySource {
+  id: number
+  bookingRef: string
+  customer: string
+  passenger: string
+  dutyType: string
+  startDate: string
+}
+
+/** The subset of `bookings` the picker reads. See BookingRow on why it is loose. */
+interface CopySourceRow {
+  id: number
+  booking_ref: string | null
+  customer_name: string | null
+  duty_type: string | null
+  start_date: string | null
+  booking_passengers: { name: string | null; sort_order: number }[] | null
+}
+
+/**
+ * Step zero of a new booking: "this one again, different date."
+ *
+ * It sits at the top of the blank form rather than only in the list's row menu
+ * because the row menu can only be reached by someone who has already found the
+ * row. Most repeat bookings are taken over the phone — the operator knows the
+ * customer, not the BK number — so the reachable place to start a copy is the
+ * button she presses anyway.
+ */
+function CopyFromPicker({ onPick }: { onPick: (id: number) => void }) {
+  const [sources, setSources] = useState<CopySource[]>([])
+  const [query, setQuery]     = useState('')
+  const [open, setOpen]       = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  // ponytail: 50 most recent, filtered in the browser. A repeat booking is
+  // nearly always recent; swap for a server-side ilike if it stops being.
+  useEffect(() => {
+    supabase
+      .from('bookings')
+      .select('id, booking_ref, customer_name, duty_type, start_date, booking_passengers(name, sort_order)')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data, error }) => {
+        if (error) { console.error('[CopyFromPicker]', error.message); return }
+        setSources(((data ?? []) as CopySourceRow[]).map(r => ({
+          id:         r.id,
+          bookingRef: r.booking_ref ?? '',
+          customer:   r.customer_name ?? '',
+          passenger:  [...(r.booking_passengers ?? [])]
+                        .sort((a, b) => a.sort_order - b.sort_order)[0]?.name ?? '',
+          dutyType:   r.duty_type ?? '',
+          startDate:  r.start_date ?? '',
+        })))
+      })
+  }, [])
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  // The same four fields the bookings list searches on, so whatever she can find
+  // there she can find here.
+  const q = query.trim().toLowerCase()
+  const matches = sources.filter(b =>
+    !q ||
+    b.customer.toLowerCase().includes(q) ||
+    b.passenger.toLowerCase().includes(q) ||
+    b.dutyType.toLowerCase().includes(q) ||
+    b.bookingRef.toLowerCase().includes(q),
+  ).slice(0, 5)
+
+  return (
+    <div ref={boxRef} className="relative flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm font-medium text-gray-700">Start from an existing booking</span>
+        <span className="text-sm text-gray-400">(optional)</span>
+      </div>
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" strokeWidth={1.75} />
+        <input
+          type="text"
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          placeholder="Search customer, passenger or booking ID"
+          className="w-full pl-[38px] pr-3.5 py-2.5 border border-gray-300 rounded-lg shadow-xs text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 transition-shadow"
+        />
+      </div>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-[280px] overflow-y-auto">
+          {matches.length === 0 ? (
+            <p className="px-3.5 py-3 text-sm text-gray-400">No matching bookings.</p>
+          ) : matches.map(b => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => { onPick(b.id); setOpen(false); setQuery('') }}
+              className="w-full flex items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <Copy className="size-4 shrink-0 mt-0.5 text-gray-400" strokeWidth={1.75} />
+              <span className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-sm font-medium text-gray-900 truncate">
+                  {b.customer || '—'}{b.passenger && <span className="text-gray-500"> · {b.passenger}</span>}
+                </span>
+                <span className="text-xs text-gray-500 truncate">
+                  {b.bookingRef}{b.dutyType && ` · ${b.dutyType}`}{b.startDate && ` · ${formatDate(b.startDate)}`}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400">
+        Copies everything except the booking ID and the dates.
+      </p>
+    </div>
+  )
+}
+
 // ── props ─────────────────────────────────────────────────────────────────────
 
 export type BookingDrawerMode = 'add' | 'edit' | 'view'
@@ -121,14 +250,17 @@ export type BookingDrawerMode = 'add' | 'edit' | 'view'
 interface AddBookingDrawerProps {
   open: boolean
   onClose: () => void
-  onCreated?: () => void
+  /** Receives the new booking's id on the create path, so the caller can offer to copy it again. */
+  onCreated?: (createdId?: number) => void
   mode?: BookingDrawerMode
   bookingId?: number
+  /** Opens `add` mode prefilled from this booking. The in-drawer picker sets the same thing. */
+  copyFromId?: number
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add', bookingId }: AddBookingDrawerProps) {
+export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add', bookingId, copyFromId }: AddBookingDrawerProps) {
   const [activeMode, setActiveMode] = useState<BookingDrawerMode>(mode)
 
   // Sync activeMode when the drawer opens or mode prop changes
@@ -276,46 +408,68 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
       : Promise.resolve({ error: null })
   }
 
-  // ── fetch existing booking for edit/view ─────────────────────────────────────
+  // ── loading an existing booking into the form ────────────────────────────────
+  // The edit/view path and the copy path differ only in what bookingToForm()
+  // withholds, so they share one apply. Which fields a copy drops — and why — is
+  // documented and checked in src/lib/bookingPrefill.ts.
+
+  /** Booking ref of the row a copy was taken from. Header-only; never submitted. */
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null)
+
+  function applyForm(f: BookingFormValues) {
+    setBookingRef(f.bookingRef)
+    setCustomer(f.customer)
+    setBookedByName(f.bookedByName); setBookedByPhone(f.bookedByPhone); setBookedByEmail(f.bookedByEmail)
+    setPassengers(f.passengers)
+    setDutyType(f.dutyType); setVehicleGroup(f.vehicleGroup); setAltVehicles(f.altVehicles)
+    setFromLocation(f.fromLocation); setToLocation(f.toLocation)
+    setReportingAddress(f.reportingAddress); setDropAddress(f.dropAddress)
+    setBookingType(f.bookingType); setIsAirport(f.isAirport)
+    setStartDate(f.startDate); setEndDate(f.endDate)
+    setReportingTime(f.reportingTime); setEstDropTime(f.estDropTime); setGarageStart(f.garageStart)
+    setBaseRate(f.baseRate); setExtraKmRate(f.extraKmRate); setExtraHourRate(f.extraHourRate)
+    setBillTo(f.billTo)
+    setOperatorNotes(f.operatorNotes); setDriverNotes(f.driverNotes)
+    setSendConfirmation(f.sendConfirmation)
+    setError(null)
+  }
+
+  async function loadInto(id: number, copy: boolean) {
+    const { data, error: loadErr } = await supabase
+      .from('bookings').select(BOOKING_FORM_SELECT).eq('id', id).single()
+    if (loadErr || !data) {
+      console.error('[AddBookingDrawer] load failed:', loadErr?.message)
+      if (copy) setError('Could not load that booking. Fill the form in manually.')
+      return
+    }
+    applyForm(bookingToForm(data, { copy }))
+    // `sameAsPassenger` mirrors booked-by into passenger 1 as you type. Leaving it
+    // on would overwrite the passenger names that were just loaded.
+    setSameAsPassenger(false)
+    setCopiedFrom(copy ? (data.booking_ref ?? null) : null)
+  }
+
   useEffect(() => {
     if (!open || mode === 'add' || !bookingId) return
-    supabase
-      .from('bookings')
-      .select(`*, booking_passengers(name, phone, sort_order)`)
-      .eq('id', bookingId)
-      .single()
-      .then(({ data: b }) => {
-        if (!b) return
-        setBookingRef(b.booking_ref ?? '')
-        setCustomer(b.customer_name ?? '')
-        setBookedByName(b.booked_by_name ?? '')
-        setBookedByPhone(b.booked_by_phone ?? '')
-        setBookedByEmail(b.booked_by_email ?? '')
-        setDutyType(b.duty_type ?? '')
-        setVehicleGroup(b.vehicle_group ?? '')
-        setAltVehicles(b.assign_alternate_vehicles ?? false)
-        setFromLocation(b.from_location ?? '')
-        setToLocation(b.to_location ?? '')
-        setReportingAddress(b.reporting_address ?? '')
-        setDropAddress(b.drop_address ?? '')
-        setBookingType(b.booking_type === 'outstation' ? 'outstation' : 'local')
-        setIsAirport(b.is_airport_booking ?? false)
-        setStartDate(b.start_date ?? '')
-        setEndDate(b.end_date ?? '')
-        setReportingTime(b.reporting_time ?? '')
-        setEstDropTime(b.est_drop_time ?? '')
-        setGarageStart(b.garage_start_mins != null ? String(b.garage_start_mins) : '')
-        setBaseRate(b.base_rate != null ? String(b.base_rate) : '')
-        setExtraKmRate(b.extra_km_rate != null ? String(b.extra_km_rate) : '')
-        setExtraHourRate(b.extra_hour_rate != null ? String(b.extra_hour_rate) : '')
-        setBillTo(b.bill_to ?? '')
-        setOperatorNotes(b.operator_notes ?? '')
-        setDriverNotes(b.driver_notes ?? '')
-        setSendConfirmation(b.send_confirmation ?? false)
-        const sorted = [...(b.booking_passengers ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order)
-        setPassengers(sorted.length > 0 ? sorted.map((p: any) => ({ name: p.name ?? '', phone: p.phone ?? '' })) : [{ name: '', phone: '' }])
-      })
+    void loadInto(bookingId, false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode, bookingId])
+
+  // Opened as "Duplicate booking" from a row menu or the post-save toast.
+  useEffect(() => {
+    if (!open || mode !== 'add' || !copyFromId) return
+    void loadInto(copyFromId, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, copyFromId])
+
+  // The drawer stays mounted, so an abandoned form survives its own close — which
+  // is wanted for her own half-typed booking and dangerous for a copy: pressing
+  // "Add Booking" after abandoning a duplicate would silently inherit someone
+  // else's customer and rates. Clear that case only.
+  useEffect(() => {
+    if (open && mode === 'add' && !copyFromId && copiedFrom) resetForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mode, copyFromId])
 
   function resetForm() {
     setBookingRef('')
@@ -327,6 +481,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
     setStartDate(''); setEndDate(''); setReportingTime(''); setEstDropTime(''); setGarageStart('')
     setBaseRate(''); setExtraKmRate(''); setExtraHourRate(''); setBillTo('')
     setOperatorNotes(''); setDriverNotes(''); setSendConfirmation(false)
+    setCopiedFrom(null)
     setError(null)
   }
 
@@ -443,7 +598,7 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
 
     setSaving(false)
     resetForm()
-    onCreated?.()
+    onCreated?.(result.id ?? undefined)
     onClose()
   }
 
@@ -469,7 +624,12 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
               {activeMode === 'edit' ? 'Edit Booking' : activeMode === 'view' ? 'View Booking' : 'Add Booking'}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              {activeMode === 'edit' ? 'Update the booking details below' : activeMode === 'view' ? 'Booking details' : 'Fill in the details to create a new booking'}
+              {activeMode === 'edit'  ? 'Update the booking details below'
+             : activeMode === 'view'  ? 'Booking details'
+             // Copying a booking is the one case where "which record am I in?" is a
+             // real question. Answer it before she starts typing.
+             : copiedFrom             ? `Copied from ${copiedFrom} — this is a new booking, with a new ID`
+             : 'Fill in the details to create a new booking'}
             </p>
           </div>
           <button
@@ -484,6 +644,15 @@ export default function AddBookingDrawer({ open, onClose, onCreated, mode = 'add
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="flex flex-col gap-5">
+
+            {/* Copy an existing booking into this form. Add mode only — there is
+                nothing to start from when you are editing what you started from. */}
+            {activeMode === 'add' && (
+              <>
+                <CopyFromPicker onPick={id => void loadInto(id, true)} />
+                <div className="border-t border-gray-200 -mt-1" />
+              </>
+            )}
 
             {/* Booking ID + Customer */}
             <InputField label="Booking ID" value={bookingRef} onChange={setBookingRef}

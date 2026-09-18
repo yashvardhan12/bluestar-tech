@@ -159,10 +159,12 @@ export default function AllBookingsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null)
   const [deleteSms, setDeleteSms] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [bookingDrawer, setBookingDrawer] = useState<{ open: boolean; mode: 'add' | 'edit' | 'view'; bookingId?: number }>({ open: false, mode: 'add' })
+  const [bookingDrawer, setBookingDrawer] = useState<{ open: boolean; mode: 'add' | 'edit' | 'view'; bookingId?: number; copyFromId?: number }>({ open: false, mode: 'add' })
   const [allotDrawer, setAllotDrawer] = useState<{ open: boolean; bookingId?: number; vehicleGroup?: string; dutyCount?: number }>({ open: false })
 
   function openAddDrawer() { setBookingDrawer({ open: true, mode: 'add' }) }
+  /** Add mode, prefilled. `copyFromId` is not `bookingId` — that one would edit the source. */
+  function openCopyDrawer(id: number) { setBookingDrawer({ open: true, mode: 'add', copyFromId: id }) }
   function openViewDrawer(id: number) { setBookingDrawer({ open: true, mode: 'view', bookingId: id }) }
   function openEditDrawer(id: number) { setBookingDrawer({ open: true, mode: 'edit', bookingId: id }) }
   function closeDrawer() { setBookingDrawer(d => ({ ...d, open: false })) }
@@ -452,6 +454,7 @@ export default function AllBookingsPage() {
                       // so `closedDuties` is left undefined and the slip pack
                       // item stays off here. It lives on the booking itself.
                       onPrintSlips:      () => window.open(`/bookings/${row.id}/slips`, '_blank', 'noopener'),
+                      onDuplicate:       () => openCopyDrawer(row.id),
                     })}
                   />
                 </td>
@@ -522,10 +525,20 @@ export default function AllBookingsPage() {
         open={bookingDrawer.open}
         mode={bookingDrawer.mode}
         bookingId={bookingDrawer.bookingId}
+        copyFromId={bookingDrawer.copyFromId}
         onClose={closeDrawer}
-        onCreated={() => {
+        onCreated={createdId => {
           fetchBookings()
-          showToast(bookingDrawer.mode === 'edit' ? 'Booking updated successfully' : 'Booking created successfully')
+          if (bookingDrawer.mode === 'edit') { showToast('Booking updated successfully'); return }
+          // The highest-intent moment there is: she has just typed the whole
+          // booking and the caller on the line is about to say "and one more on
+          // Thursday". Offer the copy here, not only from the row menu.
+          showToast(
+            'Booking created successfully',
+            createdId
+              ? { label: 'Duplicate for another date', onClick: () => openCopyDrawer(createdId) }
+              : undefined,
+          )
         }}
       />
 
